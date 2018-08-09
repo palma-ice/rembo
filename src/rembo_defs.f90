@@ -1,6 +1,6 @@
 module rembo_defs 
 
-    !use nml 
+    use nml 
     !use coord 
 
     implicit none 

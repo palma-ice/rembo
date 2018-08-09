@@ -4,6 +4,25 @@ module emb
 
     implicit none 
 
+    double precision, parameter :: g0    = 9.80665d0   ! Later should use global variable from rembo_defs
+    double precision, parameter :: omega = 7.2921d-5   ! Later should use global variable from rembo_defs
+
+    double precision, parameter :: pi    = 2.d0*acos(0.d0)
+    double precision, parameter :: deg_to_rad = pi/180.d0, rad_to_deg = 180.d0/pi
+    
+    integer,  parameter :: nd  = 360
+    integer,  parameter :: nm  = 12
+    integer,  parameter :: ndm = 30
+
+    ! Time conversions
+    real (8), parameter :: day_year   = dble(nd)
+    real (8), parameter :: day_month  = dble(ndm)
+    real (8), parameter :: month_year = dble(nm)
+    real (8), parameter :: sec_year   = 31556926.d0
+    real (8), parameter :: sec_day    = sec_year / day_year   ! 8.765813d4
+    real (8), parameter :: sec_day0   = 8.64d4
+    real (8), parameter :: sec_frac   = sec_day / sec_day0
+
     private 
     public :: calc_condensation
     public :: calc_precip
