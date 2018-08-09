@@ -2,27 +2,10 @@ module emb
     ! This module holds all physics functions related to the 
     ! 2D energy-moisture balance (emb) atmospheric model of REMBO 
 
+    use rembo_defs 
+
     implicit none 
-
-    double precision, parameter :: g0    = 9.80665d0   ! Later should use global variable from rembo_defs
-    double precision, parameter :: omega = 7.2921d-5   ! Later should use global variable from rembo_defs
-
-    double precision, parameter :: pi    = 2.d0*acos(0.d0)
-    double precision, parameter :: deg_to_rad = pi/180.d0, rad_to_deg = 180.d0/pi
     
-    integer,  parameter :: nd  = 360
-    integer,  parameter :: nm  = 12
-    integer,  parameter :: ndm = 30
-
-    ! Time conversions
-    real (8), parameter :: day_year   = dble(nd)
-    real (8), parameter :: day_month  = dble(ndm)
-    real (8), parameter :: month_year = dble(nm)
-    real (8), parameter :: sec_year   = 31556926.d0
-    real (8), parameter :: sec_day    = sec_year / day_year   ! 8.765813d4
-    real (8), parameter :: sec_day0   = 8.64d4
-    real (8), parameter :: sec_frac   = sec_day / sec_day0
-
     private 
     public :: calc_condensation
     public :: calc_precip
@@ -56,9 +39,9 @@ contains
 
         implicit none 
 
-        double precision, intent(IN) :: tcw, qr, ww
-        double precision, intent(IN) :: k_c, k_x
-        double precision :: c_w 
+        real(wp), intent(IN) :: tcw, qr, ww
+        real(wp), intent(IN) :: k_c, k_x
+        real(wp) :: c_w 
 
         c_w = (tcw/(k_c*sec_day))*qr * (1.d0 + k_x*ww)
         c_w = max(c_w,0.d0)
@@ -71,11 +54,11 @@ contains
 
         implicit none 
 
-        double precision, intent(IN) :: ccw, ww, tt, zs
-        double precision, intent(IN) :: k_w, k_z, k_t  
-        double precision :: pp 
+        real(wp), intent(IN) :: ccw, ww, tt, zs
+        real(wp), intent(IN) :: k_w, k_z, k_t  
+        real(wp) :: pp 
 
-        double precision :: k_tmp 
+        real(wp) :: k_tmp 
 
 !         pp = (ccw/k_w) * (1.d0 - k_t*tt) * 1.d0/rho_a
         
@@ -96,8 +79,8 @@ contains
         
         implicit none 
 
-        double precision, intent(IN) :: t2m, a, b 
-        double precision             :: f 
+        real(wp), intent(IN) :: t2m, a, b 
+        real(wp)             :: f 
 
         f = -0.5d0*tanh(a*(t2m-b))+0.5d0 
 !         f = 1.d0 - 1.d0 / (1.d0+exp(-a*2.d0*(t2m-b)))
@@ -109,10 +92,10 @@ contains
     ! Get the vector magnitude from two components
     elemental function calc_magnitude(u,v) result(umag)
         implicit none 
-        double precision, intent(IN)  :: u, v 
-        double precision :: umag 
+        real(wp), intent(IN)  :: u, v 
+        real(wp) :: umag 
 
-        umag = dsqrt(u*u+v*v)
+        umag = sqrt(u*u+v*v)
 
         return
     end function calc_magnitude 
@@ -120,10 +103,10 @@ contains
     ! Get coriolis parameter (1/s)
     elemental function calc_coriolis(lat) result(f)
         implicit none 
-        double precision, intent(IN)  :: lat
-        double precision :: f
+        real(wp), intent(IN)  :: lat
+        real(wp) :: f
 
-        f = 2.d0*omega*dsin(lat*deg_to_rad)
+        f = 2.d0*omega*sin(lat*degrees_to_radians)
 
         return
     end function calc_coriolis
@@ -131,10 +114,10 @@ contains
 ! # Convert geopotential into geopotential height, (m2/s2) => (m)
     elemental function calc_geo_height(phi) result(Z)
         implicit none 
-        double precision, intent(IN)  :: phi
-        double precision :: Z
+        real(wp), intent(IN)  :: phi
+        real(wp) :: Z
 
-        Z = phi/g0
+        Z = phi/g
 
         return
     end function calc_geo_height
@@ -142,10 +125,10 @@ contains
     ! Get horizontal geostrophic wind component, u
     elemental function calc_u_geo(dZdy,f) result(ug)
         implicit none 
-        double precision, intent(IN)  :: dZdy, f
-        double precision :: ug
+        real(wp), intent(IN)  :: dZdy, f
+        real(wp) :: ug
 
-        ug = -(g0 / f) * dZdy
+        ug = -(g / f) * dZdy
 
         return
     end function calc_u_geo
@@ -153,10 +136,10 @@ contains
     ! Get horizontal geostrophic wind component, v
     elemental function calc_v_geo(dZdx,f) result(vg)
         implicit none 
-        double precision, intent(IN)  :: dZdx, f
-        double precision :: vg
+        real(wp), intent(IN)  :: dZdx, f
+        real(wp) :: vg
 
-        vg = (g0 / f) * dZdx
+        vg = (g / f) * dZdx
 
         return
     end function calc_v_geo
@@ -164,8 +147,8 @@ contains
     ! Get vertical wind
     elemental function calc_w(u,v,dzdx,dzdy) result(w)
         implicit none 
-        double precision, intent(IN)  :: u, v, dzdx, dzdy
-        double precision :: w
+        real(wp), intent(IN)  :: u, v, dzdx, dzdy
+        real(wp) :: w
 
         w = u*dzdx + v*dzdy 
 
@@ -175,21 +158,21 @@ contains
     ! Get vertical wind from omega (Pa/s)
     elemental function calc_w_omega(omega,T,p) result(w)
         implicit none 
-        double precision, intent(IN)  :: omega,T,p
-        double precision :: w
-        double precision :: rho
-        double precision, parameter :: rgas = 287.058d0
+        real(wp), intent(IN)  :: omega,T,p
+        real(wp) :: w
+        real(wp) :: rho
+        real(wp), parameter :: rgas = 287.058d0
         
         rho  = p/(rgas*T)         ! density => kg/m3
-        w    = -1*omega/(rho*g0) 
+        w    = -1*omega/(rho*g) 
         return
     end function calc_w_omega
 
     ! Get katabatic wind component, u 
     elemental function calc_u_kata(dTdx,dzsdx,f_k) result(uk)
         implicit none 
-        double precision, intent(IN)  :: dTdx,dzsdx, f_k
-        double precision :: uk
+        real(wp), intent(IN)  :: dTdx,dzsdx, f_k
+        real(wp) :: uk
         
         uk = f_k* min(0.d0,dTdx*dzsdx)
         uk = sign(uk,-dzsdx)
@@ -200,8 +183,8 @@ contains
     ! Get katabatic wind component, v 
     elemental function calc_v_kata(dTdy,dzsdy,f_k) result(vk)
         implicit none 
-        double precision, intent(IN)  :: dTdy,dzsdy, f_k
-        double precision :: vk
+        real(wp), intent(IN)  :: dTdy,dzsdy, f_k
+        real(wp) :: vk
         
         vk = f_k* min(0.d0,dTdy*dzsdy)
         vk = sign(vk,-dzsdy)
@@ -214,8 +197,8 @@ contains
     elemental function calc_ttcorr1(T2m,zs,a,b,c) result(ttcorr)
         implicit none 
 
-        double precision, intent(IN) :: T2m, zs, a, b, c
-        double precision :: ttcorr 
+        real(wp), intent(IN) :: T2m, zs, a, b, c
+        real(wp) :: ttcorr 
 
         ! Get the difference with the actual 2m temperature
         ttcorr = a*zs + b*T2m + c
@@ -226,26 +209,26 @@ contains
     ! Surface pressure ( Pa=> kg/(m s2) )
     elemental function calc_sp(zs) result(sp)
         implicit none 
-        double precision, intent(IN)  :: zs
-        double precision :: sp
-        double precision, parameter :: p0 = 101325d0
-        double precision, parameter :: M  = 0.0289644d0
-        double precision, parameter :: R  = 8.31447
-        double precision, parameter :: T0 = 298.15d0 
+        real(wp), intent(IN)  :: zs
+        real(wp) :: sp
+        real(wp), parameter :: p0 = 101325d0
+        real(wp), parameter :: M  = 0.0289644d0
+        real(wp), parameter :: R  = 8.31447
+        real(wp), parameter :: T0 = 298.15d0 
 
-        sp = p0*exp(-g0*M*zs/(R*T0))
+        sp = p0*exp(-g*M*zs/(R*T0))
         return
     end function calc_sp
 
     
     elemental function calc_esat(Ts) result(esat)
         implicit none 
-        double precision, intent(IN)  :: Ts
-        double precision :: esat
-        double precision, parameter :: e0 = 6.112d0
-        double precision, parameter :: c1 = 17.67d0
-        double precision, parameter :: c2 = 243.5d0
-        double precision, parameter :: T0 = 273.15d0 
+        real(wp), intent(IN)  :: Ts
+        real(wp) :: esat
+        real(wp), parameter :: e0 = 6.112d0
+        real(wp), parameter :: c1 = 17.67d0
+        real(wp), parameter :: c2 = 243.5d0
+        real(wp), parameter :: T0 = 273.15d0 
 
         esat = e0*exp((c1*(Ts-T0))/(c2+(Ts-T0)))*100d0
 
@@ -255,8 +238,8 @@ contains
     ! Air density (kg/m3) for given elevation
     elemental function calc_airdens(zs) result(rho_a)
         implicit none 
-        double precision, intent(IN)  :: zs
-        double precision :: rho_a 
+        real(wp), intent(IN)  :: zs
+        real(wp) :: rho_a 
 
         rho_a = 1.3d0 * exp(-zs/8.6d3)
 
@@ -266,13 +249,13 @@ contains
     ! Elevation corresponding to a given air pressure (m)
     elemental function calc_elevation(p) result(zs)
         implicit none 
-        double precision, intent(IN) :: p 
-        double precision :: zs 
-        double precision, parameter :: p0 = 1013.25d0
-        double precision, parameter ::  g = 9.80665d0
-        double precision, parameter ::  M = 0.0289644d0
-        double precision, parameter ::  R = 8.31447d0
-        double precision, parameter :: T0 = 288.15d0 
+        real(wp), intent(IN) :: p 
+        real(wp) :: zs 
+        real(wp), parameter :: p0 = 1013.25d0
+        real(wp), parameter ::  g = 9.80665d0
+        real(wp), parameter ::  M = 0.0289644d0
+        real(wp), parameter ::  R = 8.31447d0
+        real(wp), parameter :: T0 = 288.15d0 
 
         zs = -log(p/p0)*R*T0/(g*M)
 
@@ -283,12 +266,12 @@ contains
     ! Ts [K], zs [m] 
     elemental function calc_qs(Ts,zs,e0,c1) result(qs)
         implicit none 
-        double precision, intent(IN)  :: Ts, zs
-        double precision, intent(IN) :: e0, c1 
-        double precision :: qs, esat, p
-        double precision, parameter :: ebs = 0.62198
-        double precision, parameter :: c2  = 243.5d0
-        double precision, parameter :: T0  = 273.15d0 
+        real(wp), intent(IN)  :: Ts, zs
+        real(wp), intent(IN) :: e0, c1 
+        real(wp) :: qs, esat, p
+        real(wp), parameter :: ebs = 0.62198
+        real(wp), parameter :: c2  = 243.5d0
+        real(wp), parameter :: T0  = 273.15d0 
 
         ! First, calculate the saturation vapor pressure
         ! ( hPa *100 => Pa => kg/(m s2) )
@@ -307,10 +290,10 @@ contains
     ! Ts [K], zs [m] 
     elemental function calc_qsat(Ts,zs) result(qsat)
         implicit none 
-        double precision, intent(IN)  :: Ts, zs
-        double precision :: qsat 
-        double precision, parameter :: e0  = 6.112d0
-        double precision, parameter :: c1  = 17.67d0
+        real(wp), intent(IN)  :: Ts, zs
+        real(wp) :: qsat 
+        real(wp), parameter :: e0  = 6.112d0
+        real(wp), parameter :: c1  = 17.67d0
  
         ! Calculate the specific humidity with 
         ! the correct saturation parameters
@@ -322,13 +305,13 @@ contains
     ! Calculate radiative forcing of CO2 from the CO2 concentration
     elemental function calc_rad_co2(CO2) result(RCO2)
 
-    double precision, intent(IN) :: CO2
-    double precision             :: RCO2
+    real(wp), intent(IN) :: CO2
+    real(wp)             :: RCO2
 
-    real (8), parameter :: CO2_0    = 280.d0
-    real (8), parameter :: RCO2_fac = 5.35d0 
+    real(wp), parameter :: CO2_0    = 280.d0
+    real(wp), parameter :: RCO2_fac = 5.35d0 
 
-    RCO2 = RCO2_fac * dlog( CO2 / CO2_0 )
+    RCO2 = RCO2_fac * log( CO2 / CO2_0 )
 
     return
 
@@ -338,8 +321,8 @@ contains
     ! tt [K], ccw [kg m2], rho_a [Pa]
     elemental function calc_cloudfrac(tt,ccw,rho_a,k1,k2,k3) result(cc)
         implicit none 
-        double precision, intent(IN)  :: tt, ccw, rho_a, k1, k2, k3 
-        double precision :: cc
+        real(wp), intent(IN)  :: tt, ccw, rho_a, k1, k2, k3 
+        real(wp) :: cc
  
         ! Calculate the specific humidity with 
         ! the correct saturation parameters
@@ -358,9 +341,9 @@ contains
 
         implicit none 
 
-        double precision, intent(IN) :: tsurf
-        double precision, parameter :: sigm = 5.67d-8 ! W m−2 K−4
-        double precision :: lwu 
+        real(wp), intent(IN) :: tsurf
+        real(wp), parameter :: sigm = 5.67d-8 ! W m−2 K−4
+        real(wp) :: lwu 
 
         lwu = sigm*(tsurf*tsurf*tsurf*tsurf)
         
@@ -373,8 +356,8 @@ contains
 
         implicit none 
 
-        double precision, intent(IN) :: t2m, tcw, cc, a, b, c, d 
-        double precision :: lwd
+        real(wp), intent(IN) :: t2m, tcw, cc, a, b, c, d 
+        real(wp) :: lwd
 
         lwd = a + b*t2m + c*cc + d*tcw
 
@@ -388,8 +371,8 @@ contains
 
         implicit none 
 
-        double precision, intent(IN) :: S, cc, zs, a, b, c 
-        double precision :: swd 
+        real(wp), intent(IN) :: S, cc, zs, a, b, c 
+        real(wp) :: swd 
 
         swd = S* (a - b*cc*exp(-c*zs))
 
@@ -402,8 +385,8 @@ contains
 
         implicit none 
 
-        double precision, intent(IN) :: uv, alpha, beta, m 
-        double precision :: ebs 
+        real(wp), intent(IN) :: uv, alpha, beta, m 
+        real(wp) :: ebs 
 
         ebs = 1.d0 - (1.d0+0.1d0*uv)*exp(-(alpha+beta*0.1d0*uv)**m)
 
