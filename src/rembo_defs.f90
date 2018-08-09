@@ -166,6 +166,8 @@ module rembo_defs
     type rembo_class
 
         type(rembo_param_class)   :: par        ! physical parameters
+        type(grid_class)          :: grid       ! Grid definition   (from coordinates module)
+        
         type(boundary_opt_class)  :: bnd, bnd0  ! boundary switches (bnd0 for equilibration)
 
         ! Daily variables, month and annual averages, forcing variables
