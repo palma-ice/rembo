@@ -56,34 +56,6 @@ rembo_test : rembo-static
 		@echo "    rembo_test.x is ready."
 		@echo " "
 
-rembo_eismint : rembo-static
-		$(FC) $(DLAGS) $(FFLAGS) $(INC_COORD) $(INC_LIS) -o $(bindir)/rembo_eismint.x tests/rembo_eismint.f90 \
-			-L${CURDIR}/librembo/include -lrembo $(LFLAGS) $(objdir)/nml.o
-		@echo " "
-		@echo "    rembo_eismint.x is ready."
-		@echo " "
-
-rembo_mismip : rembo-static
-		$(FC) $(DLAGS) $(FFLAGS) $(INC_COORD) $(INC_LIS) -o $(bindir)/rembo_mismip.x tests/rembo_mismip.f90 \
-			-L${CURDIR}/librembo/include -lrembo $(LFLAGS) $(objdir)/nml.o
-		@echo " "
-		@echo "    rembo_mismip.x is ready."
-		@echo " "
-
-rembo_stommel : rembo-static $(objdir)/stommel.o
-		$(FC) $(DLAGS) $(FFLAGS) $(INC_COORD) $(INC_LIS) -o $(bindir)/rembo_stommel.x rembo_stommel.f90 \
-			-L${CURDIR}/librembo/include -lrembo $(LFLAGS) $(objdir)/nml.o $(objdir)/stommel.o
-		@echo " "
-		@echo "    rembo_stommel.x is ready."
-		@echo " "
-
-rembo_optbeta : rembo-static
-		$(FC) $(DLAGS) $(FFLAGS) $(INC_COORD) $(INC_LIS) -o $(bindir)/rembo_optbeta.x rembo_optbeta.f90 \
-			-L${CURDIR}/librembo/include -lrembo $(LFLAGS) $(objdir)/nml.o
-		@echo " "
-		@echo "    rembo_optbeta.x is ready."
-		@echo " "
-
 check: $(rembo_libs) $(rembo_tests)
 	@echo $(rembo_libs)
 	@echo $(rembo_tests)
@@ -98,7 +70,7 @@ usage:
 	@echo ""
 	@echo "    * USAGE * "
 	@echo ""
-	@echo " make rembo : compiles test_rembo.x, rembo on a given domain."
+	@echo " make rembo 	   : compiles test_rembo.x, rembo on a given domain."
 	@echo " make clean     : cleans object files"
 	@echo ""
 
