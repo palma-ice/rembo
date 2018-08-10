@@ -128,7 +128,7 @@ module rembo_defs
 
         ! Relaxation mask, topography  
         integer,  allocatable :: mask(:,:)
-        real(wp), allocatable :: zs(:,:), rho_a(:,:) 
+        real(wp), allocatable :: z_srf(:,:), rho_a(:,:) 
         real(wp), allocatable :: dzsdx(:,:), dzsdy(:,:), dzsdxy(:,:) 
 
         ! Energy and moisture balance variables
