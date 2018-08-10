@@ -47,7 +47,7 @@ contains
 
         ! Load the rembo parameters
         call rembo_par_load(dom%par,trim(par_path),domain)
-        
+
         ! Initialize rembo domain and grid
         dom%grid       = grid 
         dom%par%npts   = grid%npts 
@@ -293,22 +293,97 @@ contains
         ! Make sure this object is fully deallocated first
         call rembo_dealloc(now)
 
-        ! Allocate variables 
+        allocate(now%mask(nx,ny))    ! Ocean-land-ice mask 
+        allocate(now%z_srf(nx,ny))   ! Surface elevation 
+        allocate(now%H_ice(nx,ny))   ! Ice thickness
+        allocate(now%co2_a(nx,ny))   ! Atmospheric CO2 (ppm)
+        allocate(now%rco2_a(nx,ny))  ! Radiative forcing of CO2 (W m-2)
+        allocate(now%rho_a(nx,ny))   ! Air density (kg m-3)
+        allocate(now%f(nx,ny))       ! Coriolis parameter (1/s)
+        allocate(now%sp(nx,ny))      ! Surface pressure (Pa)
+        allocate(now%dzsdx(nx,ny))   ! Surface gradient (x-dir)
+        allocate(now%dzsdy(nx,ny))   ! Surface gradient (y-dir)
+        allocate(now%dzsdxy(nx,ny))  ! Surface gradient (magnitude)
+        
+        allocate(now%t2m(nx,ny))     ! Near-surface temp
+        allocate(now%teff(nx,ny))    ! Near-surface effective temp (ie, pdds)
+        allocate(now%ct2m(nx,ny))    ! Near-surface temp inversion correction
+        allocate(now%pp(nx,ny))      ! Precipitation
+        allocate(now%ps(nx,ny))      ! Precipitation (snow)
+        allocate(now%q_s(nx,ny))     ! Specific humidity at the surface (kg/kg)
+        allocate(now%q_sat(nx,ny))   ! Saturated specific humidity at the surface (kg/kg)
+        allocate(now%q_r(nx,ny))     ! Relative humidity (0 - 1)
+        allocate(now%tcw(nx,ny))     ! Total water content (kg/m2)
+        allocate(now%tcw_sat(nx,ny)) ! Saturated total water content (kg/m2)
+        allocate(now%ccw_prev(nx,ny))! Previous tcw value
+        allocate(now%ccw(nx,ny))     ! Cloud water content (kg/m2)
+        allocate(now%c_w(nx,ny))     ! Condensated water (kg/m2)
+        allocate(now%ug(nx,ny))      ! Horizontal x-component 750Mb velocity (m/s)
+        allocate(now%vg(nx,ny))      ! Horizontal y-component 750Mb velocity (m/s)
+        allocate(now%uvg(nx,ny))     ! Horizontal magnitude 750Mb velocity (m/s)
+        allocate(now%ww(nx,ny))      ! Vertical velocity 750Mb (m/s)
+        allocate(now%cc(nx,ny))      ! Cloud fraction (0 - 1)        
+        allocate(now%S(nx,ny))       ! Insolation top of the atmosphere (W/m2)
+        allocate(now%swd(nx,ny))     ! Short-wave downward at toa (W/m2)
+        allocate(now%lwu(nx,ny))     ! Long-wave upward radiation at toa (W/m2)
+        allocate(now%al_s(nx,ny))    ! Surface albedo (0 - 1)
+        allocate(now%al_p(nx,ny))    ! Planetary albedo (0 - 1)
+        allocate(now%at(nx,ny))      ! Atmospheric transmissivity (0 - 1)
+        allocate(now%Z(nx,ny))       ! Geopotential height at input pressure level (eg 750Mb) (m)
+        allocate(now%dZdx(nx,ny))    ! Geopotential height gradient (m m**-1)
+        allocate(now%dZdy(nx,ny))    ! Geopotential height gradient (m m**-1)
 
-        return 
+        allocate(now%u_k(nx,ny))     ! x-component katabatic wind velocity (m/s)
+        allocate(now%v_k(nx,ny))     ! y-component katabatic wind velocity (m/s)
+        allocate(now%uv_k(nx,ny))    ! magnitude katabatic wind velocity (m/s)
+        
+        allocate(now%dtsldx(nx,ny))     ! temperature gradient [K m-1]
+        allocate(now%dtsldy(nx,ny))     ! temperature gradient [K m-1]
+        allocate(now%dtsldxy(nx,ny))    ! temperature gradient [K m-1]
+        
+        allocate(now%tsurf(nx,ny))   ! Surface temperature (K)
+        allocate(now%swd_s(nx,ny))   ! Short-wave downward at surface (W/m2)
+        allocate(now%lwd_s(nx,ny))   ! Long-wave downward at surface (W/m2)
+        allocate(now%lwu_s(nx,ny))   ! Long-wave upward at surface (W/m2)
+        allocate(now%shf_s(nx,ny))   ! Sensible heat flux at surface (W/m2)
+        allocate(now%lhf_s(nx,ny))   ! Latent heat flux at surface (W/m2)
+        allocate(now%u_s(nx,ny))     ! Horizontal x-component surface velocity (m/s)
+        allocate(now%v_s(nx,ny))     ! Horizontal y-component surface velocity (m/s)
+        allocate(now%uv_s(nx,ny))    ! Horizontal magnitude surface velocity (m/s)
+
+        return
 
     end subroutine rembo_alloc 
-    
+
     subroutine rembo_dealloc(now)
 
         implicit none 
 
         type(rembo_state_class), intent(INOUT) :: now
 
-        ! Deallocate variables 
+        ! Deallocate state variables 
+
+        deallocate(now%mask,now%z_srf,now%H_ice)
+        deallocate(now%co2_a,now%rco2_a,now%rho_a,now%f, now%sp)
+        deallocate(now%dzsdx,now%dzsdy,now%dzsdxy)
+
+        deallocate(now%t2m,now%teff,now%ct2m,now%pp,now%ps)
+        deallocate(now%q_s,now%q_sat,now%q_r)
+
+        deallocate(now%tcw,now%tcw_sat)
+        deallocate(now%ccw,now%c_w,now%ccw_prev)
+        deallocate(now%ug,now%vg,now%uvg,now%ww,now%cc)
+        deallocate(now%S,now%swd,now%lwu,now%al_s,now%al_p,now%at)
+        deallocate(now%Z,now%dZdx,now%dZdy)      
+        
+        deallocate(now%u_k,now%v_k,now%uv_k)
+        deallocate(now%dtsldx,now%dtsldy,now%dtsldxy)
+
+        deallocate(now%tsurf,now%swd_s,now%lwd_s,now%lwu_s,now%shf_s,now%lhf_s)
+        deallocate(now%u_s,now%v_s,now%uv_s)
 
         return 
 
-    end subroutine rembo_dealloc
+    end subroutine rembo_dealloc 
 
 end module rembo 
