@@ -47,8 +47,7 @@ contains
 
         ! Load the rembo parameters
         call rembo_par_load(dom%par,trim(par_path),domain)
-        call rembo_physics_par_load(dom%par,trim(par_path))
-
+        
         ! Initialize rembo domain and grid
         dom%grid       = grid 
         dom%par%npts   = grid%npts 
@@ -204,6 +203,86 @@ contains
 
     end subroutine rembo_print 
     
+    subroutine rembo_par_load(par,filename,domain)
+
+        type(rembo_param_class), intent(INOUT) :: par 
+        character(len=*),        intent(IN)    :: filename 
+        character(len=*),        intent(IN)    :: domain 
+
+        par%domain = trim(domain)
+        call nml_read(filename,"rembo_params","restart",    par%restart    )
+
+        call nml_read(filename,"rembo_params","H_e",  par%H_e   )
+        call nml_read(filename,"rembo_params","emb_dx",  par%emb_dx  )
+        call nml_read(filename,"rembo_params","rembo1",  par%rembo1  )
+        call nml_read(filename,"rembo_params","dist_rel",  par%dist_rel  )
+        call nml_read(filename,"rembo_params","en_dt",  par%en_dt  )
+        call nml_read(filename,"rembo_params","en_D",  par%en_D  )
+        call nml_read(filename,"rembo_params","en_D_win",  par%en_D_win  )
+        call nml_read(filename,"rembo_params","en_D_sum",  par%en_D_sum  )
+        call nml_read(filename,"rembo_params","en_kr",  par%en_kr  )
+        call nml_read(filename,"rembo_params","en_kz",  par%en_kz  )
+        call nml_read(filename,"rembo_params","en_kl",  par%en_kl  )
+        call nml_read(filename,"rembo_params","en_kdT",  par%en_kdT  )
+        call nml_read(filename,"rembo_params","en_Ha",  par%en_Ha  )
+        call nml_read(filename,"rembo_params","ccw_dt",  par%ccw_dt  )
+        call nml_read(filename,"rembo_params","ccw_D",  par%ccw_D  )
+        call nml_read(filename,"rembo_params","ccw_kr",  par%ccw_kr  )
+        call nml_read(filename,"rembo_params","k_c",  par%k_c  )
+        call nml_read(filename,"rembo_params","k_p",  par%k_p  )
+        call nml_read(filename,"rembo_params","k_z",  par%k_z  )
+        call nml_read(filename,"rembo_params","k_x",  par%k_x  )
+        call nml_read(filename,"rembo_params","e0",  par%e0  )
+        call nml_read(filename,"rembo_params","c1",  par%c1  )
+        call nml_read(filename,"rembo_params","k_p_now",  par%k_p_now  )
+        call nml_read(filename,"rembo_params","k_t",  par%k_t  )
+        call nml_read(filename,"rembo_params","k_w",  par%k_w  )
+        call nml_read(filename,"rembo_params","ps_a",  par%ps_a  )
+        call nml_read(filename,"rembo_params","ps_b",  par%ps_b  )
+        call nml_read(filename,"rembo_params","f_k",  par%f_k  )
+        call nml_read(filename,"rembo_params","nk1",  par%nk1  )
+        call nml_read(filename,"rembo_params","nk2",  par%nk2  )
+        call nml_read(filename,"rembo_params","nk3",  par%nk3  )
+        call nml_read(filename,"rembo_params","teff_sigma",  par%teff_sigma  )
+        call nml_read(filename,"rembo_params","gamma",  par%gamma  )
+        call nml_read(filename,"rembo_params","gamma2",  par%gamma2  )
+        call nml_read(filename,"rembo_params","S0",  par%S0  )
+        call nml_read(filename,"rembo_params","Lw",  par%Lw  )
+        call nml_read(filename,"rembo_params","Lm",  par%Lm  )
+        call nml_read(filename,"rembo_params","Ls",  par%Ls  )
+        call nml_read(filename,"rembo_params","rho_w",  par%rho_w  )
+        call nml_read(filename,"rembo_params","cp",  par%cp  )
+        call nml_read(filename,"rembo_params","ci",  par%ci  )
+        call nml_read(filename,"rembo_params","alp_a",  par%alp_a  )
+        call nml_read(filename,"rembo_params","alp_b",  par%alp_b  )
+        
+        call nml_read(filename,"rembo_params","alp_c",  par%alp_c  )
+        call nml_read(filename,"rembo_params","lwu_a",  par%lwu_a  )
+        call nml_read(filename,"rembo_params","lwu_b",  par%lwu_b  )
+        call nml_read(filename,"rembo_params","lwu_c",  par%lwu_c  )
+        call nml_read(filename,"rembo_params","swds_a",  par%swds_a  )
+        call nml_read(filename,"rembo_params","swds_b",  par%swds_b  )
+        call nml_read(filename,"rembo_params","swds_c",  par%swds_c  )
+        call nml_read(filename,"rembo_params","lwds_a",  par%lwds_a  )
+        call nml_read(filename,"rembo_params","lwds_b",  par%lwds_b  )
+        call nml_read(filename,"rembo_params","lwds_c",  par%lwds_c  )
+        call nml_read(filename,"rembo_params","lwds_d",  par%lwds_d  )
+        
+        call nml_read(filename,"rembo_params","shfs_Cm",  par%shfs_Cm)
+        call nml_read(filename,"rembo_params","shfs_p",  par%shfs_p  )
+
+        call nml_read(filename,"rembo1_params","ta",  par%r1_ta  )
+        call nml_read(filename,"rembo1_params","tb",  par%r1_tb  )
+
+        ! How many time steps in 1 day, aprx?
+        par%en_nstep  = floor(sec_day / par%en_dt)
+        par%ccw_nstep = floor(sec_day / par%ccw_dt)
+        
+        return
+
+    end subroutine rembo_par_load
+
+
     subroutine rembo_alloc(now,nx,ny)
 
         implicit none 
