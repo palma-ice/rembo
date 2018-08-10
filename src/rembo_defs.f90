@@ -102,40 +102,29 @@ module rembo_defs
     type rembo_state_class
 
         ! Static (per year or greater) variables
-        integer,  allocatable :: mask(:,:), basin(:,:) 
-        real(wp), allocatable :: zs(:,:), zb(:,:), H(:,:) 
+        integer,  allocatable :: mask(:,:) 
+        real(wp), allocatable :: z_srf(:,:), z_bed(:,:), H_ice(:,:) 
         real(wp), allocatable :: co2_a(:,:), rco2_a(:,:), rho_a(:,:), f(:,:), sp(:,:)
         real(wp), allocatable :: dzsdx(:,:), dzsdy(:,:), dzsdxy(:,:)
 
-        ! Seasonal (daily) variables that require averaging
+        ! Seasonal variables
         real(wp), allocatable :: t2m(:,:), teff(:,:), ct2m(:,:), pp(:,:), ps(:,:)  
         real(wp), allocatable :: q_s(:,:), q_sat(:,:), q_r(:,:)
         real(wp), allocatable :: tcw(:,:), tcw_sat(:,:)
         real(wp), allocatable :: ccw(:,:), c_w(:,:), ccw_prev(:,:) 
         real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), cc(:,:)
-        real(wp), allocatable :: S(:,:), dS(:,:), swd(:,:), lwu(:,:), al_s(:,:), alp(:,:), at(:,:)
+        real(wp), allocatable :: S(:,:), swd(:,:), lwu(:,:), al_s(:,:), al_p(:,:), at(:,:)
         real(wp), allocatable :: tsurf(:,:), swd_s(:,:), lwd_s(:,:), shf_s(:,:), lhf_s(:,:), lwu_s(:,:)
         real(wp), allocatable :: u_s(:,:), v_s(:,:), uv_s(:,:)  
         real(wp), allocatable :: Z(:,:), dZdx(:,:), dZdy(:,:)
         real(wp), allocatable :: u_k(:,:), v_k(:,:), uv_k(:,:), dtsldx(:,:), dtsldy(:,:), dtsldxy(:,:)
     end type 
 
-    type insol_class
-
-        integer               :: year, nd 
-        real(wp)              :: year_ref 
-        character(len=256)    :: fldr
-        logical               :: calendar_time  
-        real(wp), allocatable :: lat(:,:) 
-        real(wp), allocatable :: S(:,:,:), S0(:,:,:), dS(:,:,:)
-
-    end type 
-
     ! Define all variables needed for diffusion on lo-res grid
     type diffusion_class
 
-        type(grid_class)     :: grid ! EMB diffusion resolution grid
-        type(map_class)      :: map_toemb, map_fromemb  ! map EMB => rembo grid
+        type(grid_class)      :: grid ! EMB diffusion resolution grid
+        type(map_class)       :: map_toemb, map_fromemb  ! map EMB => rembo grid
 
         ! Relaxation mask, topography  
         integer,  allocatable :: mask(:,:)
@@ -143,7 +132,7 @@ module rembo_defs
         real(wp), allocatable :: dzsdx(:,:), dzsdy(:,:), dzsdxy(:,:) 
 
         ! Energy and moisture balance variables
-        real(wp), allocatable :: tsl(:,:), tsl_bnd(:,:), tsl_bnd0(:,:) 
+        real(wp), allocatable :: tsl(:,:), tsl_bnd(:,:) 
         real(wp), allocatable :: en(:,:), en_bnd(:,:), en_F(:,:) 
         real(wp), allocatable :: ccw(:,:), ccw_bnd(:,:), ccw_F(:,:) 
         real(wp), allocatable :: ccw_cw(:,:), ccw_pp(:,:) 
@@ -157,27 +146,16 @@ module rembo_defs
         logical :: bnd_pp 
     end type 
 
-    type boundary_opt_class 
-        logical :: t2m, ct2m, pp, q_r, tcw, ccw, ug, vg, Z, cc
-        logical :: swd_s, lwd_s, u_s, v_s
-        logical :: swd, lwu, alp 
-    end type
-
     type rembo_class
 
         type(rembo_param_class)   :: par        ! physical parameters
         type(grid_class)          :: grid       ! Grid definition   (from coordinates module)
         
-        type(boundary_opt_class)  :: bnd, bnd0  ! boundary switches (bnd0 for equilibration)
-
-        ! Daily variables, month and annual averages, forcing variables
-        type(rembo_state_class) :: now, mon, ann 
+        ! current variables, month and various averages
+        type(rembo_state_class) :: now, mon, ann
 
         ! Variables and grid definitions for energy-moisture balance calculations
-        type(diffusion_class) :: emb 
-
-        ! Variables holding the daily insolation (present-day and anomalies)
-        type(insol_class) :: ins 
+        type(diffusion_class) :: emb
 
     end type
 

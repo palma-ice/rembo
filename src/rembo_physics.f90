@@ -1,11 +1,11 @@
-module emb 
+module rembo_physics 
     ! This module holds all physics functions related to the 
     ! 2D energy-moisture balance (emb) atmospheric model of REMBO 
 
     use rembo_defs 
 
     implicit none 
-    
+
     private 
     public :: calc_condensation
     public :: calc_precip
@@ -394,4 +394,4 @@ contains
 
     end function calc_ebs_sky 
 
-end module emb 
+end module rembo_physics 

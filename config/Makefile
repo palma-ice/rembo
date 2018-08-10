@@ -42,8 +42,8 @@ include config/Makefile_rembo.mk
 ###############################################
 
 # Static libraries 
-rembo-static: $(rembo_libs) $(rembo_physics) $(rembo_base) $(rembo_tests)
-	ar rc $(objdir)/librembo.a $(rembo_libs) $(rembo_physics) $(rembo_base) $(rembo_tests)
+rembo-static: $(rembo_libs) $(rembo_base) $(rembo_tests)
+	ar rc $(objdir)/librembo.a $(rembo_libs) $(rembo_base) $(rembo_tests)
 	ranlib $(objdir)/librembo.a
 	@echo " "
 	@echo "    $(objdir)/librembo.a is ready."
