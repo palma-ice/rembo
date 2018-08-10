@@ -156,14 +156,53 @@ contains
 
     end subroutine rembo_init_state 
 
-    subroutine rembo_end()
+    subroutine rembo_end(dom)
 
         implicit none 
 
+        type(rembo_class), intent(INOUT) :: dom
+
+        ! Atmospheric variables
+        call rembo_dealloc(dom%now)
+        call rembo_dealloc(dom%mon)
+        call rembo_dealloc(dom%ann)
+
+        write(*,*) "rembo_end :: deallocated rembo variables: "//trim(dom%par%domain)
+        write(*,*)
 
         return 
 
     end subroutine rembo_end 
+    
+    subroutine rembo_print(dom,m,d,year)
+
+        implicit none 
+
+        type(rembo_class) :: dom 
+        integer  :: m, d, year
+        real(wp) :: npts 
+        character(len=256) :: fmt_head, fmt_table 
+
+        npts = real(count(dom%now%mask == 2),wp)
+
+        fmt_head  = "(a6,a5,  5a8,2x,  a8,  3a8,2x,  4a8)"
+        fmt_table = "(i6,i5,5f8.2,2x,f8.2,3f8.2,2x,4f8.2)"
+
+        if (m .eq. 1) &
+        write(*,fmt_head) "year","day","swd","tas", &
+                           "tcw","ccw","c_w","pr"
+                           
+        write(*,fmt_table) year, d, &
+            sum(dom%now%swd,        mask=dom%now%mask==2)/npts, &     ! [W/m^2]
+            sum(dom%now%t2m,        mask=dom%now%mask==2)/npts, &     ! [K]
+            sum(dom%now%tcw,        mask=dom%now%mask==2)/npts, &     ! [mm]
+            sum(dom%now%ccw,        mask=dom%now%mask==2)/npts, &     ! [mm]
+            sum(dom%now%c_w*sec_day,mask=dom%now%mask==2)/npts, &     ! [mm/d]
+            sum(dom%now%pp*sec_day, mask=dom%now%mask==2)/npts        ! [mm/d]
+
+        return 
+
+    end subroutine rembo_print 
     
     subroutine rembo_alloc(now,nx,ny)
 
