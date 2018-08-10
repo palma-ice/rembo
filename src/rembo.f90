@@ -1,11 +1,12 @@
 module rembo
     ! Wrapper to hold all modules needed for librembo 
+       
+    use rembo_defs 
+    use rembo_atm 
 
     use nml 
     use ncio 
-    
-    use rembo_defs 
-    use rembo_atm 
+    use solvers 
 
     implicit none 
 
@@ -53,7 +54,6 @@ contains
         dom%par%npts   = grid%npts 
         dom%par%nx     = grid%G%nx 
         dom%par%ny     = grid%G%ny 
-        dom%par%domain = trim(domain) 
         
         ! Allocate state variables
         call rembo_alloc(dom%now,dom%par%nx,dom%par%ny)
@@ -61,8 +61,7 @@ contains
         call rembo_alloc(dom%ann,dom%par%nx,dom%par%ny)
 
         ! Diffusion grid and variables
-        ! ajr: TO DO 
-!         call rembo_emb_init(dom%emb,grid,dx=dom%par%emb_dx)
+        call rembo_emb_init(dom%emb,grid,dx=dom%par%emb_dx)
         
         write(*,*) "rembo_init :: allocated rembo variables."
 
@@ -154,6 +153,83 @@ contains
         return 
 
     end subroutine rembo_init_state 
+
+    subroutine rembo_emb_init(emb,grid,dx)
+        ! Initialize the diffusion variables on
+        ! the desired grid resolution.
+        ! grid = original grid definition of rembo
+        ! emb%grid = low resolution grid of resolution dx
+
+        implicit none
+
+        type(diffusion_class), intent(INOUT) :: emb 
+        type(grid_class),      intent(IN)    :: grid 
+        real(wp),              intent(IN)    :: dx 
+        
+        integer :: nx, ny 
+        character(len=256) :: name 
+        real(wp), allocatable :: x(:)
+        real(wp), allocatable :: y(:) 
+
+        if (dx .ge. 100.d0) then 
+            write(name,"(a,i3,a)") trim(grid%name)//"-emb", int(dx), "km"
+        else if (dx .ge. 10.d0) then 
+            write(name,"(a,i2,a)") trim(grid%name)//"-emb", int(dx), "km"
+        else
+            write(*,*) "rembo_emb_init:: Error: ", &
+            "Such a high resolution grid for diffusion is not supported."
+            write(*,*) "emb dx =",dx 
+            stop 
+        end if 
+
+        ! Initialize the diffusion grid
+        call grid_init(emb%grid,grid,name, &
+                       x0=minval(grid%x)-dx,dx=real(dx,dp),nx=ceiling((maxval(grid%x)-minval(grid%x))/dx)+2, &
+                       y0=minval(grid%y)-dx,dy=real(dx,dp),ny=ceiling((maxval(grid%y)-minval(grid%y))/dx)+2)
+
+        nx = emb%grid%G%nx
+        ny = emb%grid%G%ny 
+
+        ! Topography 
+        allocate(emb%mask(nx,ny))
+        allocate(emb%z_srf(nx,ny))
+        allocate(emb%rho_a(nx,ny))
+
+        allocate(emb%dzsdx(nx,ny))
+        allocate(emb%dzsdy(nx,ny))
+        allocate(emb%dzsdxy(nx,ny))
+
+        ! Energy balance 
+        allocate(emb%tsl(nx,ny))
+        allocate(emb%tsl_bnd(nx,ny))
+        allocate(emb%en(nx,ny))
+        allocate(emb%en_bnd(nx,ny))
+        allocate(emb%en_F(nx,ny))
+
+        ! Moisture balance
+        allocate(emb%ccw(nx,ny))
+        allocate(emb%ccw_bnd(nx,ny))
+        allocate(emb%ccw_F(nx,ny))
+        allocate(emb%ccw_cw(nx,ny))
+        allocate(emb%ccw_pp(nx,ny))
+        allocate(emb%tcw(nx,ny))
+        allocate(emb%tcw_bnd(nx,ny))
+
+        ! Energy and moisture balance
+        allocate(emb%ug(nx,ny))
+        allocate(emb%vg(nx,ny))
+        allocate(emb%uvg(nx,ny))
+        allocate(emb%ww(nx,ny))
+
+        allocate(emb%qr(nx,ny))
+
+        ! Diffusion
+        allocate(emb%kappa(nx,ny))
+        allocate(emb%kappaw(nx,ny))
+
+        return 
+
+    end subroutine rembo_emb_init
 
     subroutine rembo_end(dom)
 

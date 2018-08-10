@@ -103,13 +103,23 @@ module ncio
         module procedure    nc_write_dim_float_pt, nc_write_dim_float_1D
     end interface
 
-    interface nc_write_attr
-        module procedure    nc_write_attr_global, nc_write_attr_variable
-    end interface
+    interface nc_read_attr 
+        module procedure    nc_read_attr_variable_char, nc_read_attr_variable_int
+        module procedure    nc_read_attr_variable_sp, nc_read_attr_variable_dp
+        module procedure    nc_read_attr_global_char, nc_read_attr_global_int
+        module procedure    nc_read_attr_global_sp, nc_read_attr_global_dp
+    end interface 
 
-    interface nc_read_attr
-        module procedure    nc_read_attr_global, nc_read_attr_variable
-    end interface
+    interface nc_write_attr 
+        module procedure    nc_write_attr_variable_char, nc_write_attr_variable_int
+        module procedure    nc_write_attr_variable_sp, nc_write_attr_variable_dp
+        module procedure    nc_write_attr_global_char, nc_write_attr_global_int
+        module procedure    nc_write_attr_global_sp, nc_write_attr_global_dp
+    end interface 
+
+    interface nc_exists_attr 
+        module procedure    nc_exists_attr_global, nc_exists_attr_variable
+    end interface 
 
     private
     public :: nc_read, nc_read_attr
@@ -117,8 +127,9 @@ module ncio
     public :: nc_open, nc_close
     public :: nc_write, nc_write_attr, nc_size
 
-    public :: nc_dims, nc_ndims, nc_dimnames
+    public :: nc_dims, nc_ndims
     public :: nc_write_attr_std_dim
+    public :: nc_exists_var, nc_exists_attr
 
 contains
 
@@ -292,14 +303,14 @@ contains
             ncount = ncount*v%count(i)
         end do
         if (size(dat) .ne. ncount) then
-            write(*,*) "ncio:: error: "// &
+            write(0,*)  "ncio:: error: "// &
                        "The input variable size does not match the count of values to write to file."
-            write(*,*) trim(filename)//": "//trim(v%name)
-            write(*,*) "Size of variable, count: ",size(dat), ncount
-            write(*,*) "  start: ",start
-            write(*,*) "  count: ",count
-            write(*,*) "v%count: ",v%count
-            stop 
+            write(0,*)  trim(filename)//": "//trim(v%name)
+            write(0,*)  "Size of variable, count: ",size(dat), ncount
+            write(0,*)  "  start: ",start
+            write(0,*)  "  count: ",count
+            write(0,*)  "v%count: ",v%count
+            stop "stopped by ncio."
         end if
 
         do i = 1, ndims
@@ -312,13 +323,13 @@ contains
             call nc_check( nf90_inquire_dimension(nc_id, dimid, len=size_var(i)) )
 
             if (v%count(i) .gt. size_var(i)) then
-                write(*,*) "ncio:: error: "// &
+                write(0,*)  "ncio:: error: "// &
                            "count exceeds this dimension length."
-                write(*,*) trim(filename)//": "//trim(v%name)
-                write(*,*) "Dimension exceeded: ",trim(v%dims(i)), size_var(i)," < ",v%count(i)
-                write(*,*) "Are the data values a different shape than the file dimensions?"
-                write(*,*) "   In that case, specify start+count as arguments."
-                stop
+                write(0,*)  trim(filename)//": "//trim(v%name)
+                write(0,*)  "Dimension exceeded: ",trim(v%dims(i)), size_var(i)," < ",v%count(i)
+                write(0,*)  "Are the data values a different shape than the file dimensions?"
+                write(0,*)  "   In that case, specify start+count as arguments."
+                stop "stopped by ncio."
             end if
         end do
 
@@ -348,7 +359,7 @@ contains
     !               (only one time step 'ndat' at a time)
     ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     subroutine nc4_read_internal_numeric(filename,name,dat,size_in,start,count,xtype, &
-                                         missing_value_int,missing_value_float,missing_value_double, ncid)
+        missing_value_int,missing_value_float,missing_value_double, ncid, iostat)
 
         implicit none
 
@@ -367,13 +378,25 @@ contains
 
         double precision    :: tmp
         character (len=NC_STRLEN) :: tmpstr
-        integer :: i
+        integer, optional :: iostat
+        integer :: i, status
 
         ! Open the file.
         call nc_check_open(filename, ncid, nf90_nowrite, nc_id)
 
         ! Check to make sure variable exists !!!!
-        call nc_check( nf90_inq_varid(nc_id, trim(name), v_id) )
+        status = nf90_inq_varid(nc_id, trim(name), v_id)
+        if (status /= nf90_noerr) then
+          if (present(iostat)) then
+            iostat = status
+            return
+          else
+            write(0,*) "ncio :: error when reading file: ",trim(filename)
+            write(0,*) "ncio :: error when reading variable: ",trim(name)
+            write(0,*) "ncio :: error: "//trim(nf90_strerror(status))
+            stop "stopped by ncio."
+          endif
+        endif
 
         ! Initialize the netcdf variable info and load attributes
         call nc_v_init(v,name)
@@ -444,6 +467,7 @@ contains
 
 !         write(*,"(a,a,a)") "ncio:: nc_read:: ",trim(filename)//" : ",trim(v%name)
 
+        if (present(iostat)) iostat = nf90_noerr
         return
 
     end subroutine nc4_read_internal_numeric
@@ -662,7 +686,7 @@ contains
         integer, intent (out), optional :: stat
 
         if(status /= nf90_noerr .and. (.not. present(stat)) ) then
-            write(*,*) "ncio:: error: "//trim(nf90_strerror(status))
+            write(0,*) "ncio:: error: "//trim(nf90_strerror(status))
             stop "stopped by ncio."
         end if
 
@@ -694,8 +718,8 @@ contains
             if (trim(nf90_strerror(status)) .eq. "NetCDF: Attribute not found") then
                 nc_check_att = -1
             else
-                print *, trim(nf90_strerror(status))
-                stop "Stopped"
+                write(0,*) trim(nf90_strerror(status))
+                stop "stopped by ncio."
             end if
         end if
 
@@ -722,13 +746,16 @@ contains
           nc_id = ncid
         else
           if (.not. present(filename)) then
-                write(*, *) "ncio :: neither filename nor ncid provided, stop"
-                stop
+                write(0,*)  "ncio :: error: neither filename nor ncid provided."
+                write(0,*) "stopped by ncio."
+                stop 9
           endif
           stat = nf90_open(filename, mode, nc_id)
           if (stat .ne. NF90_NOERR) then
-              write(*, *) "ncio :: error when opening file, no such file or directory? :: ",trim(filename)
-              stop
+              write(0,*)  "ncio :: error when opening file, no such file or directory? :: "
+              write(0,*)  trim(filename)
+              write(0,*) "stopped by ncio."
+              stop 9
           endif
         end if
 
@@ -828,7 +855,8 @@ contains
                     call nc_check( nf90_def_var(ncid,name=trim(v%name),xtype=NF90_CHAR,dimids=dimids,varid=v%varid) )
                 case DEFAULT
                     write(*,*) "nc_put_att:: Error, wrong xtype defined:"//trim(v%xtype)
-                    stop
+                    write(0,*) "stopped by ncio."
+                    stop 9
             end select
 
             if (trim(v%xtype) .ne. "NF90_CHAR") then
@@ -896,7 +924,8 @@ contains
                     v%actual_range = (/ 0.d0, 0.d0 /)
                 case DEFAULT
                     write(*,*) "nc_put_att:: Error, wrong xtype defined:"//trim(v%xtype)
-                    stop
+                    write(0,*) "stopped by ncio."
+                    stop 9
             end select
         end if
 
@@ -1083,7 +1112,57 @@ contains
 
     end function nc_size
 
-    ! Return the dimension names of a given variable in a given file
+    ! Return variable shape
+    subroutine nc_dims(filename,name,names,dims)
+
+        implicit none
+
+        character (len=*),  intent(IN)  :: filename, name
+        character (len=*), allocatable, intent(OUT), optional :: names(:)
+        integer, allocatable, intent(OUT), optional :: dims(:)
+
+        character (len=64), allocatable :: names0(:)
+        integer, allocatable :: dimids(:), dims0(:)
+        integer :: nc_id, varid, ndims, q
+
+        ! Open the file
+        call nc_check_open(filename, mode=nf90_nowrite, nc_id=nc_id)
+        call nc_check( nf90_inq_varid(nc_id, name, varid) )
+        call nc_check( nf90_inquire_variable(nc_id, varid, ndims=ndims) )
+
+        ! Allocate dim arrays
+        allocate(dims0(ndims), names0(ndims), dimids(ndims))
+
+        ! First get dimids
+        call nc_check( nf90_inquire_variable(nc_id, varid, dimids=dimids) )
+
+        ! Get the dimension name and length
+        do q = 1, size(dimids)
+          call nc_check( nf90_inquire_dimension(nc_id, dimids(q), name=names0(q), len=dims0(q)) )
+        end do
+
+        ! Close the file
+        call nc_check( nf90_close(nc_id) )
+
+        ! Check what optional arguments were provided and assign as necessary
+        if (present(dims)) then
+          if (allocated(dims)) deallocate(dims)
+          allocate(dims(ndims))
+          dims = dims0
+        end if
+        if (present(names)) then
+            if (allocated(names)) deallocate(names)
+            allocate(names(ndims))
+            names = names0
+        end if
+
+        deallocate(names0, dims0, dimids)
+
+        return
+
+    end subroutine nc_dims
+
+    ! Return the number of dimensions of a variable
     function nc_ndims(filename,name) result(ndims)
 
         implicit none
@@ -1107,103 +1186,54 @@ contains
 
     end function nc_ndims
 
-    ! Return the dimension names of a given variable in a given file
-    function nc_dimnames(filename,name,ndims) result(names)
-
-        implicit none
-
-        character (len=*),  intent(IN)  :: filename, name
-        character (len=32) :: names(ndims)
-        integer :: nc_id, varid, ndims
-        integer :: dimids(ndims)
-        integer :: q
-
-        ! Open the file
-        call nc_check_open(filename, mode=nf90_nowrite, nc_id=nc_id)
-        call nc_check( nf90_inq_varid(nc_id, name, varid) )
-        call nc_check( nf90_inquire_variable(nc_id, varid, dimids=dimids) )
-
-        ! Get the dimension length and close the file
-        do q = 1, size(dimids)
-            call nc_check( nf90_inquire_dimension(nc_id, dimids(q), name=names(q)) )
-        end do
-
-        ! Close the file
-        call nc_check( nf90_close(nc_id) )
-
-        return
-
-    end function nc_dimnames
-
-    ! Return the dimension names of a given variable in a given file
-    subroutine nc_dims(filename,name,names,dims)
-
-        implicit none
-
-        character (len=*),  intent(IN)  :: filename, name
-        character (len=*), allocatable :: names(:)
-        integer, allocatable, optional :: dims(:)
-        integer, allocatable :: dimids(:), dims0(:)
-        integer :: nc_id, varid, ndims, q
-
-        ! Deallocate input arrays
-        if (allocated(names))   deallocate(names)
-        if (allocated(dimids))  deallocate(dimids)
-        if (allocated(dims0))   deallocate(dims0)
-
-        ! Open the file
-        call nc_check_open(filename, mode=nf90_nowrite, nc_id=nc_id)
-        call nc_check( nf90_inq_varid(nc_id, name, varid) )
-        call nc_check( nf90_inquire_variable(nc_id, varid, ndims=ndims) )
-
-        ! Allocate dim arrays
-        allocate(names(ndims),dimids(ndims),dims0(ndims))
-
-        ! First get dimids
-        call nc_check( nf90_inquire_variable(nc_id, varid, dimids=dimids) )
-
-        ! Get the dimension name and length
-        do q = 1, size(dimids)
-            call nc_check( nf90_inquire_dimension(nc_id, dimids(q), name=names(q), len=dims0(q)) )
-        end do
-
-        ! Close the file
-        call nc_check( nf90_close(nc_id) )
-
-        ! Also return dim lengths if desired
-        if (present(dims)) then
-            if (allocated(dims))    deallocate(dims)
-            allocate(dims(ndims))
-            dims = dims0
-        end if
-
-        return
-
-    end subroutine nc_dims
 
     ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     ! Subroutine :  n c _ c r e a t e
     ! Author     :  Alex Robinson
     ! Purpose    :  Create a new empty netcdf file
     ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    subroutine nc_create(filename, author, creation_date, institution, description)
+    subroutine nc_create(filename, overwrite, netcdf4, author, creation_date, institution, description)
 
         implicit none
 
         character(len=*) :: filename
-        integer :: ncid, status
-        character(len=1024) :: history
+        logical, optional :: overwrite 
+        logical, optional :: netcdf4 
         character(len=*), optional, intent(in) :: author, creation_date, institution, description
+        
+        integer :: ncid
+        integer :: status
+        character(len=1024) :: history
+        logical :: clobber, nc4 
+        integer :: cmode 
+
+        ! Check whether to overwrite existing files 
+        clobber = .TRUE. 
+        if (present(overwrite)) clobber = overwrite 
+
+        ! Check whether to write netcdf4 of netcdf3 
+        nc4 = .FALSE. 
+        if (present(netcdf4)) nc4 = netcdf4 
+
+        ! Make sure options make sense 
+        if (nc4 .and. (.not. clobber)) then 
+            write(0,*) "ncio:: nc_create:: Error: &
+                       &only overwrite=.TRUE. is allowed with the NetCDF4 format"
+            stop "stopped by ncio."
+        end if 
+
+        cmode = nf90_clobber 
+        if (.not. clobber) cmode = nf90_noclobber 
+
+        !if (nc4) cmode = nf90_hdf5 
+        ! ajr, 2015-09-17: commented this out, because nf90_hdf5 object doesn't exist for all
+        ! installed versions of netcdf. This should be made more robust!!
 
         ! Get ncio version for writing
         write(history,"(a,f5.2)") "Dataset generated using ncio v", NCIO_VERSION
 
         ! Create the new empty file and close it (necessary to avoid errors with dim vars)
-        status = nf90_create(trim(adjustl(filename)), nf90_clobber, ncid)
-        if (status .ne. NF90_NOERR) then
-            write(*, *) "ncio :: error when creating file, no such file or directory? :: ",trim(filename)
-            stop
-        endif
+        call nc_check( nf90_create(trim(adjustl(filename)), cmode, ncid) )
         call nc_check( nf90_close(ncid) )
 
         if (present(author))        call nc_write_attr(filename, 'author', author)
@@ -1217,105 +1247,176 @@ contains
 
     end subroutine nc_create
 
-    subroutine nc_write_attr_global(filename,name,value,ncid)
-
-        implicit none
-
-        character(len=*) :: filename, name, value
-        integer :: nc_id
-        integer, optional, intent(in) :: ncid
-
-        ! Open the file again and set for redefinition
-        call nc_check_open(filename, ncid, nf90_write, nc_id)
-        call nc_check( nf90_redef(nc_id) )
-
-        call nc_check( nf90_put_att(nc_id, NF90_GLOBAL,trim(name),trim(value)) )
-
-        ! End define mode and close the file.
-        call nc_check( nf90_enddef(nc_id) )
-        if (.not.present(ncid)) call nc_check( nf90_close(nc_id) )
-
-        write(*,"(a,a)") "ncio:: nc_write_attr:: ", &
-                              trim(filename)//" : "//trim(name)//" = "//trim(value)
-
-        return
-
-    end subroutine nc_write_attr_global
-
-    subroutine nc_read_attr_global(filename,name,value, ncid)
-
-        implicit none
-
-        character(len=*), intent(in) :: filename, name
-        character(len=*), intent(out) :: value
-        character(len=512) :: value0 
-        integer, intent(in), optional :: ncid
-        integer :: nc_id, stat
-
-        ! Define error value 
-        value = "None"
-
-        ! Open the file again and set for redefinition
-        call nc_check_open(filename, ncid, nf90_nowrite, nc_id)
-        stat = nf90_get_att(nc_id, NF90_GLOBAL,trim(name), value0)
-        if (stat .eq. NF90_NOERR) value = value0 
-        if (.not.present(ncid)) call nc_check( nf90_close(nc_id) )
-
-        return
-
-    end subroutine nc_read_attr_global
-
-    subroutine nc_write_attr_variable(filename,varname,name,value, ncid)
-
-        implicit none
-
-        character(len=*) :: filename, varname, name, value
-        integer :: nc_id, varid, stat
-        integer, parameter :: noerr = NF90_NOERR
-        integer, intent(in), optional :: ncid
-
-        ! Open the file again and set for redefinition
-        call nc_check_open(filename, ncid, nf90_write, nc_id)
-        call nc_check( nf90_redef(nc_id) )
-
-        ! Inquire variable id and put attribute name
-        stat = nf90_inq_varid(nc_id, trim(varname), varid)
-        call nc_check( nf90_put_att(nc_id, varid,trim(name),trim(value)) )
-
-        ! End define mode and close the file.
-        call nc_check( nf90_enddef(nc_id) )
-        if (.not.present(ncid)) call nc_check( nf90_close(nc_id) )
-
-        write(*,"(a,a)") "ncio:: nc_write_attr:: ", &
-                              trim(filename)//", "//trim(varname)//" : "//trim(name)//" = "//trim(value)
-
-        return
-
-    end subroutine nc_write_attr_variable
-
-    subroutine nc_read_attr_variable(filename,varname,name,value,ncid)
-
-        implicit none
-
+    ! ++++++++++++++++++++++++++++++++++++++++++++++++++
+    ! READ / WRITE ATTRIBUTES
+    ! ++++++++++++++++++++++++++++++++++++++++++++++++++
+    subroutine nc_read_attr_variable_char(filename, varname, name, value)
         character(len=*), intent(in) :: filename, varname, name
         character(len=*), intent(out) :: value
-        character(len=512) :: value0 
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        call nc_check( nf90_get_att(ncid, varid, trim(name), value) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
 
-        integer :: nc_id, varid, stat
-        integer, optional :: ncid
+    subroutine nc_read_attr_variable_int(filename, varname, name, value)
+        character(len=*), intent(in) :: filename, varname, name
+        integer, intent(out) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        call nc_check( nf90_get_att(ncid, varid, trim(name), value) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
 
-        ! Define error value 
-        value = "None"
-        
-        call nc_check_open(filename, ncid, nf90_nowrite, nc_id)
-        stat = nf90_inq_varid(nc_id, trim(varname), varid)
-        stat = nf90_get_att(nc_id, varid ,trim(name), value0)
-        if (stat .eq. NF90_NOERR) value = value0 
-        if (.not.present(ncid)) call nc_check( nf90_close(nc_id) )
+    subroutine nc_read_attr_variable_sp(filename, varname, name, value)
+        character(len=*), intent(in) :: filename, varname, name
+        real, intent(out) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        call nc_check( nf90_get_att(ncid, varid, trim(name), value) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
 
-        return
+    subroutine nc_read_attr_variable_dp(filename, varname, name, value)
+        character(len=*), intent(in) :: filename, varname, name
+        double precision, intent(out) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        call nc_check( nf90_get_att(ncid, varid, trim(name), value) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
 
-    end subroutine nc_read_attr_variable
+    subroutine nc_read_attr_global_char(filename, name, value)
+        character(len=*), intent(in) :: filename, name
+        character(len=*), intent(out) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_get_att(ncid, NF90_GLOBAL, trim(name), value) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_read_attr_global_int(filename, name, value)
+        character(len=*), intent(in) :: filename, name
+        integer, intent(out) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_get_att(ncid, NF90_GLOBAL, trim(name), value) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_read_attr_global_sp(filename, name, value)
+        character(len=*), intent(in) :: filename, name
+        real, intent(out) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_get_att(ncid, NF90_GLOBAL, trim(name), value) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_read_attr_global_dp(filename, name, value)
+        character(len=*), intent(in) :: filename, name
+        double precision, intent(out) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_get_att(ncid, NF90_GLOBAL, trim(name), value) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_write_attr_variable_char(filename, varname, name, value)
+        character(len=*), intent(in) :: filename, varname, name
+        character(len=*), intent(in) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_write, ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        call nc_check( nf90_redef(ncid) )
+        call nc_check( nf90_put_att(ncid, varid, trim(name), value) )
+        call nc_check( nf90_enddef(ncid) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_write_attr_variable_int(filename, varname, name, value)
+        character(len=*), intent(in) :: filename, varname, name
+        integer, intent(in) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_write, ncid) )
+        call nc_check( nf90_redef(ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        call nc_check( nf90_put_att(ncid, varid, trim(name), value) )
+        call nc_check( nf90_enddef(ncid) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_write_attr_variable_sp(filename, varname, name, value)
+        character(len=*), intent(in) :: filename, varname, name
+        real, intent(in) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_write, ncid) )
+        call nc_check( nf90_redef(ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        call nc_check( nf90_put_att(ncid, varid, trim(name), value) )
+        call nc_check( nf90_enddef(ncid) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_write_attr_variable_dp(filename, varname, name, value)
+        character(len=*), intent(in) :: filename, varname, name
+        double precision, intent(in) :: value
+        integer :: ncid, varid
+        call nc_check( nf90_open(filename, nf90_write, ncid) )
+        call nc_check( nf90_redef(ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        call nc_check( nf90_put_att(ncid, varid, trim(name), value) )
+        call nc_check( nf90_enddef(ncid) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_write_attr_global_char(filename, name, value)
+        character(len=*), intent(in) :: filename, name
+        character(len=*), intent(in) :: value
+        integer :: ncid
+        call nc_check( nf90_open(filename, nf90_write, ncid) )
+        call nc_check( nf90_redef(ncid) )
+        call nc_check( nf90_put_att(ncid, NF90_GLOBAL, trim(name), value) )
+        call nc_check( nf90_enddef(ncid) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_write_attr_global_int(filename, name, value)
+        character(len=*), intent(in) :: filename, name
+        integer, intent(in) :: value
+        integer :: ncid
+        call nc_check( nf90_open(filename, nf90_write, ncid) )
+        call nc_check( nf90_redef(ncid) )
+        call nc_check( nf90_put_att(ncid, NF90_GLOBAL, trim(name), value) )
+        call nc_check( nf90_enddef(ncid) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_write_attr_global_sp(filename, name, value)
+        character(len=*), intent(in) :: filename, name
+        real, intent(in) :: value
+        integer :: ncid
+        call nc_check( nf90_open(filename, nf90_write, ncid) )
+        call nc_check( nf90_redef(ncid) )
+        call nc_check( nf90_put_att(ncid, NF90_GLOBAL, trim(name), value) )
+        call nc_check( nf90_enddef(ncid) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
+
+    subroutine nc_write_attr_global_dp(filename, name, value)
+        character(len=*), intent(in) :: filename, name
+        double precision, intent(in) :: value
+        integer :: ncid
+        call nc_check( nf90_open(filename, nf90_write, ncid) )
+        call nc_check( nf90_redef(ncid) )
+        call nc_check( nf90_put_att(ncid, NF90_GLOBAL, trim(name), value) )
+        call nc_check( nf90_enddef(ncid) )
+        call nc_check( nf90_close(ncid) )
+    end subroutine
 
     subroutine nc_write_map(filename,name,lambda,phi,alpha,x_e,y_n, ncid)
         ! CF map conventions can be found here:
@@ -1366,6 +1467,12 @@ contains
                     call nc_check( nf90_put_att(nc_id,varid, "false_easting",  x_e) )
                     call nc_check( nf90_put_att(nc_id,varid, "false_northing", y_n) )
 
+                case("lambert_conformal_conic")
+                    call nc_check( nf90_put_att(nc_id,varid, "longitude_of_central_meridian", lambda) )
+                    call nc_check( nf90_put_att(nc_id,varid, "latitude_of_projection_origin", phi) )
+                    if (present(alpha)) &
+                    call nc_check( nf90_put_att(nc_id,varid, "standard_parallel", alpha) )
+                    
                 case DEFAULT
                     ! Do nothing
 
@@ -1669,7 +1776,7 @@ contains
         if (.not. present(ncid)) call nc_check( nf90_close(nc_id) )
 
         tmpchar = trim(v%name)
-        write(*,"(a,a,a14,i6)") "ncio:: nc_write_dim:: ",trim(filename)//" : ",adjustl(tmpchar),size(v%dim)
+        write(*,"(a,a,a14,i11)") "ncio:: nc_write_dim:: ",trim(filename)//" : ",adjustl(tmpchar),size(v%dim)
 
         return
 
@@ -2516,7 +2623,7 @@ contains
     !! @param name name of the variable in NetCDF file to be read
     !! @param start vector of values specifying starting indices for reading data from each dimension
     !! @param count vector of values specifying how many values to read in each dimension
-    subroutine nc_read_int_pt(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_int_pt(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2525,6 +2632,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         integer :: dat
@@ -2538,7 +2646,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,[1],start,count,xtype=xtype, &
-                                      missing_value_int=missing_value, ncid=ncid)
+                                      missing_value_int=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = int(dat1D(1))
@@ -2547,7 +2655,7 @@ contains
 
     end subroutine nc_read_int_pt
 
-    subroutine nc_read_int_1D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_int_1D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2556,6 +2664,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         integer :: dat(:)
@@ -2569,7 +2678,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_int=missing_value, ncid=ncid)
+                                       missing_value_int=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = int(dat1D)
@@ -2578,7 +2687,7 @@ contains
 
     end subroutine nc_read_int_1D
 
-    subroutine nc_read_int_2D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_int_2D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2587,6 +2696,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         integer :: dat(:,:)
@@ -2600,7 +2710,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_int=missing_value, ncid=ncid)
+                                       missing_value_int=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = int(reshape(dat1D,shape(dat)))
@@ -2609,7 +2719,7 @@ contains
 
     end subroutine nc_read_int_2D
 
-    subroutine nc_read_int_3D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_int_3D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2618,6 +2728,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         integer :: dat(:,:,:)
@@ -2631,7 +2742,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_int=missing_value, ncid=ncid)
+                                       missing_value_int=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = int(reshape(dat1D,shape(dat)))
@@ -2640,7 +2751,7 @@ contains
 
     end subroutine nc_read_int_3D
 
-    subroutine nc_read_int_4D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_int_4D(filename,name,dat,start,count,missing_value, ncid,iostat)
 
         implicit none
 
@@ -2649,6 +2760,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         integer :: dat(:,:,:,:)
@@ -2662,7 +2774,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_int=missing_value, ncid=ncid)
+          missing_value_int=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = int(reshape(dat1D,shape(dat)))
@@ -2671,7 +2783,7 @@ contains
 
     end subroutine nc_read_int_4D
 
-    subroutine nc_read_int_5D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_int_5D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2680,6 +2792,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         integer :: dat(:,:,:,:,:)
@@ -2693,7 +2806,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_int=missing_value, ncid=ncid)
+                                       missing_value_int=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = int(reshape(dat1D,shape(dat)))
@@ -2702,7 +2815,7 @@ contains
 
     end subroutine nc_read_int_5D
 
-    subroutine nc_read_int_6D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_int_6D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2711,6 +2824,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         integer :: dat(:,:,:,:,:,:)
@@ -2724,7 +2838,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_int=missing_value, ncid=ncid)
+                                       missing_value_int=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = int(reshape(dat1D,shape(dat)))
@@ -2739,7 +2853,7 @@ contains
 !
 ! ================================
 
-    subroutine nc_read_double_pt(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_double_pt(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2748,6 +2862,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         double precision :: dat
@@ -2761,7 +2876,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,[1],start,count,xtype=xtype, &
-                                      missing_value_double=missing_value, ncid=ncid)
+                                      missing_value_double=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = dble(dat1D(1))
@@ -2770,7 +2885,7 @@ contains
 
     end subroutine nc_read_double_pt
 
-    subroutine nc_read_double_1D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_double_1D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2779,6 +2894,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         double precision :: dat(:)
@@ -2792,7 +2908,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_double=missing_value, ncid=ncid)
+                                       missing_value_double=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = dble(dat1D)
@@ -2801,7 +2917,7 @@ contains
 
     end subroutine nc_read_double_1D
 
-    subroutine nc_read_double_2D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_double_2D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2810,6 +2926,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         double precision :: dat(:,:)
@@ -2823,7 +2940,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_double=missing_value, ncid=ncid)
+                                       missing_value_double=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = dble(reshape(dat1D,shape(dat)))
@@ -2832,7 +2949,7 @@ contains
 
     end subroutine nc_read_double_2D
 
-    subroutine nc_read_double_3D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_double_3D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2841,6 +2958,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         double precision :: dat(:,:,:)
@@ -2854,7 +2972,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_double=missing_value, ncid=ncid)
+                                       missing_value_double=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = dble(reshape(dat1D,shape(dat)))
@@ -2863,7 +2981,7 @@ contains
 
     end subroutine nc_read_double_3D
 
-    subroutine nc_read_double_4D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_double_4D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2872,6 +2990,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         double precision :: dat(:,:,:,:)
@@ -2885,7 +3004,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_double=missing_value, ncid=ncid)
+                                       missing_value_double=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = dble(reshape(dat1D,shape(dat)))
@@ -2894,7 +3013,7 @@ contains
 
     end subroutine nc_read_double_4D
 
-    subroutine nc_read_double_5D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_double_5D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2903,6 +3022,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         double precision :: dat(:,:,:,:,:)
@@ -2916,7 +3036,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_double=missing_value, ncid=ncid)
+                                       missing_value_double=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = dble(reshape(dat1D,shape(dat)))
@@ -2925,7 +3045,7 @@ contains
 
     end subroutine nc_read_double_5D
 
-    subroutine nc_read_double_6D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_double_6D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2934,6 +3054,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         double precision :: dat(:,:,:,:,:,:)
@@ -2947,7 +3068,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_double=missing_value, ncid=ncid)
+                                       missing_value_double=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = dble(reshape(dat1D,shape(dat)))
@@ -2962,7 +3083,7 @@ contains
 !
 ! ================================
 
-    subroutine nc_read_float_pt(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_float_pt(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -2971,6 +3092,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         real(4) :: dat
@@ -2984,7 +3106,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,[1],start,count,xtype=xtype, &
-                                       missing_value_float=missing_value, ncid=ncid)
+                                       missing_value_float=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = real(dat1D(1))
@@ -2993,7 +3115,7 @@ contains
 
     end subroutine nc_read_float_pt
 
-    subroutine nc_read_float_1D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_float_1D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -3002,6 +3124,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         real(4) :: dat(:)
@@ -3015,7 +3138,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_float=missing_value, ncid=ncid)
+                                       missing_value_float=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = real(dat1D)
@@ -3024,7 +3147,7 @@ contains
 
     end subroutine nc_read_float_1D
 
-    subroutine nc_read_float_2D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_float_2D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -3033,6 +3156,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         real(4) :: dat(:,:)
@@ -3046,7 +3170,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_float=missing_value, ncid=ncid)
+                                       missing_value_float=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = real(reshape(dat1D,shape(dat)))
@@ -3055,7 +3179,7 @@ contains
 
     end subroutine nc_read_float_2D
 
-    subroutine nc_read_float_3D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_float_3D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -3064,6 +3188,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         real(4) :: dat(:,:,:)
@@ -3077,7 +3202,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_float=missing_value, ncid=ncid)
+                                       missing_value_float=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = real(reshape(dat1D,shape(dat)))
@@ -3086,7 +3211,7 @@ contains
 
     end subroutine nc_read_float_3D
 
-    subroutine nc_read_float_4D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_float_4D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -3095,6 +3220,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         real(4) :: dat(:,:,:,:)
@@ -3108,7 +3234,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_float=missing_value, ncid=ncid)
+                                       missing_value_float=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = real(reshape(dat1D,shape(dat)))
@@ -3117,7 +3243,7 @@ contains
 
     end subroutine nc_read_float_4D
 
-    subroutine nc_read_float_5D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_float_5D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -3126,6 +3252,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         real(4) :: dat(:,:,:,:,:)
@@ -3139,7 +3266,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_float=missing_value, ncid=ncid)
+                                       missing_value_float=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = real(reshape(dat1D,shape(dat)))
@@ -3148,7 +3275,7 @@ contains
 
     end subroutine nc_read_float_5D
 
-    subroutine nc_read_float_6D(filename,name,dat,start,count,missing_value, ncid)
+    subroutine nc_read_float_6D(filename,name,dat,start,count,missing_value, ncid, iostat)
 
         implicit none
 
@@ -3157,6 +3284,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:), ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         real(4) :: dat(:,:,:,:,:,:)
@@ -3170,7 +3298,7 @@ contains
 
         ! Finally call the internal writing routine
         call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, &
-                                       missing_value_float=missing_value, ncid=ncid)
+                                       missing_value_float=missing_value, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = real(reshape(dat1D,shape(dat)))
@@ -3185,7 +3313,7 @@ contains
 !
 ! ================================
 
-    subroutine nc_read_logical_pt(filename,name,dat,start,count,ncid)
+    subroutine nc_read_logical_pt(filename,name,dat,start,count,ncid,iostat)
 
         implicit none
 
@@ -3194,6 +3322,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:),ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         logical :: dat
@@ -3204,7 +3333,7 @@ contains
         allocate(dat1D(1))
 
         ! Finally call the internal writing routine
-        call nc4_read_internal_numeric(filename,name,dat1D,[1],start,count,xtype=xtype, ncid=ncid)
+        call nc4_read_internal_numeric(filename,name,dat1D,[1],start,count,xtype=xtype, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = .FALSE.
@@ -3214,7 +3343,7 @@ contains
 
     end subroutine nc_read_logical_pt
 
-    subroutine nc_read_logical_1D(filename,name,dat,start,count,ncid)
+    subroutine nc_read_logical_1D(filename,name,dat,start,count,ncid, iostat)
 
         implicit none
 
@@ -3223,6 +3352,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:),ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         logical :: dat(:)
@@ -3233,7 +3363,7 @@ contains
         allocate(dat1D(size(dat,1)))
 
         ! Finally call the internal writing routine
-        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid)
+        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = .FALSE.
@@ -3243,7 +3373,7 @@ contains
 
     end subroutine nc_read_logical_1D
 
-    subroutine nc_read_logical_2D(filename,name,dat,start,count,ncid)
+    subroutine nc_read_logical_2D(filename,name,dat,start,count,ncid, iostat)
 
         implicit none
 
@@ -3252,6 +3382,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:),ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         logical :: dat(:,:)
@@ -3262,7 +3393,7 @@ contains
         allocate(dat1D(size(dat,1)*size(dat,2)))
 
         ! Finally call the internal writing routine
-        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid)
+        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = .FALSE.
@@ -3272,7 +3403,7 @@ contains
 
     end subroutine nc_read_logical_2D
 
-    subroutine nc_read_logical_3D(filename,name,dat,start,count,ncid)
+    subroutine nc_read_logical_3D(filename,name,dat,start,count,ncid, iostat)
 
         implicit none
 
@@ -3281,6 +3412,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:),ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         logical :: dat(:,:,:)
@@ -3291,7 +3423,7 @@ contains
         allocate(dat1D(size(dat,1)*size(dat,2)*size(dat,3)))
 
         ! Finally call the internal writing routine
-        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid)
+        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = .FALSE.
@@ -3301,7 +3433,7 @@ contains
 
     end subroutine nc_read_logical_3D
 
-    subroutine nc_read_logical_4D(filename,name,dat,start,count,ncid)
+    subroutine nc_read_logical_4D(filename,name,dat,start,count,ncid,iostat)
 
         implicit none
 
@@ -3310,6 +3442,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:),ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         logical :: dat(:,:,:,:)
@@ -3320,7 +3453,7 @@ contains
         allocate(dat1D(size(dat,1)*size(dat,2)*size(dat,3)*size(dat,4)))
 
         ! Finally call the internal writing routine
-        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid)
+        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = .FALSE.
@@ -3330,7 +3463,7 @@ contains
 
     end subroutine nc_read_logical_4D
 
-    subroutine nc_read_logical_5D(filename,name,dat,start,count,ncid)
+    subroutine nc_read_logical_5D(filename,name,dat,start,count,ncid,iostat)
 
         implicit none
 
@@ -3339,6 +3472,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:),ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         logical :: dat(:,:,:,:,:)
@@ -3349,7 +3483,7 @@ contains
         allocate(dat1D(size(dat,1)*size(dat,2)*size(dat,3)*size(dat,4)*size(dat,5)))
 
         ! Finally call the internal writing routine
-        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid)
+        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = .FALSE.
@@ -3359,7 +3493,7 @@ contains
 
     end subroutine nc_read_logical_5D
 
-    subroutine nc_read_logical_6D(filename,name,dat,start,count,ncid)
+    subroutine nc_read_logical_6D(filename,name,dat,start,count,ncid, iostat)
 
         implicit none
 
@@ -3368,6 +3502,7 @@ contains
         ! Arguments
         character (len=*) :: filename, name
         integer, optional :: start(:), count(:),ncid
+        integer, optional :: iostat
 
         !! Arguments related to data size and type
         logical :: dat(:,:,:,:,:,:)
@@ -3378,7 +3513,7 @@ contains
         allocate(dat1D(size(dat,1)*size(dat,2)*size(dat,3)*size(dat,4)*size(dat,5)*size(dat,6)))
 
         ! Finally call the internal writing routine
-        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid)
+        call nc4_read_internal_numeric(filename,name,dat1D,shape(dat),start,count,xtype=xtype, ncid=ncid, iostat=iostat)
 
         ! Store data that was read from file in output array
         dat = .FALSE.
@@ -3620,5 +3755,36 @@ contains
 
         return
     end function str_to_num
+
+    ! +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    ! Check for existence of variables or attributes
+    ! +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    function nc_exists_attr_global(filename, attname) result(exists)
+        character(len=*), intent(IN) :: filename, attname
+        integer :: ncid
+        logical :: exists
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        exists = nf90_inquire_attribute(ncid, NF90_GLOBAL, trim(attname)) == NF90_NOERR
+        call nc_check( nf90_close(ncid) )
+    end function
+
+    function nc_exists_attr_variable(filename, varname, attname) result(exists)
+        character(len=*), intent(IN) :: filename, varname, attname
+        integer :: ncid, varid
+        logical :: exists
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        call nc_check( nf90_inq_varid(ncid, trim(varname), varid) )
+        exists = nf90_inquire_attribute(ncid, varid, trim(attname)) == NF90_NOERR
+        call nc_check( nf90_close(ncid) )
+    end function
+
+    function nc_exists_var(filename, varname) result(exists)
+        character(len=*), intent(IN) :: filename, varname
+        integer :: stat, n, ncid, varid
+        logical :: exists
+        call nc_check( nf90_open(filename, nf90_nowrite, ncid) )
+        exists = nf90_inq_varid(ncid, trim(varname), varid) == NF90_NOERR
+        call nc_check( nf90_close(ncid) )
+    end function
 
 end module ncio
