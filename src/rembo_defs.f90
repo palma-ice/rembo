@@ -67,8 +67,9 @@ module rembo_defs
     ! First define all parameters needed to represent a given domain
     type rembo_param_class
 
-        integer             :: npts, nx, ny  
-        character(len=256)  :: boundary(30)
+        character(len=256)  :: domain
+        character(len=256)  :: restart 
+        integer             :: npts, nx, ny
         real(wp)            :: dx 
 
         ! Physics
