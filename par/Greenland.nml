@@ -1,0 +1,89 @@
+
+&rembo_params
+    restart    = "no"            ! "no" for no restart, or else the filename to restart from
+    
+    H_e        = 2500.0           ! [m] Vapor scale height
+    rembo1     = .FALSE.
+
+    ! Diffusion parameters
+    emb_dx     = 120.0            ! [km] Energy-moisture balance grid resolution
+    dist_rel   = 10.0             ! [km] Relaxation mask buffer (distance from coast)
+    
+    en_dt      = 1000             ! Diffusion time step, sec
+    en_D       = 8.0e5            ! [m-2 s-1] Diffusion constant, energy
+    en_D_win   = 8.0e5            ! [m-2 s-1] Diffusion constant, energy
+    en_D_sum   = 8.0e5            ! [m-2 s-1] Diffusion constant, energy
+    en_kr      = 0.95             ! [1] Relaxation coefficient, energy (~95% of difference)
+!     en_kz      = 0.00017          ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
+!     en_kl      = 0.33             ! [degrees-1] Kappa scalar with latitude (kl*lat) **REMBOv1=0.33 
+    en_kz      = 0.0          ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
+    en_kl      = 0.0            ! [degrees-1] Kappa scalar with latitude (kl*lat) **REMBOv1=0.33 
+    en_kdT     = 0.0              ! [K] Atmospheric transport warming
+    en_Ha      = 5000             ! [m] Atmospheric scale height 4600 **REMBOv1=8600
+    ccw_dt     = 1000             ! Diffusion time step, sec
+    ccw_D      = 1.0e6            ! [m-2 s-1] Diffusion constant, moisture
+    ccw_kr     = 0.95             ! [1] Relaxation coefficient, moisture (~95% of difference)           
+    
+    ! Condensation parameterization
+    k_c        = 80              ! [days] Condensation time constant
+    k_x        = 0.0
+    k_p        = 0.0
+
+    ! Precipitation parameterization
+    k_w        = 500.0           ! [sec] Precipitation time constant
+    k_t        = 0.0034            ! Precipitation temperature scalar
+    k_z        = 10.0             ! Precipitation vertical wind scalar
+    ps_a       = 0.273            ! Snow fraction constant
+    ps_b       = 273.6            ! snow fraction constant 
+
+    ! Katabatic parameterization 
+    f_k        = 1e4 
+
+    ! Total water content parameterization
+    e0         =  3.24            ! Q parameterization constant
+    c1         = 18.75            ! Q parameterization constant
+    
+    ! Cloud cover fraction parameterization
+    nk1        = 3.54             ! Cloud cover constant 1
+    nk2        = 3.58             ! Cloud cover constant 2
+    nk3        = -1.21e-2         ! Cloud cover constant 3
+
+    ! PDDs
+    teff_sigma = 5.0              ! [K] monthly standard deviation of temps
+    
+    ! Physical constants
+    gamma      = 6.5e-3           ! [K m-1] Winter lapse rate
+    gamma2     = 6.5e-3           ! [K m-1] Summer lapse rate
+    S0         = 1365.0           ! [W m-2] Solar constant
+    Lw         =  2.50e6          ! [J kg-1] Latent heat of evaporation
+    Ls         =  2.84e6          ! [J kg-1] Latent heat of sublimation
+    Lm         =  3.35e5          ! [J kg-1] Latent heat of melting
+    rho_w      = 1000.0           ! [kg m-3] Density of pure water
+    cp         = 1e3              ! [J kg-1] Heat capacity of water (used in sensible heat flux)
+
+    ! Surface temperature and radiation parameterizations 
+    ci         = 2e6
+    alp_a      = 0.58      ! Planetary albedo   0.67 
+    alp_b      = 0.20      ! Planetary albedo   0.1 
+    alp_c      = 0.024     ! Planetary albedo   0.026 
+    lwu_a      = 198       ! Outgoing longwave radiation, toa: a
+    lwu_b      = 1.11      ! Outgoing longwave radiation, toa: b*t2m
+    lwu_c      = 0.061     ! Outgoing longwave radiation, toa: c*S
+    swds_a     = 0.77      ! Incoming shortwave radiation, surface: a
+    swds_b     = 0.31      ! Incoming shortwave radiation, surface: -b*cc
+    swds_c     = 0.00034   ! Incoming shortwave radiation, surface: *exp(-c*zs))*S
+    lwds_a     = -437      ! Incoming longwave radiation, surface: a
+    lwds_b     =  2.3      ! Incoming longwave radiation, surface: b*t2m
+    lwds_c     =   60      ! Incoming longwave radiation, surface: c*n
+    lwds_d     =  3.92     ! Incoming longwave radiation, surface: d*tcw
+    shfs_Cm    = 0.0076    ! Sensible heat flux, surface (NOT USED)
+    shfs_p     = 0.32      ! Sensible heat flux, surface (NOT USED)
+    
+/
+
+&rembo1_options
+    ta  = 224.58   ! [J/s-m2]
+    tb  =   1.94   ! [J/K-s-m2]
+
+/
+
