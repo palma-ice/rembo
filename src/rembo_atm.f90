@@ -1,5 +1,8 @@
 module rembo_atm 
 
+    use coord 
+    use solvers 
+
     use rembo_defs 
     use rembo_physics 
 
@@ -65,17 +68,17 @@ contains
 
         ! Calculate the planetary albedo 
         now%al_p = par%alp_a + par%alp_b*now%al_s - par%alp_c*now%tcw 
-        where(now%al_p .lt. 0.d0) now%al_p = 0.d0
-        where(now%al_p .gt. 1.d0) now%al_p = 1.d0  
+        where(now%al_p .lt. 0.0) now%al_p = 0.0
+        where(now%al_p .gt. 1.0) now%al_p = 1.0  
         
         ! Calculate the outgoing long-wave radiation at toa
-        now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15d0) + par%lwu_c*now%S
+        now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15) + par%lwu_c*now%S
 
         ! Calculate the incoming short-wave radiation at toa
-        now%swd = (1.d0-now%al_p)*now%S 
+        now%swd = (1.0-now%al_p)*now%S 
 
         ! Calculate radiative forcing of CO2
-        now%co2_a   = 350.d0
+        now%co2_a   = 350.0
         now%rco2_a  = calc_rad_co2(now%co2_a)
 
         ! Calculate cloud fraction
@@ -84,14 +87,14 @@ contains
         
 !         ! Calculate energy balance on low-resolution grid
 !         call rembo_en(emb,par,day,t2m=now%t2m,zs=now%z_srf, &
-!                           swn=(now%swd - now%swd_s*(1.d0-now%al_s)), &
+!                           swn=(now%swd - now%swd_s*(1.0-now%al_s)), &
 !                           lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
 !                           shf=now%shf_s,lhf=now%lhf_s, &
-!                           lhp=(par%Lw*(now%pp-now%ps) + par%Ls*now%ps)*1.d0, &
+!                           lhp=(par%Lw*(now%pp-now%ps) + par%Ls*now%ps)*1.0, &
 !                           rco2=par%en_kdT + now%rco2_a) 
 
 !         ! Calculate today's pdds 
-!         now%teff = effective_temp(now%t2m-273.15d0,sigma=par%teff_sigma)
+!         now%teff = effective_temp(now%t2m-273.15,sigma=par%teff_sigma)
 
         ! Calculate inversion correction for moisture balance
         now%ct2m = calc_ttcorr1(now%t2m,now%z_srf,-2.4e-3,-3.7e-1,106.0)
@@ -130,83 +133,85 @@ contains
 
     end subroutine calc_rembo_atmosphere
 
-!     subroutine calc_rembo_en(emb,par,day,t2m,zs,swn,lwn,shf,lhf,lhp,rco2)
+    subroutine calc_rembo_en(t2m,emb,par,day,z_srf,swn,lwn,shf,lhf,lhp,rco2)
 
-!         implicit none 
+        implicit none 
 
-!         type(diffusion_class) :: emb 
-!         type(rembo_phys_param_class) :: par 
-!         integer :: day 
-!         real(wp), dimension(:) :: t2m, zs, swn, lwn, shf, lhf, lhp, rco2
-!         real(wp), dimension(:), allocatable :: F, tsl, gamma, t2m0
-!         integer, dimension(:), allocatable :: mask  
-!         real(wp) :: tsl_fac 
-!         integer :: q 
-
-!         ! Allocate working arrays
-!         allocate(F(size(swn)),tsl(size(swn)),gamma(size(swn))) 
-!         allocate(mask(size(swn)),t2m0(size(swn)))
-
-!         ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
-!         gamma = par%gamma  &
-!            + (0.5d0*dcos((day-15)*2.d0*pi/day_year)-0.5d0)*(par%gamma-par%gamma2)
-
-!         ! Get the tsl => column energy conversion
-!         ! tsl_fac = H_a[m] c_p[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
-!         tsl_fac = par%en_Ha *1000d0 *1.225d0 !* 1.225d0 ! = 8.6e6
+        real(wp),                intent(OUT)   :: t2m(:,:)
+        type(diffusion_class),   intent(INOUT) :: emb  
+        real(wp),                intent(IN)    :: z_srf(:,:)
+        real(wp),                intent(IN)    :: swn(:,:)
+        real(wp),                intent(IN)    :: lwn(:,:)
+        real(wp),                intent(IN)    :: shf(:,:)
+        real(wp),                intent(IN)    :: lhf(:,:)
+        real(wp),                intent(IN)    :: lhp(:,:)
+        real(wp),                intent(IN)    :: rco2(:,:)
+        type(rembo_param_class), intent(IN)    :: par 
+        integer,                 intent(IN)    :: day 
         
-!         ! Get the 2D energy diffusion coefficient
-!         ! emb%kappa = par%en_D 
-!         emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5d0-0.5d0*dcos((day-15)*2.d0*pi/day_year))
+        ! Local variables 
+        real(wp), allocatable :: gamma(:,:)  
+        real(wp) :: tsl_fac 
+        integer :: q 
+
+        ! Allocate working arrays
+        allocate(gamma(size(t2m,1),size(t2m,2))) 
+
+        ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
+        gamma = par%gamma  &
+           + (0.5*cos((day-15)*2.0*pi/day_year)-0.5)*(par%gamma-par%gamma2)
+
+        ! Get the tsl => column energy conversion
+        ! tsl_fac = H_a[m] c_p[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
+        tsl_fac = par%en_Ha *1000.0 *1.225 !* 1.225 ! = 8.6e6
         
-!         ! Sea level temperature, tsl
-!         call map_field(emb%map_toemb,"tsl",t2m+gamma*zs,emb%tsl,method="radius",fill=.TRUE.,missing_value=missing_value)
+        ! Get the 2D energy diffusion coefficient
+        ! emb%kappa = par%en_D 
+        emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/day_year))
+        
+        ! Sea level temperature, tsl
+        ! ajr: TO DO 
+!         call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=missing_value)
             
-!         ! Radiative forcing, en_F
+        ! Radiative forcing, en_F
+        ! ajr: TO DO 
 !         call map_field(emb%map_toemb,"en_F",swn + lwn + (shf+lhf) + lhp + rco2, &
 !                        emb%en_F,method="radius",fill=.TRUE.,missing_value=missing_value)
 
-!         ! Radiation
-!         emb%en     = emb%tsl     *tsl_fac
-!         emb%en_bnd = emb%tsl_bnd *tsl_fac
+        ! Radiation
+        emb%en     = emb%tsl     *tsl_fac
+        emb%en_bnd = emb%tsl_bnd *tsl_fac
 
-!         ! Calculate radiative balance over the day
-!         do q = 1, par%en_nstep
-!             where (emb%mask .eq. 1) emb%en = emb%en_bnd
-!             call adv_diff_2D(emb%en,emb%en_bnd,emb%en_F,relax=emb%mask, &
-!                              dx=emb%grid%G%dx*emb%grid%xy_conv, &
-!                              dy=emb%grid%G%dx*emb%grid%xy_conv, &
-!                              dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr) !, &
-! !                              v_x=emb%ug,v_y=emb%vg)
-! !             call solve_diff_2D_adi(emb%en,emb%en_bnd,emb%en_F,relax=emb%mask, &
-! !                                    dx=emb%grid%G%dx*emb%grid%xy_conv, &
-! !                                    dy=emb%grid%G%dx*emb%grid%xy_conv, &
-! !                                    dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr)
+        ! Calculate radiative balance over the day
+        do q = 1, par%en_nstep
+            where (emb%mask .eq. 1) emb%en = emb%en_bnd
+            call adv_diff_2D(emb%en,emb%en_bnd,emb%en_F,relax=emb%mask, &
+                             dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
+                             dy=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
+                             dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr) !, &
+!                              v_x=emb%ug,v_y=emb%vg)
+!             call solve_diff_2D_adi(emb%en,emb%en_bnd,emb%en_F,relax=emb%mask, &
+!                                    dx=emb%grid%G%dx*emb%grid%xy_conv, &
+!                                    dy=emb%grid%G%dx*emb%grid%xy_conv, &
+!                                    dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr)
 
-!         end do 
+        end do 
 
-!         ! Re-calculate temperature 
-!         emb%tsl = emb%en /tsl_fac
+        ! Re-calculate temperature 
+        emb%tsl = emb%en /tsl_fac
 
-! !         call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="quadrant",fill=.TRUE.,missing_value=missing_value)
+!         call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="quadrant",fill=.TRUE.,missing_value=missing_value)
+
+        ! ajr: TO DO !!
 !         t2m =  interp_bilinear(is_points=.TRUE.,x=emb%grid%G%x,y=emb%grid%G%y,z=emb%tsl, &
 !                                xout=emb%map_fromemb%x,yout=emb%map_fromemb%y, &
 !                                missing_value=missing_value)
 
-!         t2m = t2m - gamma*zs
+        t2m = t2m - gamma*z_srf
 
-!         ! Re-relax boundary temperatures 
-! !         t2m0 =  interp_bilinear(is_points=.TRUE.,x=emb%grid%G%x,y=emb%grid%G%y,z=emb%tsl_bnd, &
-! !                                 xout=emb%map_fromemb%x,yout=emb%map_fromemb%y, &
-! !                                 missing_value=missing_value)
-! !         t2m0 = t2m0 - gamma*zs
+        return 
 
-! !         mask = gen_relaxation_points(zs,emb%map_fromemb%x,emb%map_fromemb%y,radius=par%dist_rel)
-! !         where (mask .eq. 1) t2m = t2m - par%en_kr*(t2m-t2m0)
-
-!         return 
-
-!     end subroutine calc_rembo_en 
+    end subroutine calc_rembo_en 
 
 !     subroutine calc_rembo_ccw(emb,par,ccw,c_w,pp,ww)
 

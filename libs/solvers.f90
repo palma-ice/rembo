@@ -1,8 +1,8 @@
 module solvers
-  
+    
     implicit none
     
-    integer,  parameter :: dp  = kind(1.0d0)
+    integer,  parameter :: wp  = kind(1.0)
 
     private
     public :: solve2D
@@ -17,9 +17,9 @@ contains
 
         implicit none 
 
-        real(dp), intent(INOUT), dimension(:,:) :: uu
-        real(dp), intent(IN),    dimension(:,:) :: u0, F, relax, alpha 
-        real(dp), Intent(IN)                    :: gamma, beta
+        real(wp), intent(INOUT), dimension(:,:) :: uu
+        real(wp), intent(IN),    dimension(:,:) :: u0, F, relax, alpha 
+        real(wp), Intent(IN)                    :: gamma, beta
         character(len=*) :: solver 
 
         select case(solver)
@@ -49,12 +49,12 @@ contains
 
         implicit none
 
-        real(dp), intent(INOUT), dimension(:,:) :: uu
-        real(dp), intent(IN),    dimension(:,:) :: u0, F, relax, alpha 
-        real(dp), Intent(IN)                    :: gamma, beta
+        real(wp), intent(INOUT), dimension(:,:) :: uu
+        real(wp), intent(IN),    dimension(:,:) :: u0, F, relax, alpha 
+        real(wp), Intent(IN)                    :: gamma, beta
 
-        real(dp), allocatable,   dimension(:,:) :: utmp, alpha1, beta1, relax1
-        real(dp) :: gamma1 
+        real(wp), allocatable,   dimension(:,:) :: utmp, alpha1, beta1, relax1
+        real(wp) :: gamma1 
 
         integer :: nx, ny 
         integer :: i, j, k    
@@ -103,15 +103,15 @@ contains
 
         implicit none
 
-        real(dp), intent(INOUT), dimension(:,:) :: uu
-        real(dp), intent(IN),    dimension(:,:) :: u0, F, relax, alpha 
-        real(dp), Intent(IN)                    :: gamma, beta
+        real(wp), intent(INOUT), dimension(:,:) :: uu
+        real(wp), intent(IN),    dimension(:,:) :: u0, F, relax, alpha 
+        real(wp), Intent(IN)                    :: gamma, beta
 
-        real(dp), allocatable,   dimension(:,:) :: alpha1, coeffs, relax1
-        real(dp)                                :: gamma1, beta_ex, beta_im 
+        real(wp), allocatable,   dimension(:,:) :: alpha1, coeffs, relax1
+        real(wp)                                :: gamma1, beta_ex, beta_im 
 
-        real(dp), allocatable,   dimension(:)   :: ax, bx, cx, uprimex, cprimex, mx, rx
-        real(dp), allocatable,   dimension(:)   :: ay, by, cy, uprimey, cprimey, my, ry
+        real(wp), allocatable,   dimension(:)   :: ax, bx, cx, uprimex, cprimex, mx, rx
+        real(wp), allocatable,   dimension(:)   :: ay, by, cy, uprimey, cprimey, my, ry
         
         integer :: nx, ny 
         integer :: i, j, k    
@@ -222,13 +222,13 @@ contains
 
         implicit none 
 
-        real(dp), dimension(:,:) :: uu, u0, F, kappa
+        real(wp), dimension(:,:) :: uu, u0, F, kappa
         integer,          dimension(:,:) :: relax 
-        real(dp) :: dx, dy, dt, k_relax 
-        real(dp), dimension(:,:), allocatable :: utmp, udiff
+        real(wp) :: dx, dy, dt, k_relax 
+        real(wp), dimension(:,:), allocatable :: utmp, udiff
         integer :: nx, ny 
-        real(dp), dimension(:,:), allocatable :: alpha 
-        double precision :: gamma, beta 
+        real(wp), dimension(:,:), allocatable :: alpha 
+        real(wp) :: gamma, beta 
 
         nx = size(uu,1)
         ny = size(uu,2) 
@@ -249,7 +249,7 @@ contains
 !         call solve_adi2D(udiff,u0,F,k_relax*relax,alpha,gamma,beta)
 !         uu = udiff 
         
-        call solve_adi2D(udiff,u0,F,0.d0*relax,alpha,gamma,beta)
+        call solve_adi2D(udiff,u0,F,0.0*relax,alpha,gamma,beta)
         uu = udiff - k_relax*relax*(udiff-u0)
 
         return
@@ -260,9 +260,9 @@ contains
         
         implicit none 
         
-        real(dp), dimension(:,:) :: uu
-        real(dp), dimension(:,:), optional :: u0
-        real(dp), optional :: u00 
+        real(wp), dimension(:,:) :: uu
+        real(wp), dimension(:,:), optional :: u0
+        real(wp), optional :: u00 
         integer, optional :: nbx, nby 
         integer :: nx, ny, nbx1, nby1 
 
@@ -295,8 +295,8 @@ contains
 
     function adv2D_timestep(dx,dy,vx_max, vy_max) result(dt)
         implicit none 
-        real(dp) :: dx, dy, vx_max, vy_max 
-        real(dp) :: dt 
+        real(wp) :: dx, dy, vx_max, vy_max 
+        real(wp) :: dt 
 
         ! Condition v*dt/dx <= 1 
         ! dt = dx / v
@@ -308,8 +308,8 @@ contains
 
     function diff2D_timestep(dx,dy,kappa) result(dt)
         implicit none 
-        real(dp) :: dx, dy, kappa 
-        real(dp) :: dt 
+        real(wp) :: dx, dy, kappa 
+        real(wp) :: dt 
 
         ! 1D condition kappa*dt/dx^2 <= 1
         ! dt = dx^2/kappa 
@@ -321,8 +321,8 @@ contains
     
     function diff2Dadi_timestep(dx,dy,kappa) result(dt)
         implicit none 
-        real(dp) :: dx, dy, kappa 
-        real(dp) :: dt 
+        real(wp) :: dx, dy, kappa 
+        real(wp) :: dt 
 
         ! Condition: 4*kappa*dt / (dx*dx) <= 1
 
@@ -336,11 +336,11 @@ contains
 
         implicit none 
 
-        real(dp), dimension(:,:) :: uu, u0, F, kappa
-        real(dp), dimension(:,:), optional :: v_x, v_y 
+        real(wp), dimension(:,:) :: uu, u0, F, kappa
+        real(wp), dimension(:,:), optional :: v_x, v_y 
         integer,          dimension(:,:) :: relax 
-        real(dp) :: dx, dy, dt, k_relax 
-        real(dp), dimension(:,:), allocatable :: utmp, uadv, udiff
+        real(wp) :: dx, dy, dt, k_relax 
+        real(wp), dimension(:,:), allocatable :: utmp, uadv, udiff
         integer :: nx, ny 
 
         nx = size(uu,1)
@@ -378,11 +378,11 @@ contains
 
         implicit none 
 
-        real(dp), dimension(:,:) :: uu
-        real(dp) :: dx, dy 
-        real(dp) :: inv_dx2, inv_dy2
+        real(wp), dimension(:,:) :: uu
+        real(wp) :: dx, dy 
+        real(wp) :: inv_dx2, inv_dy2
         integer :: i, j, nx, ny 
-        real(dp), dimension(:,:), allocatable :: utmp 
+        real(wp), dimension(:,:), allocatable :: utmp 
 
         nx = size(uu,1)
         ny = size(uu,2) 
@@ -413,13 +413,13 @@ contains
 
         implicit none 
 
-        real(dp), dimension(:,:) :: uu, vx, vy
-        real(dp) :: dx, dy 
-        real(dp) :: inv_2dx, inv_2dy
+        real(wp), dimension(:,:) :: uu, vx, vy
+        real(wp) :: dx, dy 
+        real(wp) :: inv_2dx, inv_2dy
         integer :: i, j, nx, ny 
-        real(dp), dimension(:,:), allocatable :: utmp
-        real(dp), dimension(:,:), allocatable :: uu_x_neg, uu_x_pos 
-        real(dp), dimension(:,:), allocatable :: uu_y_neg, uu_y_pos 
+        real(wp), dimension(:,:), allocatable :: utmp
+        real(wp), dimension(:,:), allocatable :: uu_x_neg, uu_x_pos 
+        real(wp), dimension(:,:), allocatable :: uu_y_neg, uu_y_pos 
         
         nx = size(uu,1)
         ny = size(uu,2) 
