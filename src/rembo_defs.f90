@@ -99,25 +99,52 @@ module rembo_defs
 
     end type
 
+    type rembo_boundary_class
+
+        real(wp), allocatable :: z_srf(:,:)    ! [m]     Surface elevation
+        real(wp), allocatable :: f_ice(:,:)    ! [--]    Fraction of land-based ice coverage in cell
+        real(wp), allocatable :: f_shlf(:,:)   ! [--]    Fraction of floating (shelf) ice coverage in cell
+        
+        real(wp), allocatable :: S(:,:)        ! [W m-2] Insolation top-of-atmosphere
+        real(wp), allocatable :: t2m(:,:)      ! [K]     Near-surface temperature (used for boundary)
+        real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
+        real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
+        real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
+
+        ! Derived boundary variables
+        integer,  allocatable :: mask(:,:)     ! [--]    0: Ocean; 1: Land, 2: Grounded ice, 3: Floating ice
+        real(wp), allocatable :: f(:,:)        ! [--]    Coriolis parameter
+        real(wp), allocatable :: dzsdx(:,:)
+        real(wp), allocatable :: dzsdy(:,:)
+        real(wp), allocatable :: dzsdxy(:,:)
+        real(wp), allocatable :: dZdx(:,:)
+        real(wp), allocatable :: dZdy(:,:)
+
+    end type 
+
     ! Now define all variables of the domain
     type rembo_state_class
 
-        ! Static (per year or greater) variables
-        integer,  allocatable :: mask(:,:) 
-        real(wp), allocatable :: z_srf(:,:), z_bed(:,:), H_ice(:,:) 
-        real(wp), allocatable :: co2_a(:,:), rco2_a(:,:), rho_a(:,:), f(:,:), sp(:,:)
-        real(wp), allocatable :: dzsdx(:,:), dzsdy(:,:), dzsdxy(:,:)
-
+        ! Annual variables 
+        real(wp), allocatable :: rco2_a(:,:)
+        real(wp), allocatable :: rho_a(:,:)
+        real(wp), allocatable :: sp(:,:)
+        
         ! Seasonal variables
-        real(wp), allocatable :: t2m(:,:), teff(:,:), ct2m(:,:), pp(:,:), ps(:,:)  
-        real(wp), allocatable :: q_s(:,:), q_sat(:,:), q_r(:,:)
+        real(wp), allocatable :: t2m(:,:)   
+        real(wp), allocatable :: ct2m(:,:)
+        real(wp), allocatable :: pp(:,:)
+        real(wp), allocatable :: ps(:,:)
+        real(wp), allocatable :: q_s(:,:)
+        real(wp), allocatable :: q_sat(:,:)
+        real(wp), allocatable :: q_r(:,:)
         real(wp), allocatable :: tcw(:,:), tcw_sat(:,:)
         real(wp), allocatable :: ccw(:,:), c_w(:,:), ccw_prev(:,:) 
         real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), cc(:,:)
-        real(wp), allocatable :: S(:,:), swd(:,:), lwu(:,:), al_s(:,:), al_p(:,:), at(:,:)
-        real(wp), allocatable :: tsurf(:,:), swd_s(:,:), lwd_s(:,:), shf_s(:,:), lhf_s(:,:), lwu_s(:,:)
+        real(wp), allocatable :: swd(:,:), lwu(:,:), al_p(:,:), at(:,:)
+        real(wp), allocatable :: swd_s(:,:), lwd_s(:,:), shf_s(:,:), lhf_s(:,:), lwu_s(:,:)
         real(wp), allocatable :: u_s(:,:), v_s(:,:), uv_s(:,:)  
-        real(wp), allocatable :: Z(:,:), dZdx(:,:), dZdy(:,:)
+        
         real(wp), allocatable :: u_k(:,:), v_k(:,:), uv_k(:,:), dtsldx(:,:), dtsldy(:,:), dtsldxy(:,:)
     end type 
 
@@ -152,6 +179,9 @@ module rembo_defs
         type(rembo_param_class)   :: par        ! physical parameters
         type(grid_class)          :: grid       ! Grid definition   (from coordinates module)
         
+        ! Boundary variables
+        type(rembo_boundary_class) :: bnd 
+
         ! current variables, month and various averages
         type(rembo_state_class) :: now, mon, ann
 

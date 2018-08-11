@@ -14,6 +14,9 @@ program rembo_test
 
     call rembo_init(rembo1,par_path="par/Greenland.nml",domain="Greenland",grid=grid,year=1980)
 
+
+    call rembo_print(rembo1,m=1,d=1,year=1980)
+
     write(*,*) "rembo_test.x finished succesfully."
 
 end program rembo_test 

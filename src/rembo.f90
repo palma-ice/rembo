@@ -55,6 +55,9 @@ contains
         dom%par%nx     = grid%G%nx 
         dom%par%ny     = grid%G%ny 
         
+        ! Allocate boundary variables
+        call rembo_bnd_alloc(dom%bnd,dom%par%nx,dom%par%ny)
+        
         ! Allocate state variables
         call rembo_alloc(dom%now,dom%par%nx,dom%par%ny)
         call rembo_alloc(dom%mon,dom%par%nx,dom%par%ny)
@@ -110,9 +113,6 @@ contains
         else 
             ! Initialize variables with default values
 
-            ! Annual values
-            dom%now%co2_a = 280.d0
-
             ! Sub-annual values
             dom%now%t2m   = 273.15d0  
             dom%now%tcw   = 0.d0
@@ -121,12 +121,9 @@ contains
             dom%now%ccw_prev = 0.d0 
             dom%now%pp    = 0.d0
             dom%now%al_p  = 0.5d0 
-            dom%now%al_s  = 0.5d0
             dom%now%lwu   = 0.d0
             dom%now%swd   = 100.d0  
 
-            dom%now%tsurf = dom%now%t2m 
-            where( dom%now%tsurf .gt. 273.15d0 ) dom%now%tsurf = 273.15d0
             dom%now%swd_s = 0.d0 
             dom%now%lwd_s = 0.d0  
             dom%now%u_s   = 0.d0 
@@ -258,7 +255,7 @@ contains
         real(wp) :: npts 
         character(len=256) :: fmt_head, fmt_table 
 
-        npts = real(count(dom%now%mask == 2),wp)
+        npts = real(count(dom%bnd%mask>0),wp)
 
         fmt_head  = "(a6,a5,  5a8,2x,  a8,  3a8,2x,  4a8)"
         fmt_table = "(i6,i5,5f8.2,2x,f8.2,3f8.2,2x,4f8.2)"
@@ -266,14 +263,22 @@ contains
         if (m .eq. 1) &
         write(*,fmt_head) "year","day","swd","tas", &
                            "tcw","ccw","c_w","pr"
-                           
-        write(*,fmt_table) year, d, &
-            sum(dom%now%swd,        mask=dom%now%mask==2)/npts, &     ! [W/m^2]
-            sum(dom%now%t2m,        mask=dom%now%mask==2)/npts, &     ! [K]
-            sum(dom%now%tcw,        mask=dom%now%mask==2)/npts, &     ! [mm]
-            sum(dom%now%ccw,        mask=dom%now%mask==2)/npts, &     ! [mm]
-            sum(dom%now%c_w*sec_day,mask=dom%now%mask==2)/npts, &     ! [mm/d]
-            sum(dom%now%pp*sec_day, mask=dom%now%mask==2)/npts        ! [mm/d]
+        
+        if (npts>0) then 
+
+            write(*,fmt_table) year, d, &
+                sum(dom%now%swd,        mask=dom%bnd%mask>0)/npts, &     ! [W/m^2]
+                sum(dom%now%t2m,        mask=dom%bnd%mask>0)/npts, &     ! [K]
+                sum(dom%now%tcw,        mask=dom%bnd%mask>0)/npts, &     ! [mm]
+                sum(dom%now%ccw,        mask=dom%bnd%mask>0)/npts, &     ! [mm]
+                sum(dom%now%c_w*sec_day,mask=dom%bnd%mask>0)/npts, &     ! [mm/d]
+                sum(dom%now%pp*sec_day, mask=dom%bnd%mask>0)/npts        ! [mm/d]
+
+        else 
+            ! Print empty table 
+            write(*,fmt_table) year, d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 
+
+        end if 
 
         return 
 
@@ -369,20 +374,11 @@ contains
         ! Make sure this object is fully deallocated first
         call rembo_dealloc(now)
 
-        allocate(now%mask(nx,ny))    ! Ocean-land-ice mask 
-        allocate(now%z_srf(nx,ny))   ! Surface elevation 
-        allocate(now%H_ice(nx,ny))   ! Ice thickness
-        allocate(now%co2_a(nx,ny))   ! Atmospheric CO2 (ppm)
         allocate(now%rco2_a(nx,ny))  ! Radiative forcing of CO2 (W m-2)
         allocate(now%rho_a(nx,ny))   ! Air density (kg m-3)
-        allocate(now%f(nx,ny))       ! Coriolis parameter (1/s)
         allocate(now%sp(nx,ny))      ! Surface pressure (Pa)
-        allocate(now%dzsdx(nx,ny))   ! Surface gradient (x-dir)
-        allocate(now%dzsdy(nx,ny))   ! Surface gradient (y-dir)
-        allocate(now%dzsdxy(nx,ny))  ! Surface gradient (magnitude)
         
         allocate(now%t2m(nx,ny))     ! Near-surface temp
-        allocate(now%teff(nx,ny))    ! Near-surface effective temp (ie, pdds)
         allocate(now%ct2m(nx,ny))    ! Near-surface temp inversion correction
         allocate(now%pp(nx,ny))      ! Precipitation
         allocate(now%ps(nx,ny))      ! Precipitation (snow)
@@ -399,16 +395,11 @@ contains
         allocate(now%uvg(nx,ny))     ! Horizontal magnitude 750Mb velocity (m/s)
         allocate(now%ww(nx,ny))      ! Vertical velocity 750Mb (m/s)
         allocate(now%cc(nx,ny))      ! Cloud fraction (0 - 1)        
-        allocate(now%S(nx,ny))       ! Insolation top of the atmosphere (W/m2)
         allocate(now%swd(nx,ny))     ! Short-wave downward at toa (W/m2)
         allocate(now%lwu(nx,ny))     ! Long-wave upward radiation at toa (W/m2)
-        allocate(now%al_s(nx,ny))    ! Surface albedo (0 - 1)
         allocate(now%al_p(nx,ny))    ! Planetary albedo (0 - 1)
         allocate(now%at(nx,ny))      ! Atmospheric transmissivity (0 - 1)
-        allocate(now%Z(nx,ny))       ! Geopotential height at input pressure level (eg 750Mb) (m)
-        allocate(now%dZdx(nx,ny))    ! Geopotential height gradient (m m**-1)
-        allocate(now%dZdy(nx,ny))    ! Geopotential height gradient (m m**-1)
-
+        
         allocate(now%u_k(nx,ny))     ! x-component katabatic wind velocity (m/s)
         allocate(now%v_k(nx,ny))     ! y-component katabatic wind velocity (m/s)
         allocate(now%uv_k(nx,ny))    ! magnitude katabatic wind velocity (m/s)
@@ -417,7 +408,6 @@ contains
         allocate(now%dtsldy(nx,ny))     ! temperature gradient [K m-1]
         allocate(now%dtsldxy(nx,ny))    ! temperature gradient [K m-1]
         
-        allocate(now%tsurf(nx,ny))   ! Surface temperature (K)
         allocate(now%swd_s(nx,ny))   ! Short-wave downward at surface (W/m2)
         allocate(now%lwd_s(nx,ny))   ! Long-wave downward at surface (W/m2)
         allocate(now%lwu_s(nx,ny))   ! Long-wave upward at surface (W/m2)
@@ -428,7 +418,6 @@ contains
         allocate(now%uv_s(nx,ny))    ! Horizontal magnitude surface velocity (m/s)
 
         now%t2m         = 0.0
-        now%teff        = 0.0
         now%ct2m        = 0.0
         now%pp          = 0.0        
         now%ps          = 0.0
@@ -444,17 +433,12 @@ contains
         now%vg          = 0.0   
         now%uvg         = 0.0
         now%ww          = 0.0 
-        now%cc          = 0.0         
-        now%S           = 0.0   
+        now%cc          = 0.0           
         now%swd         = 0.0    
         now%lwu         = 0.0 
-        now%al_s        = 0.0   
         now%al_p        = 0.0  
         now%at          = 0.0  
-        now%Z           = 0.0    
-        now%dZdx        = 0.0   
-        now%dZdy        = 0.0  
-
+        
         now%u_k         = 0.0    
         now%v_k         = 0.0 
         now%uv_k        = 0.0   
@@ -462,8 +446,7 @@ contains
         now%dtsldx      = 0.0  
         now%dtsldy      = 0.0 
         now%dtsldxy     = 0.0  
-        
-        now%tsurf       = 0.0  
+          
         now%swd_s       = 0.0  
         now%lwd_s       = 0.0  
         now%lwu_s       = 0.0  
@@ -485,66 +468,128 @@ contains
 
         ! Deallocate state variables 
 
-        if (allocated(now%mask)   )   deallocate(now%mask)    ! Ocean-land-ice mask 
-        if (allocated(now%z_srf)  )   deallocate(now%z_srf)   ! Surface elevation 
-        if (allocated(now%H_ice)  )   deallocate(now%H_ice)   ! Ice thickness
-        if (allocated(now%co2_a)  )   deallocate(now%co2_a)   ! Atmospheric CO2 (ppm)
-        if (allocated(now%rco2_a) )   deallocate(now%rco2_a)  ! Radiative forcing of CO2 (W m-2)
-        if (allocated(now%rho_a)  )   deallocate(now%rho_a)   ! Air density (kg m-3)
-        if (allocated(now%f)      )   deallocate(now%f)       ! Coriolis parameter (1/s)
-        if (allocated(now%sp)     )   deallocate(now%sp)      ! Surface pressure (Pa)
-        if (allocated(now%dzsdx)  )   deallocate(now%dzsdx)   ! Surface gradient (x-dir)
-        if (allocated(now%dzsdy)  )   deallocate(now%dzsdy)   ! Surface gradient (y-dir)
-        if (allocated(now%dzsdxy) )   deallocate(now%dzsdxy)  ! Surface gradient (magnitude)
-        
-        if (allocated(now%t2m) )   deallocate(now%t2m)     ! Near-surface temp
-        if (allocated(now%teff) )   deallocate(now%teff)    ! Near-surface effective temp (ie, pdds)
-        if (allocated(now%ct2m) )   deallocate(now%ct2m)    ! Near-surface temp inversion correction
-        if (allocated(now%pp) )   deallocate(now%pp)      ! Precipitation
-        if (allocated(now%ps) )   deallocate(now%ps)      ! Precipitation (snow)
-        if (allocated(now%q_s) )   deallocate(now%q_s)     ! Specific humidity at the surface (kg/kg)
-        if (allocated(now%q_sat) )   deallocate(now%q_sat)   ! Saturated specific humidity at the surface (kg/kg)
-        if (allocated(now%q_r) )   deallocate(now%q_r)     ! Relative humidity (0 - 1)
-        if (allocated(now%tcw) )   deallocate(now%tcw)     ! Total water content (kg/m2)
-        if (allocated(now%tcw_sat) )   deallocate(now%tcw_sat) ! Saturated total water content (kg/m2)
-        if (allocated(now%ccw_prev) )   deallocate(now%ccw_prev)! Previous tcw value
-        if (allocated(now%ccw) )   deallocate(now%ccw)     ! Cloud water content (kg/m2)
-        if (allocated(now%c_w) )   deallocate(now%c_w)     ! Condensated water (kg/m2)
-        if (allocated(now%ug) )   deallocate(now%ug)      ! Horizontal x-component 750Mb velocity (m/s)
-        if (allocated(now%vg) )   deallocate(now%vg)      ! Horizontal y-component 750Mb velocity (m/s)
-        if (allocated(now%uvg) )   deallocate(now%uvg)     ! Horizontal magnitude 750Mb velocity (m/s)
-        if (allocated(now%ww) )   deallocate(now%ww)      ! Vertical velocity 750Mb (m/s)
-        if (allocated(now%cc) )   deallocate(now%cc)      ! Cloud fraction (0 - 1)        
-        if (allocated(now%S) )   deallocate(now%S)       ! Insolation top of the atmosphere (W/m2)
-        if (allocated(now%swd) )   deallocate(now%swd)     ! Short-wave downward at toa (W/m2)
-        if (allocated(now%lwu) )   deallocate(now%lwu)     ! Long-wave upward radiation at toa (W/m2)
-        if (allocated(now%al_s) )   deallocate(now%al_s)    ! Surface albedo (0 - 1)
-        if (allocated(now%al_p) )   deallocate(now%al_p)    ! Planetary albedo (0 - 1)
-        if (allocated(now%at) )   deallocate(now%at)      ! Atmospheric transmissivity (0 - 1)
-        if (allocated(now%Z) )   deallocate(now%Z)       ! Geopotential height at input pressure level (eg 750Mb) (m)
-        if (allocated(now%dZdx) )   deallocate(now%dZdx)    ! Geopotential height gradient (m m**-1)
-        if (allocated(now%dZdy) )   deallocate(now%dZdy)    ! Geopotential height gradient (m m**-1)
+        if (allocated(now%rco2_a) )     deallocate(now%rco2_a)  ! Radiative forcing of CO2 (W m-2)
+        if (allocated(now%rho_a)  )     deallocate(now%rho_a)   ! Air density (kg m-3)
+        if (allocated(now%sp)     )     deallocate(now%sp)      ! Surface pressure (Pa)
 
-        if (allocated(now%u_k) )   deallocate(now%u_k)     ! x-component katabatic wind velocity (m/s)
-        if (allocated(now%v_k) )   deallocate(now%v_k)     ! y-component katabatic wind velocity (m/s)
-        if (allocated(now%uv_k) )   deallocate(now%uv_k)    ! magnitude katabatic wind velocity (m/s)
+        if (allocated(now%t2m) )        deallocate(now%t2m)     ! Near-surface temp
+        if (allocated(now%ct2m) )       deallocate(now%ct2m)    ! Near-surface temp inversion correction
+        if (allocated(now%pp) )         deallocate(now%pp)      ! Precipitation
+        if (allocated(now%ps) )         deallocate(now%ps)      ! Precipitation (snow)
+        if (allocated(now%q_s) )        deallocate(now%q_s)     ! Specific humidity at the surface (kg/kg)
+        if (allocated(now%q_sat) )      deallocate(now%q_sat)   ! Saturated specific humidity at the surface (kg/kg)
+        if (allocated(now%q_r) )        deallocate(now%q_r)     ! Relative humidity (0 - 1)
+        if (allocated(now%tcw) )        deallocate(now%tcw)     ! Total water content (kg/m2)
+        if (allocated(now%tcw_sat) )    deallocate(now%tcw_sat) ! Saturated total water content (kg/m2)
+        if (allocated(now%ccw_prev) )   deallocate(now%ccw_prev)! Previous tcw value
+        if (allocated(now%ccw) )        deallocate(now%ccw)     ! Cloud water content (kg/m2)
+        if (allocated(now%c_w) )        deallocate(now%c_w)     ! Condensated water (kg/m2)
+        if (allocated(now%ug) )         deallocate(now%ug)      ! Horizontal x-component 750Mb velocity (m/s)
+        if (allocated(now%vg) )         deallocate(now%vg)      ! Horizontal y-component 750Mb velocity (m/s)
+        if (allocated(now%uvg) )        deallocate(now%uvg)     ! Horizontal magnitude 750Mb velocity (m/s)
+        if (allocated(now%ww) )         deallocate(now%ww)      ! Vertical velocity 750Mb (m/s)
+        if (allocated(now%cc) )         deallocate(now%cc)      ! Cloud fraction (0 - 1)        
+        if (allocated(now%swd) )        deallocate(now%swd)     ! Short-wave downward at toa (W/m2)
+        if (allocated(now%lwu) )        deallocate(now%lwu)     ! Long-wave upward radiation at toa (W/m2)
+        if (allocated(now%al_p) )       deallocate(now%al_p)    ! Planetary albedo (0 - 1)
+        if (allocated(now%at) )         deallocate(now%at)      ! Atmospheric transmissivity (0 - 1)
+
+        if (allocated(now%u_k) )        deallocate(now%u_k)     ! x-component katabatic wind velocity (m/s)
+        if (allocated(now%v_k) )        deallocate(now%v_k)     ! y-component katabatic wind velocity (m/s)
+        if (allocated(now%uv_k) )       deallocate(now%uv_k)    ! magnitude katabatic wind velocity (m/s)
         
-        if (allocated(now%dtsldx) )   deallocate(now%dtsldx)     ! temperature gradient [K m-1]
-        if (allocated(now%dtsldy) )   deallocate(now%dtsldy)     ! temperature gradient [K m-1]
-        if (allocated(now%dtsldxy) )   deallocate(now%dtsldxy)    ! temperature gradient [K m-1]
+        if (allocated(now%dtsldx) )     deallocate(now%dtsldx)     ! temperature gradient [K m-1]
+        if (allocated(now%dtsldy) )     deallocate(now%dtsldy)     ! temperature gradient [K m-1]
+        if (allocated(now%dtsldxy) )    deallocate(now%dtsldxy)    ! temperature gradient [K m-1]
         
-        if (allocated(now%tsurf) )   deallocate(now%tsurf)   ! Surface temperature (K)
-        if (allocated(now%swd_s) )   deallocate(now%swd_s)   ! Short-wave downward at surface (W/m2)
-        if (allocated(now%lwd_s) )   deallocate(now%lwd_s)   ! Long-wave downward at surface (W/m2)
-        if (allocated(now%lwu_s) )   deallocate(now%lwu_s)   ! Long-wave upward at surface (W/m2)
-        if (allocated(now%shf_s) )   deallocate(now%shf_s)   ! Sensible heat flux at surface (W/m2)
-        if (allocated(now%lhf_s) )   deallocate(now%lhf_s)   ! Latent heat flux at surface (W/m2)
-        if (allocated(now%u_s) )   deallocate(now%u_s)     ! Horizontal x-component surface velocity (m/s)
-        if (allocated(now%v_s) )   deallocate(now%v_s)     ! Horizontal y-component surface velocity (m/s)
-        if (allocated(now%uv_s) )   deallocate(now%uv_s)    ! Horizontal magnitude surface velocity (m/s)
+        if (allocated(now%swd_s) )      deallocate(now%swd_s)   ! Short-wave downward at surface (W/m2)
+        if (allocated(now%lwd_s) )      deallocate(now%lwd_s)   ! Long-wave downward at surface (W/m2)
+        if (allocated(now%lwu_s) )      deallocate(now%lwu_s)   ! Long-wave upward at surface (W/m2)
+        if (allocated(now%shf_s) )      deallocate(now%shf_s)   ! Sensible heat flux at surface (W/m2)
+        if (allocated(now%lhf_s) )      deallocate(now%lhf_s)   ! Latent heat flux at surface (W/m2)
+        if (allocated(now%u_s) )        deallocate(now%u_s)     ! Horizontal x-component surface velocity (m/s)
+        if (allocated(now%v_s) )        deallocate(now%v_s)     ! Horizontal y-component surface velocity (m/s)
+        if (allocated(now%uv_s) )       deallocate(now%uv_s)    ! Horizontal magnitude surface velocity (m/s)
 
         return 
 
     end subroutine rembo_dealloc 
+
+    subroutine rembo_bnd_alloc(bnd,nx,ny)
+
+        implicit none 
+         
+        type(rembo_boundary_class), intent(INOUT) :: bnd
+        integer, intent(IN) :: nx, ny 
+
+        call rembo_bnd_dealloc(bnd)
+
+        allocate(bnd%z_srf(nx,ny))   ! Surface elevation 
+        allocate(bnd%f_ice(nx,ny))   ! Ice thickness (grounded)
+        allocate(bnd%f_shlf(nx,ny))  ! Ice thickness (floating)
+        
+        allocate(bnd%S(nx,ny))       ! Insolation top of the atmosphere (W/m2)
+        allocate(bnd%t2m(nx,ny))     ! Near-surface temp
+        allocate(bnd%al_s(nx,ny))    ! Surface albedo (0 - 1)
+        allocate(bnd%co2_a(nx,ny))   ! Atmospheric CO2 (ppm)
+        allocate(bnd%Z(nx,ny))       ! Geopotential height at input pressure level (eg 750Mb) (m)
+        
+        allocate(bnd%mask(nx,ny))    ! Ocean-land-ice mask 
+        allocate(bnd%f(nx,ny))       ! Coriolis parameter (1/s)
+        allocate(bnd%dzsdx(nx,ny))   ! Surface gradient (x-dir)
+        allocate(bnd%dzsdy(nx,ny))   ! Surface gradient (y-dir)
+        allocate(bnd%dzsdxy(nx,ny))  ! Surface gradient (magnitude)
+        allocate(bnd%dZdx(nx,ny))    ! Geopotential height gradient (m m**-1)
+        allocate(bnd%dZdy(nx,ny))    ! Geopotential height gradient (m m**-1)
+
+        bnd%z_srf       = 0.0
+        bnd%f_ice       = 0.0 
+        bnd%f_shlf      = 0.0 
+
+        bnd%S           = 0.0 
+        bnd%t2m         = 0.0 
+        bnd%al_s        = 0.0 
+        bnd%co2_a       = 0.0 
+        bnd%Z           = 0.0 
+
+        bnd%mask        = 0.0
+        bnd%f           = 0.0 
+        bnd%dzsdx       = 0.0 
+        bnd%dzsdy       = 0.0 
+        bnd%dzsdxy      = 0.0    
+        bnd%dZdx        = 0.0   
+        bnd%dZdy        = 0.0  
+
+        return 
+
+    end subroutine rembo_bnd_alloc 
+
+    subroutine rembo_bnd_dealloc(bnd)
+
+        implicit none 
+         
+        type(rembo_boundary_class), intent(INOUT) :: bnd
+
+        if (allocated(bnd%z_srf ))  deallocate(bnd%z_srf)   ! Surface elevation 
+        if (allocated(bnd%f_ice ))  deallocate(bnd%f_ice)   ! Ice thickness (grounded)
+        if (allocated(bnd%f_shlf )) deallocate(bnd%f_shlf)  ! Ice thickness (floating)
+        
+        if (allocated(bnd%S   ))    deallocate(bnd%S)       ! Insolation top of the atmosphere (W/m2)
+        if (allocated(bnd%t2m ))    deallocate(bnd%t2m)     ! Near-surface temp
+        if (allocated(bnd%al_s ))   deallocate(bnd%al_s)    ! Surface albedo (0 - 1)
+        if (allocated(bnd%co2_a ))  deallocate(bnd%co2_a)   ! Atmospheric CO2 (ppm)
+        if (allocated(bnd%Z ))      deallocate(bnd%Z)       ! Geopotential height at input pressure level (eg 750Mb) (m)
+        
+        if (allocated(bnd%mask ))   deallocate(bnd%mask)    ! Ocean-land-ice mask 
+        if (allocated(bnd%f ))      deallocate(bnd%f)       ! Coriolis parameter (1/s)
+        if (allocated(bnd%dzsdx ))  deallocate(bnd%dzsdx)   ! Surface gradient (x-dir)
+        if (allocated(bnd%dzsdy ))  deallocate(bnd%dzsdy)   ! Surface gradient (y-dir)
+        if (allocated(bnd%dzsdxy )) deallocate(bnd%dzsdxy)  ! Surface gradient (magnitude)
+        if (allocated(bnd%dZdx ))   deallocate(bnd%dZdx)    ! Geopotential height gradient (m m**-1)
+        if (allocated(bnd%dZdy ))   deallocate(bnd%dZdy)    ! Geopotential height gradient (m m**-1)
+
+        return 
+
+    end subroutine rembo_bnd_dealloc 
 
 end module rembo 

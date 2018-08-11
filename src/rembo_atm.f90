@@ -9,41 +9,37 @@ module rembo_atm
     implicit none 
 
     private
-    public calc_rembo_atmosphere
+    public rembo_calc_atmosphere
 
 contains 
 
-    subroutine calc_rembo_atmosphere(now,par,emb,day,year)
+    subroutine rembo_calc_atmosphere(now,emb,bnd,par,day,year)
         ! Calculate the equilibrium rembo atmosphere solution 
         ! for a given day of a given year (can be representative of a month)
 
         implicit none 
 
-        type(rembo_state_class) :: now     ! rembo atmosphere variables
-        type(rembo_param_class) :: par     ! rembo parameters
-        type(diffusion_class)   :: emb     ! Diffusion variables
-
-        integer :: day, year, q 
-        real(wp), dimension(par%npts) :: tmp, kappa_Q 
-        real(wp) :: k_p_now(nd), k_xx(nd)  
-
-        real(wp) :: lat0, lat1 
-        real(wp) :: dtsl_mean 
+        type(rembo_state_class),    intent(INOUT) :: now     ! rembo atmosphere variables
+        type(diffusion_class),      intent(INOUT) :: emb     ! Diffusion variables
+        type(rembo_boundary_class), intent(IN)    :: bnd     ! rembo boundary variables
+        type(rembo_param_class),    intent(IN)    :: par     ! rembo parameters
+        integer, intent(IN) :: day 
+        integer, intent(IN) :: year 
 
         ! Get the surface pressure 
-        now%sp = calc_sp(now%z_srf)
+        now%sp = calc_sp(bnd%z_srf)
 
         ! Get geostrophic components and magnitude of velocity
-        now%ug  = calc_u_geo(now%dZdy,now%f)
-        now%vg  = calc_v_geo(now%dZdx,now%f)
+        now%ug  = calc_u_geo(bnd%dZdy,bnd%f)
+        now%vg  = calc_v_geo(bnd%dZdx,bnd%f)
         now%uvg = calc_magnitude(now%ug,now%vg)
 
         ! Get horizontal gradient of temperature
-        !call gradient_1D(now%dtsldx,now%dtsldy,now%dtsldxy,now%t2m+now%z_srf*par%gamma,par%nx,par%ny,par%dx)
+        !call gradient_1D(now%dtsldx,now%dtsldy,now%dtsldxy,now%t2m+bnd%z_srf*par%gamma,par%nx,par%ny,par%dx)
         
         ! Calculate katabatic wind field
-        now%u_k  = calc_u_kata(now%dtsldx,now%dzsdx,f_k=par%f_k)
-        now%v_k  = calc_v_kata(now%dtsldy,now%dzsdy,f_k=par%f_k)
+        now%u_k  = calc_u_kata(now%dtsldx,bnd%dzsdx,f_k=par%f_k)
+        now%v_k  = calc_v_kata(now%dtsldy,bnd%dzsdy,f_k=par%f_k)
         now%uv_k = calc_magnitude(now%u_k,now%v_k)
 
 !         ! Combine wind fields 
@@ -52,69 +48,69 @@ contains
 !         now%uvg = calc_magnitude(now%ug,now%vg)
 
         ! Calculate vertical velocity
-        now%ww  = calc_w(now%ug,now%vg,now%dzsdx,now%dzsdy)
-
-        ! Get wind field for diffusion too (pts => grid_emb) 
-        !call map_field(emb%map_toemb,"ug",now%ug,emb%ug,method="radius",fill=.TRUE.,missing_value=missing_value)
-        !call map_field(emb%map_toemb,"vg",now%vg,emb%vg,method="radius",fill=.TRUE.,missing_value=missing_value)
-        emb%uvg = calc_magnitude(emb%ug,emb%vg)
+        now%ww  = calc_w(now%ug,now%vg,bnd%dzsdx,bnd%dzsdy)
 
         ! Calculate the surface velocity 
 !         now%u_s = calc_u_surf()
 !         now%v_s = calc_v_surf()
         now%u_s = now%ug 
-        now%u_s = now%vg 
+        now%v_s = now%vg 
         now%uv_s = calc_magnitude(now%u_s,now%v_s)
 
         ! Calculate the planetary albedo 
-        now%al_p = par%alp_a + par%alp_b*now%al_s - par%alp_c*now%tcw 
+        now%al_p = par%alp_a + par%alp_b*bnd%al_s - par%alp_c*now%tcw 
         where(now%al_p .lt. 0.0) now%al_p = 0.0
         where(now%al_p .gt. 1.0) now%al_p = 1.0  
         
         ! Calculate the outgoing long-wave radiation at toa
-        now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15) + par%lwu_c*now%S
+        now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15) + par%lwu_c*bnd%S
 
         ! Calculate the incoming short-wave radiation at toa
-        now%swd = (1.0-now%al_p)*now%S 
+        now%swd = (1.0-now%al_p)*bnd%S 
 
         ! Calculate radiative forcing of CO2
-        now%co2_a   = 350.0
-        now%rco2_a  = calc_rad_co2(now%co2_a)
+        now%rco2_a  = calc_rad_co2(bnd%co2_a)
 
         ! Calculate cloud fraction
         now%cc   = calc_cloudfrac(now%t2m,now%ccw,now%rho_a, &
                                          par%nk1,par%nk2,par%nk3)
         
-!         ! Calculate energy balance on low-resolution grid
-!         call rembo_en(emb,par,day,t2m=now%t2m,zs=now%z_srf, &
-!                           swn=(now%swd - now%swd_s*(1.0-now%al_s)), &
-!                           lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
-!                           shf=now%shf_s,lhf=now%lhf_s, &
-!                           lhp=(par%Lw*(now%pp-now%ps) + par%Ls*now%ps)*1.0, &
-!                           rco2=par%en_kdT + now%rco2_a) 
+        ! Calculate latent heat flux at the surface
 
-!         ! Calculate today's pdds 
-!         now%teff = effective_temp(now%t2m-273.15,sigma=par%teff_sigma)
+        ! ajr: TO DO 
+
+        ! Calculate sensible heat flux at the surface
+
+        ! ajr: TO DO 
+
+
+        ! Calculate energy balance on low-resolution grid
+        call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf, &
+                          swn=(now%swd - now%swd_s*(1.0-bnd%al_s)), &
+                          lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
+                          shf=now%shf_s,lhf=now%lhf_s, &
+                          lhp=(par%Lw*(now%pp-now%ps) + par%Ls*now%ps)*1.0, &
+                          rco2=par%en_kdT + now%rco2_a) 
 
         ! Calculate inversion correction for moisture balance
-        now%ct2m = calc_ttcorr1(now%t2m,now%z_srf,-2.4e-3,-3.7e-1,106.0)
+        now%ct2m = calc_ttcorr1(now%t2m,bnd%z_srf,-2.4e-3,-3.7e-1,106.0)
 
         ! Get saturated specific humidity and sat. total water content
-        now%q_sat   = calc_qsat(now%t2m+now%ct2m,now%z_srf) 
+        now%q_sat   = calc_qsat(now%t2m+now%ct2m,bnd%z_srf) 
         now%tcw_sat = now%q_sat * now%rho_a * par%H_e
 
         ! Calculate the current total water content
-        now%q_s = calc_qs(now%t2m+now%ct2m,now%z_srf,par%e0,par%c1) 
+        now%q_s = calc_qs(now%t2m+now%ct2m,bnd%z_srf,par%e0,par%c1) 
         now%tcw = now%q_s * now%rho_a * par%H_e
         now%q_r = now%tcw / now%tcw_sat 
 
 !         ! Now calculate the condensation rate (kg m**-2 s**-1)
-!         now%c_w = calc_condensation(now%tcw,now%q_r,now%dzsdxy,now%ww, &
+!         now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
 !                                     par%k_c,par%k_x)
 
-!         ! Calculate the current cloud water content
-!         call rembo_ccw(emb,par,ccw=now%ccw,c_w=now%c_w,pp=now%pp, &
-!                        ww=now%ww)
+        ! Calculate the current cloud water content
+        call rembo_calc_ccw(now%pp,now%ccw,now%c_w,emb,par,ww=now%ww)   
+
 
         ! Calculate snowfall (kg m**-2 s**-1)
         now%ps = calc_snowfrac(now%t2m,par%ps_a,par%ps_b) * now%pp 
@@ -122,7 +118,7 @@ contains
         ! ## Calculate surface fluxes ###
 
         ! Shortwave radiation down (surface)
-        now%swd_s = calc_radshort_surf_down(now%S,now%cc,now%z_srf,&
+        now%swd_s = calc_radshort_surf_down(bnd%S,now%cc,bnd%z_srf,&
                                 par%swds_a,par%swds_b,par%swds_c) 
 
         ! Longwave radiation down (surface)
@@ -131,9 +127,9 @@ contains
 
         return 
 
-    end subroutine calc_rembo_atmosphere
+    end subroutine rembo_calc_atmosphere
 
-    subroutine calc_rembo_en(t2m,emb,par,day,z_srf,swn,lwn,shf,lhf,lhp,rco2)
+    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,swn,lwn,shf,lhf,lhp,rco2)
 
         implicit none 
 
@@ -211,9 +207,9 @@ contains
 
         return 
 
-    end subroutine calc_rembo_en 
+    end subroutine rembo_calc_en 
 
-    subroutine calc_rembo_ccw(pp,ccw,c_w,emb,ww,par)
+    subroutine rembo_calc_ccw(pp,ccw,c_w,emb,par,ww)
 
         implicit none 
 
@@ -221,8 +217,8 @@ contains
         real(wp),                intent(OUT)   :: ccw(:,:)
         real(wp),                intent(OUT)   :: c_w(:,:)
         type(diffusion_class),   intent(INOUT) :: emb 
-        real(wp),                intent(IN)    :: ww(:,:)
         type(rembo_param_class), intent(IN)    :: par 
+        real(wp),                intent(IN)    :: ww(:,:)
         
         ! Local variables
         real(wp)  :: dtsl_mean, lat0, lat1
@@ -317,6 +313,6 @@ contains
 
         return 
 
-    end subroutine calc_rembo_ccw 
+    end subroutine rembo_calc_ccw 
 
 end module rembo_atm 
