@@ -110,7 +110,7 @@ module rembo_defs
         real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
         real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
         real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
-
+        
         ! Derived boundary variables
         integer,  allocatable :: mask(:,:)     ! [--]    0: Ocean; 1: Land, 2: Grounded ice, 3: Floating ice
         real(wp), allocatable :: f(:,:)        ! [--]    Coriolis parameter

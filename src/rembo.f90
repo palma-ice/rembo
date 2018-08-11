@@ -10,6 +10,9 @@ module rembo
 
     implicit none 
 
+    ! Day count for the middle of each month of the year
+    integer, parameter :: mdays(12) =[30,60,90,120,150,180,210,240,270,300,330,360]-15
+
     public :: rembo_update
     public :: rembo_init 
     public :: rembo_end 
@@ -17,18 +20,49 @@ module rembo
 contains 
 
 
-    subroutine rembo_update()
+    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,t2m,Z,co2_a,year,S,al_s)
         ! Calculate atmosphere for each month of the year 
 
         implicit none 
 
+        type(rembo_class), intent(INOUT) :: dom 
+
+        real(wp), intent(IN) :: z_srf(:,:)      ! [m]     Surface elevation
+        real(wp), intent(IN) :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
+        real(wp), intent(IN) :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
+        real(wp), intent(IN) :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
+        real(wp), intent(IN) :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
+        real(wp), intent(IN) :: co2_a           ! [ppm]   Atmospheric CO2 concentration
+        integer,  intent(IN) :: year            ! [yrs ago (since 1950)]
+
+        real(wp), intent(IN), optional :: S(:,:,:)        ! [W m-2] Insolation top-of-atmosphere
+        real(wp), intent(IN), optional :: al_s(:,:,:)     ! [--]    Surface albedo 
         
+        ! Local variables 
+        integer :: d, m, nm 
+
+
+        ! Calculate derived boundary variables 
+
+
+        ! Loop over each month, calculate rembo atmosphere 
+        nm = 12 
+
+        do m = 1, nm 
+
+
+            d = mdays(m)
+            
+            ! Print summary 
+            call rembo_print(dom,m,d,year)
+
+        end do 
 
         return 
 
     end subroutine rembo_update 
     
-    subroutine rembo_init(dom,par_path,domain,grid,year)
+    subroutine rembo_init(dom,par_path,domain,grid)
 
         use solvers
 
@@ -36,8 +70,7 @@ contains
         
         type(rembo_class), intent(INOUT) :: dom
         character(len=*),  intent(IN)    :: par_path  
-        character(len=*),  intent(IN)    :: domain
-        integer,           intent(IN)    :: year 
+        character(len=*),  intent(IN)    :: domain 
         type(grid_class),  intent(IN)    :: grid 
 
         ! Local variables         
@@ -96,7 +129,7 @@ contains
         return 
 
     end subroutine rembo_init
-    
+
     subroutine rembo_emb_init(emb,grid,dx)
         ! Initialize the diffusion variables on
         ! the desired grid resolution.
@@ -219,7 +252,9 @@ contains
 
         type(rembo_class), intent(INOUT) :: dom
 
-        ! Atmospheric variables
+        
+        call rembo_bnd_dealloc(dom%bnd)
+
         call rembo_dealloc(dom%now)
         call rembo_dealloc(dom%mon)
         call rembo_dealloc(dom%ann)
