@@ -96,61 +96,7 @@ contains
         return 
 
     end subroutine rembo_init
-
-    subroutine rembo_init_state(dom)
-        ! This subroutine intializes the current state variables
-        ! depending on whether loading from a restart file or using default values
-            
-        implicit none 
-
-        type(rembo_class) :: dom
-        
-        ! Initialize variables 
-        if (.not. trim(dom%par%restart) .eq. "no") then 
-            ! Add code to load previously stopped run
-!             call rembo_restart(dom,trim(dom%par%restart))  ! ## TO DO ##
-
-        else 
-            ! Initialize variables with default values
-
-            ! Sub-annual values
-            dom%now%t2m   = 273.15d0  
-            dom%now%tcw   = 0.d0
-            dom%now%ccw   = 0.d0
-            dom%now%c_w   = 0.d0
-            dom%now%ccw_prev = 0.d0 
-            dom%now%pp    = 0.d0
-            dom%now%al_p  = 0.5d0 
-            dom%now%lwu   = 0.d0
-            dom%now%swd   = 100.d0  
-
-            dom%now%swd_s = 0.d0 
-            dom%now%lwd_s = 0.d0  
-            dom%now%u_s   = 0.d0 
-            dom%now%v_s   = 0.d0 
-
-            ! Diffusion variables
-            dom%emb%tsl    = 273.15d0  ! 0 degC
-            dom%emb%tcw    = 0.d0 
-            dom%emb%ug     = 0.d0 
-            dom%emb%vg     = 0.d0 
-
-            dom%emb%en     = 0.d0
-            dom%emb%en_bnd = 0.d0  
-            dom%emb%en_F   = 0.d0 
-            dom%emb%kappa  = dom%par%en_D 
-
-            dom%emb%ccw     = 0.03d0    ! Average winter value 
-            dom%emb%ccw_bnd = 0.d0
-            dom%emb%ccw_F   = 0.d0 
-            dom%emb%kappaw  = dom%par%ccw_D
-            
-        end if 
-
-        return 
-
-    end subroutine rembo_init_state 
-
+    
     subroutine rembo_emb_init(emb,grid,dx)
         ! Initialize the diffusion variables on
         ! the desired grid resolution.
@@ -223,6 +169,45 @@ contains
         ! Diffusion
         allocate(emb%kappa(nx,ny))
         allocate(emb%kappaw(nx,ny))
+
+
+        ! Initialize all variables to zero 
+
+        emb%mask        = 0.0
+        emb%z_srf       = 0.0
+        emb%rho_a       = 0.0
+
+        emb%dzsdx       = 0.0
+        emb%dzsdy       = 0.0
+        emb%dzsdxy      = 0.0
+
+        ! Energy balance 
+        emb%tsl         = 0.0
+        emb%tsl_bnd     = 0.0
+        emb%en          = 0.0
+        emb%en_bnd      = 0.0
+        emb%en_F        = 0.0
+
+        ! Moisture balance
+        emb%ccw         = 0.0
+        emb%ccw_bnd     = 0.0
+        emb%ccw_F       = 0.0
+        emb%ccw_cw      = 0.0
+        emb%ccw_pp      = 0.0
+        emb%tcw         = 0.0
+        emb%tcw_bnd     = 0.0
+
+        ! Energy and moisture balance
+        emb%ug          = 0.0
+        emb%vg          = 0.0
+        emb%uvg         = 0.0
+        emb%ww          = 0.0
+
+        emb%qr          = 0.0
+
+        ! Diffusion
+        emb%kappa       = 0.0
+        emb%kappaw      = 0.0 
 
         return 
 
