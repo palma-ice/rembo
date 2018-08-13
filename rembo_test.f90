@@ -28,7 +28,6 @@ program rembo_test
     character(len=512) :: outfldr 
     character(len=512) :: file_out 
     real(wp)           :: time 
-    integer            :: m  
 
     call grid_init(grid,name="GRL-20KM",mtype="stereographic",units="kilometers", &
                                    lon180=.TRUE.,dx=20.d0,nx=91,dy=20.d0,ny=151, &
@@ -247,7 +246,7 @@ contains
         n  = 1
         nx = dom%grid%G%nx 
         ny = dom%grid%G%ny 
-        nm = 12
+        nm = size(dom%mon)
 
         ! Update the time step
         call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
@@ -279,7 +278,7 @@ contains
         ! == REMBO fields == 
 
         do m = 1, nm 
-            call nc_write(filename,"t2m",dom%now%t2m,units="K",long_name="Near-surface air temperature", &
+            call nc_write(filename,"t2m",dom%mon(m)%t2m,units="K",long_name="Near-surface air temperature", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
         end do 
         

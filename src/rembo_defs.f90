@@ -183,7 +183,7 @@ module rembo_defs
         type(rembo_boundary_class) :: bnd 
 
         ! current variables, month and various averages
-        type(rembo_state_class) :: now, mon, ann
+        type(rembo_state_class) :: now, mon(12), ann
 
         ! Variables and grid definitions for energy-moisture balance calculations
         type(diffusion_class) :: emb

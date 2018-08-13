@@ -41,20 +41,66 @@ contains
         ! Local variables 
         integer :: d, m, nm 
 
+        nm = size(dom%mon)
+        
+        ! == Store annual boundary variables =====
+        dom%bnd%z_srf  = z_srf 
+        dom%bnd%f_ice  = f_ice 
+        dom%bnd%f_shlf = f_shlf 
 
-        ! Calculate derived boundary variables 
+        ! == Calculate annual derived boundary variables =====
+        ! mask, f, dzsdx, dzsdy, dzsdxy 
+
+        ! To do 
 
 
         ! Loop over each month, calculate rembo atmosphere 
-        nm = 12 
-
         do m = 1, nm 
 
-
+            ! Determine representative day of the month
             d = mdays(m)
+
+            ! == Store monthly boundary variables =====
+
+            ! If insolation is available store it, or calculate it 
+            if (present(S)) then 
+                dom%bnd%S = S(:,:,m)
+            else 
+
+                ! calc insol (to do)
+            end if 
+
+            ! If surface albedo is available store it, or calculate it 
+            if (present(al_s)) then 
+                dom%bnd%al_s = al_s(:,:,m)
+            else 
+
+                ! calc surface albedo (to do)
+            end if 
+
+            ! Save all other variables 
+            dom%bnd%t2m   = t2m(:,:,m) 
+            dom%bnd%co2_a = co2_a 
+            dom%bnd%Z     = Z(:,:,m)
+
+            ! == Calculate monthly derived boundary variables =====
+
+            ! Calc gradient of Z: dZdx, dZdy 
+
+            ! To do     
+            
+
+            ! Calculate rembo atmosphere...
+
+            dom%now%t2m = dom%bnd%t2m
+            
+
             
             ! Print summary 
             call rembo_print(dom,m,d,year)
+
+            ! Store data in monthly object 
+            dom%mon(m) = dom%now
 
         end do 
 
@@ -75,7 +121,7 @@ contains
 
         ! Local variables         
         character(len=256) :: filename, file_boundary 
-        integer            :: i
+        integer            :: i, m, nm 
         real(wp)           :: dt_check(2) 
         character(len=64)  :: fmt1 
 
@@ -88,12 +134,16 @@ contains
         dom%par%nx     = grid%G%nx 
         dom%par%ny     = grid%G%ny 
         
+        nm = size(dom%mon)
+
         ! Allocate boundary variables
         call rembo_bnd_alloc(dom%bnd,dom%par%nx,dom%par%ny)
         
         ! Allocate state variables
         call rembo_alloc(dom%now,dom%par%nx,dom%par%ny)
-        call rembo_alloc(dom%mon,dom%par%nx,dom%par%ny)
+        do m = 1, nm 
+            call rembo_alloc(dom%mon(m),dom%par%nx,dom%par%ny)
+        end do 
         call rembo_alloc(dom%ann,dom%par%nx,dom%par%ny)
 
         ! Diffusion grid and variables
@@ -252,11 +302,17 @@ contains
 
         type(rembo_class), intent(INOUT) :: dom
 
+        ! Local variables 
+        integer :: m, nm 
+
+        nm = size(dom%mon)
         
         call rembo_bnd_dealloc(dom%bnd)
 
         call rembo_dealloc(dom%now)
-        call rembo_dealloc(dom%mon)
+        do m = 1, nm 
+            call rembo_dealloc(dom%mon(m))
+        end do
         call rembo_dealloc(dom%ann)
 
         write(*,*) "rembo_end :: deallocated rembo variables: "//trim(dom%par%domain)
