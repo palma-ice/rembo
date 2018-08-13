@@ -263,15 +263,15 @@ contains
                       dim1="xc",dim2="yc",ncid=ncid)
         call nc_write(filename,"mask",dom%bnd%mask,units="1",long_name="Mask (solve REMBO or boundary)", &
                       dim1="xc",dim2="yc",ncid=ncid)
-         
+        call nc_write(filename,"co2_a",dom%bnd%co2_a,units="ppm",long_name="Atmospheric CO2 (boundary)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
         call nc_write(filename,"S",forc%S,units="W m**-2",long_name="Insolation TOA (boundary)", &
                       dim1="xc",dim2="yc",dim3="month",ncid=ncid)
         call nc_write(filename,"t2m_bnd",forc%t2m,units="K",long_name="Near-surface temperature (boundary)", &
                       dim1="xc",dim2="yc",dim3="month",ncid=ncid)
         call nc_write(filename,"al_s",forc%al_s,units="K",long_name="Surface albedo (boundary)", &
                       dim1="xc",dim2="yc",dim3="month",ncid=ncid)
-!         call nc_write(filename,"co2_a",forc%co2_a,units="ppm",long_name="Atmospheric CO2 (boundary)", &
-!                       dim1="xc",dim2="yc",dim3="month",ncid=ncid)
         call nc_write(filename,"Z",forc%Z,units="m",long_name="Geopotential height 750 Mb layer (boundary)", &
                       dim1="xc",dim2="yc",dim3="month",ncid=ncid)
 
