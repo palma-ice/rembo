@@ -288,7 +288,7 @@ contains
             ! Forcing fields
             call nc_write(filename,"S",dom%mon(m)%S,units="W m**-2",long_name="Insolation TOA (boundary)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
-            call nc_write(filename,"t2m_bnd",dom%mon(m)%t2m,units="K",long_name="Near-surface temperature (boundary)", &
+            call nc_write(filename,"t2m_bnd",dom%mon(m)%t2m_bnd,units="K",long_name="Near-surface temperature (boundary)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"al_s",dom%mon(m)%al_s,units="K",long_name="Surface albedo (boundary)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)

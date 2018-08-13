@@ -112,7 +112,7 @@ module rembo_defs
         real(wp), allocatable :: dzsdx(:,:)
         real(wp), allocatable :: dzsdy(:,:)
         real(wp), allocatable :: dzsdxy(:,:)
-        
+
     end type 
 
     ! Now define all variables of the domain

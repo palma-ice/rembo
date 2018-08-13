@@ -97,7 +97,7 @@ contains
 
 
         ! Calculate energy balance on low-resolution grid
-        call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf, &
+        call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf,now%t2m_bnd, &
                           swn=(now%swd - now%swd_s*(1.0-now%al_s)), &
                           lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
                           shf=now%shf_s,lhf=now%lhf_s, &
@@ -141,13 +141,14 @@ contains
 
     end subroutine rembo_calc_atmosphere
 
-    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,swn,lwn,shf,lhf,lhp,rco2)
+    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,swn,lwn,shf,lhf,lhp,rco2)
 
         implicit none 
 
-        real(wp),                intent(OUT)   :: t2m(:,:)
+        real(wp),                intent(INOUT) :: t2m(:,:)
         type(diffusion_class),   intent(INOUT) :: emb  
         real(wp),                intent(IN)    :: z_srf(:,:)
+        real(wp),                intent(IN)    :: t2m_bnd(:,:)
         real(wp),                intent(IN)    :: swn(:,:)
         real(wp),                intent(IN)    :: lwn(:,:)
         real(wp),                intent(IN)    :: shf(:,:)
@@ -177,14 +178,15 @@ contains
         ! emb%kappa = par%en_D 
         emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/day_year))
         
+        ! Boundary sea-level temperature, tsl
+        call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
+          
         ! Sea level temperature, tsl
-        ! ajr: TO DO 
-!         call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=missing_value)
+        call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
             
         ! Radiative forcing, en_F
-        ! ajr: TO DO 
-!         call map_field(emb%map_toemb,"en_F",swn + lwn + (shf+lhf) + lhp + rco2, &
-!                        emb%en_F,method="radius",fill=.TRUE.,missing_value=missing_value)
+        call map_field(emb%map_toemb,"en_F",swn + lwn + (shf+lhf) + lhp + rco2, &
+                       emb%en_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
 
         ! Radiation
         emb%en     = emb%tsl     *tsl_fac
@@ -208,7 +210,7 @@ contains
         ! Re-calculate temperature 
         emb%tsl = emb%en /tsl_fac
 
-!         call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="quadrant",fill=.TRUE.,missing_value=missing_value)
+        call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nn",fill=.TRUE.,missing_value=dble(missing_value))
 
         ! ajr: TO DO !!
 !         t2m =  interp_bilinear(is_points=.TRUE.,x=emb%grid%G%x,y=emb%grid%G%y,z=emb%tsl, &
