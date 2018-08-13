@@ -101,17 +101,12 @@ module rembo_defs
 
     type rembo_boundary_class
 
+        ! Annual boundary variables
         real(wp), allocatable :: z_srf(:,:)    ! [m]     Surface elevation
         real(wp), allocatable :: f_ice(:,:)    ! [--]    Fraction of land-based ice coverage in cell
         real(wp), allocatable :: f_shlf(:,:)   ! [--]    Fraction of floating (shelf) ice coverage in cell
         
-        real(wp), allocatable :: S(:,:)        ! [W m-2] Insolation top-of-atmosphere
-        real(wp), allocatable :: t2m(:,:)      ! [K]     Near-surface temperature (used for boundary)
-        real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
-        real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
-        real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
-
-        ! Derived boundary variables
+        ! Derived annual boundary variables
         integer,  allocatable :: mask(:,:)     ! [--]    0: Ocean; 1: Land, 2: Grounded ice, 3: Floating ice
         real(wp), allocatable :: f(:,:)        ! [--]    Coriolis parameter
         real(wp), allocatable :: dzsdx(:,:)
@@ -125,6 +120,13 @@ module rembo_defs
     ! Now define all variables of the domain
     type rembo_state_class
 
+        ! Monthly forcing variables 
+        real(wp), allocatable :: S(:,:)        ! [W m-2] Insolation top-of-atmosphere
+        real(wp), allocatable :: t2m_bnd(:,:)  ! [K]     Near-surface temperature (used for boundary)
+        real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
+        real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
+        real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
+        
         ! Annual variables 
         real(wp), allocatable :: rco2_a(:,:)
         real(wp), allocatable :: rho_a(:,:)

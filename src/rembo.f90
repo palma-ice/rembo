@@ -19,10 +19,10 @@ module rembo
     public :: rembo_init 
     public :: rembo_end 
     public :: rembo_write_init 
-    
+
 contains 
 
-    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,t2m,Z,co2_a,year,S,al_s)
+    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,t2m,Z,co2_a,year)
         ! Calculate atmosphere for each month of the year 
 
         implicit none 
@@ -37,12 +37,9 @@ contains
         real(wp), intent(IN) :: co2_a           ! [ppm]   Atmospheric CO2 concentration
         integer,  intent(IN) :: year            ! [yrs ago (since 1950)]
 
-        real(wp), intent(IN), optional :: S(:,:,:)        ! [W m-2] Insolation top-of-atmosphere
-        real(wp), intent(IN), optional :: al_s(:,:,:)     ! [--]    Surface albedo 
-        
         ! Local variables 
-        integer :: day, m, nm 
-
+        integer  :: day, m, nm 
+        
         nm = size(dom%mon)
 
         ! == Store annual boundary variables =====
@@ -64,28 +61,13 @@ contains
 
             ! == Store monthly boundary variables =====
 
-            ! If insolation is available store it, or calculate it 
-            if (present(S)) then 
-                dom%bnd%S = S(:,:,m)
-            else 
+            ! Calculate representative insolation for the month
+            dom%now%S = calc_insol_day(day,dom%grid%lat,dble(year),fldr="libs/insol/input")
 
-                ! Calculate representative insolation for the month
-                dom%bnd%S = calc_insol_day(day,dom%grid%lat,dble(year),fldr="libs/insol/input")
-
-            end if 
-
-            ! If surface albedo is available store it, or calculate it 
-            if (present(al_s)) then 
-                dom%bnd%al_s = al_s(:,:,m)
-            else 
-
-                ! calc surface albedo (to do)
-            end if 
-
-            ! Save all other variables 
-            dom%bnd%t2m   = t2m(:,:,m) 
-            dom%bnd%co2_a = co2_a 
-            dom%bnd%Z     = Z(:,:,m)
+            ! Save all other boundary variables 
+            dom%now%t2m_bnd = t2m(:,:,m) 
+            dom%now%co2_a   = co2_a 
+            dom%now%Z       = Z(:,:,m)
 
             ! == Calculate monthly derived boundary variables =====
 
@@ -96,7 +78,7 @@ contains
 
             ! Calculate rembo atmosphere...
 
-            dom%now%t2m = dom%bnd%t2m
+            dom%now%t2m = dom%now%t2m_bnd
             
 
             
@@ -454,6 +436,12 @@ contains
         ! Make sure this object is fully deallocated first
         call rembo_dealloc(now)
 
+        allocate(now%S(nx,ny))       ! Insolation top of the atmosphere (W/m2)
+        allocate(now%t2m_bnd(nx,ny)) ! Near-surface temp
+        allocate(now%al_s(nx,ny))    ! Surface albedo (0 - 1)
+        allocate(now%co2_a(nx,ny))   ! Atmospheric CO2 (ppm)
+        allocate(now%Z(nx,ny))       ! Geopotential height at input pressure level (eg 750Mb) (m)
+        
         allocate(now%rco2_a(nx,ny))  ! Radiative forcing of CO2 (W m-2)
         allocate(now%rho_a(nx,ny))   ! Air density (kg m-3)
         allocate(now%sp(nx,ny))      ! Surface pressure (Pa)
@@ -496,6 +484,16 @@ contains
         allocate(now%u_s(nx,ny))     ! Horizontal x-component surface velocity (m/s)
         allocate(now%v_s(nx,ny))     ! Horizontal y-component surface velocity (m/s)
         allocate(now%uv_s(nx,ny))    ! Horizontal magnitude surface velocity (m/s)
+
+        now%S           = 0.0 
+        now%t2m_bnd     = 0.0 
+        now%al_s        = 0.0 
+        now%co2_a       = 0.0 
+        now%Z           = 0.0 
+
+        now%rco2_a      = 0.0 
+        now%rho_a       = 0.0 
+        now%sp          = 0.0 
 
         now%t2m         = 0.0
         now%ct2m        = 0.0
@@ -548,6 +546,12 @@ contains
 
         ! Deallocate state variables 
 
+        if (allocated(now%S   ))        deallocate(now%S)       ! Insolation top of the atmosphere (W/m2)
+        if (allocated(now%t2m_bnd ))    deallocate(now%t2m_bnd) ! Near-surface temp
+        if (allocated(now%al_s ))       deallocate(now%al_s)    ! Surface albedo (0 - 1)
+        if (allocated(now%co2_a ))      deallocate(now%co2_a)   ! Atmospheric CO2 (ppm)
+        if (allocated(now%Z ))          deallocate(now%Z)       ! Geopotential height at input pressure level (eg 750Mb) (m)
+        
         if (allocated(now%rco2_a) )     deallocate(now%rco2_a)  ! Radiative forcing of CO2 (W m-2)
         if (allocated(now%rho_a)  )     deallocate(now%rho_a)   ! Air density (kg m-3)
         if (allocated(now%sp)     )     deallocate(now%sp)      ! Surface pressure (Pa)
@@ -608,12 +612,6 @@ contains
         allocate(bnd%f_ice(nx,ny))   ! Ice thickness (grounded)
         allocate(bnd%f_shlf(nx,ny))  ! Ice thickness (floating)
         
-        allocate(bnd%S(nx,ny))       ! Insolation top of the atmosphere (W/m2)
-        allocate(bnd%t2m(nx,ny))     ! Near-surface temp
-        allocate(bnd%al_s(nx,ny))    ! Surface albedo (0 - 1)
-        allocate(bnd%co2_a(nx,ny))   ! Atmospheric CO2 (ppm)
-        allocate(bnd%Z(nx,ny))       ! Geopotential height at input pressure level (eg 750Mb) (m)
-        
         allocate(bnd%mask(nx,ny))    ! Ocean-land-ice mask 
         allocate(bnd%f(nx,ny))       ! Coriolis parameter (1/s)
         allocate(bnd%dzsdx(nx,ny))   ! Surface gradient (x-dir)
@@ -625,12 +623,6 @@ contains
         bnd%z_srf       = 0.0
         bnd%f_ice       = 0.0 
         bnd%f_shlf      = 0.0 
-
-        bnd%S           = 0.0 
-        bnd%t2m         = 0.0 
-        bnd%al_s        = 0.0 
-        bnd%co2_a       = 0.0 
-        bnd%Z           = 0.0 
 
         bnd%mask        = 0.0
         bnd%f           = 0.0 
@@ -653,12 +645,6 @@ contains
         if (allocated(bnd%z_srf ))  deallocate(bnd%z_srf)   ! Surface elevation 
         if (allocated(bnd%f_ice ))  deallocate(bnd%f_ice)   ! Ice thickness (grounded)
         if (allocated(bnd%f_shlf )) deallocate(bnd%f_shlf)  ! Ice thickness (floating)
-        
-        if (allocated(bnd%S   ))    deallocate(bnd%S)       ! Insolation top of the atmosphere (W/m2)
-        if (allocated(bnd%t2m ))    deallocate(bnd%t2m)     ! Near-surface temp
-        if (allocated(bnd%al_s ))   deallocate(bnd%al_s)    ! Surface albedo (0 - 1)
-        if (allocated(bnd%co2_a ))  deallocate(bnd%co2_a)   ! Atmospheric CO2 (ppm)
-        if (allocated(bnd%Z ))      deallocate(bnd%Z)       ! Geopotential height at input pressure level (eg 750Mb) (m)
         
         if (allocated(bnd%mask ))   deallocate(bnd%mask)    ! Ocean-land-ice mask 
         if (allocated(bnd%f ))      deallocate(bnd%f)       ! Coriolis parameter (1/s)

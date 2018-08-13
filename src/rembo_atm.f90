@@ -26,6 +26,9 @@ contains
         integer, intent(IN) :: day 
         integer, intent(IN) :: year 
 
+        ! Local variables
+        real(wp) :: als_max, als_min, afac, tmid    ! ajr: to do: move to parameters!!
+
         ! Get the surface pressure 
         now%sp = calc_sp(bnd%z_srf)
 
@@ -57,19 +60,28 @@ contains
         now%v_s = now%vg 
         now%uv_s = calc_magnitude(now%u_s,now%v_s)
 
+        ! Calculate the surface albedo 
+        als_max =   0.80
+        als_min =   0.69
+        afac     =  -0.18
+        tmid     = 275.35
+        now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
+
+        ! ajr: TO do: implement loop updating t2m and al_s !!!
+
         ! Calculate the planetary albedo 
-        now%al_p = par%alp_a + par%alp_b*bnd%al_s - par%alp_c*now%tcw 
+        now%al_p = par%alp_a + par%alp_b*now%al_s - par%alp_c*now%tcw 
         where(now%al_p .lt. 0.0) now%al_p = 0.0
         where(now%al_p .gt. 1.0) now%al_p = 1.0  
         
         ! Calculate the outgoing long-wave radiation at toa
-        now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15) + par%lwu_c*bnd%S
+        now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15) + par%lwu_c*now%S
 
         ! Calculate the incoming short-wave radiation at toa
-        now%swd = (1.0-now%al_p)*bnd%S 
+        now%swd = (1.0-now%al_p)*now%S 
 
         ! Calculate radiative forcing of CO2
-        now%rco2_a  = calc_rad_co2(bnd%co2_a)
+        now%rco2_a  = calc_rad_co2(now%co2_a)
 
         ! Calculate cloud fraction
         now%cc   = calc_cloudfrac(now%t2m,now%ccw,now%rho_a, &
@@ -86,7 +98,7 @@ contains
 
         ! Calculate energy balance on low-resolution grid
         call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf, &
-                          swn=(now%swd - now%swd_s*(1.0-bnd%al_s)), &
+                          swn=(now%swd - now%swd_s*(1.0-now%al_s)), &
                           lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
                           shf=now%shf_s,lhf=now%lhf_s, &
                           lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
@@ -118,7 +130,7 @@ contains
         ! ## Calculate surface fluxes ###
 
         ! Shortwave radiation down (surface)
-        now%swd_s = calc_radshort_surf_down(bnd%S,now%cc,bnd%z_srf,&
+        now%swd_s = calc_radshort_surf_down(now%S,now%cc,bnd%z_srf,&
                                 par%swds_a,par%swds_b,par%swds_c) 
 
         ! Longwave radiation down (surface)

@@ -10,9 +10,6 @@ program rembo_test
 
     implicit none 
 
-    ! Day count for the middle of each month of the year
-    integer, parameter :: mdays(12) =[30,60,90,120,150,180,210,240,270,300,330,360]-15
-
     type rembo_forcing_class
         ! Climatology and forcing data for a whole year 
 
@@ -65,13 +62,7 @@ program rembo_test
     ! Define current year and update rembo (including insolation)
     time       = 0.0      ! [kyr ago]   
 
-    ! Calculate representative insolation for the month
-    do m = 1, nm 
-        day = mdays(m)
-        forc%S(:,:,m) = calc_insol_day(day,rem1%grid%lat,dble(time),fldr="libs/insol/input")
-    end do 
-
-    call rembo_update(rem1,z_srf,f_ice,f_shlf,forc%t2m,forc%Z,forc%co2_a,int(time),S=forc%S,al_s=forc%al_s)
+    call rembo_update(rem1,z_srf,f_ice,f_shlf,forc%t2m,forc%Z,forc%co2_a,int(time))
 
     ! Write final result 
     call rembo_write_init(rem1,file_out,time,units="kyr ago")
@@ -278,23 +269,26 @@ contains
                       dim1="xc",dim2="yc",ncid=ncid)
         call nc_write(filename,"mask",dom%bnd%mask,units="1",long_name="Mask (solve REMBO or boundary)", &
                       dim1="xc",dim2="yc",ncid=ncid)
-        call nc_write(filename,"co2_a",dom%bnd%co2_a,units="ppm",long_name="Atmospheric CO2 (boundary)", &
-                      dim1="xc",dim2="yc",ncid=ncid)
-
-        call nc_write(filename,"S",forc%S,units="W m**-2",long_name="Insolation TOA (boundary)", &
-                      dim1="xc",dim2="yc",dim3="month",ncid=ncid)
-        call nc_write(filename,"t2m_bnd",forc%t2m,units="K",long_name="Near-surface temperature (boundary)", &
-                      dim1="xc",dim2="yc",dim3="month",ncid=ncid)
-        call nc_write(filename,"al_s",forc%al_s,units="K",long_name="Surface albedo (boundary)", &
-                      dim1="xc",dim2="yc",dim3="month",ncid=ncid)
-        call nc_write(filename,"Z",forc%Z,units="m",long_name="Geopotential height 750 Mb layer (boundary)", &
-                      dim1="xc",dim2="yc",dim3="month",ncid=ncid)
 
         ! == REMBO fields == 
 
-        do m = 1, nm 
+        do m = 1, nm
+
+            ! Forcing fields
+            call nc_write(filename,"S",dom%mon(m)%S,units="W m**-2",long_name="Insolation TOA (boundary)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"t2m_bnd",dom%mon(m)%t2m,units="K",long_name="Near-surface temperature (boundary)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"al_s",dom%mon(m)%al_s,units="K",long_name="Surface albedo (boundary)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"Z",dom%mon(m)%Z,units="m",long_name="Geopotential height 750 Mb layer (boundary)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"co2_a",dom%mon(m)%co2_a,units="ppm",long_name="Atmospheric CO2 (boundary)", &
+                      dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+        
             call nc_write(filename,"t2m",dom%mon(m)%t2m,units="K",long_name="Near-surface air temperature", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+        
         end do 
         
         call nc_write(filename,"Ta_ann",dom%ann%t2m,units="K",long_name="Near-surface air temperature (ann)", &

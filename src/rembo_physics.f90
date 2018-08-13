@@ -7,6 +7,7 @@ module rembo_physics
     implicit none 
 
     private 
+    public :: calc_albedo_t2m
     public :: calc_condensation
     public :: calc_precip
     public :: calc_snowfrac
@@ -35,6 +36,22 @@ module rembo_physics
     
 contains
     
+    elemental function calc_albedo_t2m(t2m,als_min,als_max,afac,tmid) result(al_s)
+        ! Calculate the surface albedo of snow as a function of near-surface temperature
+        ! Alexander Robinson, inspired from Slater et al, etc. 
+
+        implicit none
+
+        real(wp), intent(IN) :: t2m 
+        real(wp), intent(IN) :: als_min, als_max, afac, tmid 
+        real(wp) :: al_s 
+
+        al_s = als_min + (als_max - als_min)*(0.5*tanh(afac*(t2m-tmid))+0.5)
+
+        return 
+
+    end function calc_albedo_t2m
+
     elemental function calc_condensation(tcw,qr,ww,k_c,k_x) result(c_w)
 
         implicit none 
