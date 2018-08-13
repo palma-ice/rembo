@@ -152,6 +152,10 @@ contains
         
         write(*,*) "rembo_init :: allocated rembo variables."
 
+        ! Perform mapping between emb and rembo grids
+        call map_init(dom%emb%map_toemb,  dom%grid,dom%emb%grid,max_neighbors=10,load=.TRUE.)
+        call map_init(dom%emb%map_fromemb,dom%emb%grid,dom%grid,max_neighbors=10,load=.TRUE.)
+        
         ! Check diffusion time step consistency
         dt_check(1) = diff2D_timestep(real(dom%emb%grid%G%dx*dom%emb%grid%xy_conv,wp), &
                                       real(dom%emb%grid%G%dy*dom%emb%grid%xy_conv,wp), &

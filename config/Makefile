@@ -10,6 +10,7 @@ testdir = tests
 
 # Command-line options at make call
 debug ?= 0
+openmp ?= 1
 
 ## COMPILER CONFIGURATION ##
 # (should be loaded from config directory)
@@ -25,6 +26,12 @@ endif
 # Debugging flags with profiling output enabled
 ifeq ($(debug), 2)
 	DFLAGS   = $(DFLAGS_PROFILE)
+endif
+
+# Determine whether to use openmp flags 
+FFLAGS = $(FFLAGS_DEFAULT)
+ifeq ($(openmp), 1)
+	FFLAGS = $(FFLAGS_OPENMP)
 endif
 
 ###############################################
