@@ -1,9 +1,17 @@
 program rembo_test
 
-    use coord 
+    use ncio
+    use coord
+
+    use rembo_defs  
     use rembo 
 
+    use insolation 
+
     implicit none 
+
+    ! Day count for the middle of each month of the year
+    integer, parameter :: mdays(12) =[30,60,90,120,150,180,210,240,270,300,330,360]-15
 
     type rembo_forcing_class
         ! Climatology and forcing data for a whole year 
@@ -28,6 +36,7 @@ program rembo_test
     character(len=512) :: outfldr 
     character(len=512) :: file_out 
     real(wp)           :: time 
+    integer            :: m, day  
 
     call grid_init(grid,name="GRL-20KM",mtype="stereographic",units="kilometers", &
                                    lon180=.TRUE.,dx=20.d0,nx=91,dy=20.d0,ny=151, &
@@ -56,7 +65,13 @@ program rembo_test
     ! Define current year and update rembo (including insolation)
     time       = 0.0      ! [kyr ago]   
 
-    call rembo_update(rem1,z_srf,f_ice,f_shlf,forc%t2m,forc%Z,forc%co2_a,int(time))
+    ! Calculate representative insolation for the month
+    do m = 1, nm 
+        day = mdays(m)
+        forc%S(:,:,m) = calc_insol_day(day,rem1%grid%lat,dble(time),fldr="libs/insol/input")
+    end do 
+
+    call rembo_update(rem1,z_srf,f_ice,f_shlf,forc%t2m,forc%Z,forc%co2_a,int(time),S=forc%S,al_s=forc%al_s)
 
     ! Write final result 
     call rembo_write_init(rem1,file_out,time,units="kyr ago")

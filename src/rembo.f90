@@ -7,18 +7,20 @@ module rembo
     use nml 
     use ncio 
     use solvers 
+    use insolation 
 
     implicit none 
 
     ! Day count for the middle of each month of the year
     integer, parameter :: mdays(12) =[30,60,90,120,150,180,210,240,270,300,330,360]-15
 
+    private 
     public :: rembo_update
     public :: rembo_init 
     public :: rembo_end 
-
+    public :: rembo_write_init 
+    
 contains 
-
 
     subroutine rembo_update(dom,z_srf,f_ice,f_shlf,t2m,Z,co2_a,year,S,al_s)
         ! Calculate atmosphere for each month of the year 
@@ -39,10 +41,10 @@ contains
         real(wp), intent(IN), optional :: al_s(:,:,:)     ! [--]    Surface albedo 
         
         ! Local variables 
-        integer :: d, m, nm 
+        integer :: day, m, nm 
 
         nm = size(dom%mon)
-        
+
         ! == Store annual boundary variables =====
         dom%bnd%z_srf  = z_srf 
         dom%bnd%f_ice  = f_ice 
@@ -58,7 +60,7 @@ contains
         do m = 1, nm 
 
             ! Determine representative day of the month
-            d = mdays(m)
+            day = mdays(m)
 
             ! == Store monthly boundary variables =====
 
@@ -67,7 +69,9 @@ contains
                 dom%bnd%S = S(:,:,m)
             else 
 
-                ! calc insol (to do)
+                ! Calculate representative insolation for the month
+                dom%bnd%S = calc_insol_day(day,dom%grid%lat,dble(year),fldr="libs/insol/input")
+
             end if 
 
             ! If surface albedo is available store it, or calculate it 
@@ -97,7 +101,7 @@ contains
 
             
             ! Print summary 
-            call rembo_print(dom,m,d,year)
+            call rembo_print(dom,m,day,year)
 
             ! Store data in monthly object 
             dom%mon(m) = dom%now
