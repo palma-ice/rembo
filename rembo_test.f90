@@ -50,6 +50,7 @@ program rembo_test
     call load_clim_monthly_era(forc,path="ice_data/Greenland",grid_name=trim(grid%name))
 
     ! Initialize rembo
+    call rembo_global_init("par/Greenland.nml")
     call rembo_init(rem1,par_path="par/Greenland.nml",domain="Greenland",grid=grid)
 
     ! Define output folder 
@@ -66,7 +67,7 @@ program rembo_test
 
     ! Write final result 
     call rembo_write_init(rem1,file_out,time,units="kyr ago")
-    call write_step_2D_combined(rem1,forc,file_out,time)
+    call rembo_write_step(rem1,forc,file_out,time)
 
     write(*,*) "rembo_test.x finished succesfully."
 
@@ -232,7 +233,7 @@ contains
 
     end subroutine rembo_forc_alloc 
 
-    subroutine write_step_2D_combined(dom,forc,filename,time)
+    subroutine rembo_write_step(dom,forc,filename,time)
 
         implicit none 
         
@@ -270,6 +271,16 @@ contains
         call nc_write(filename,"mask",dom%bnd%mask,units="1",long_name="Mask (solve REMBO or boundary)", &
                       dim1="xc",dim2="yc",ncid=ncid)
 
+        call nc_write(filename,"dzsdx",dom%bnd%dzsdx,units="m/m",long_name="Surface elevation gradient (x-dir)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"dzsdy",dom%bnd%dzsdy,units="m/m",long_name="Surface elevation gradient (y-dir)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"dzsdxy",dom%bnd%dzsdxy,units="m/m",long_name="Surface elevation gradient (magnitude)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
+        call nc_write(filename,"f",dom%bnd%f,units="m/m",long_name="Coriolis parameter", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
         ! == REMBO fields == 
 
         do m = 1, nm
@@ -291,21 +302,21 @@ contains
         
         end do 
         
-        call nc_write(filename,"Ta_ann",dom%ann%t2m,units="K",long_name="Near-surface air temperature (ann)", &
-                      dim1="xc",dim2="yc",ncid=ncid)
+!         call nc_write(filename,"Ta_ann",dom%ann%t2m,units="K",long_name="Near-surface air temperature (ann)", &
+!                       dim1="xc",dim2="yc",ncid=ncid)
 !         call nc_write(filename,"Ta_sum",dom%ann%t2m,units="K",long_name="Near-surface air temperature (sum)", &
 !                       dim1="xc",dim2="yc",ncid=ncid)
-        call nc_write(filename,"pr_ann",dom%ann%pr,units="m/a",long_name="Precipitation (ann)", &
-                      dim1="xc",dim2="yc",ncid=ncid)
-        call nc_write(filename,"sf_ann",dom%ann%sf,units="m/a",long_name="Snowfall (ann)", &
-                      dim1="xc",dim2="yc",ncid=ncid)
+!         call nc_write(filename,"pr_ann",dom%ann%pr,units="m/a",long_name="Precipitation (ann)", &
+!                       dim1="xc",dim2="yc",ncid=ncid)
+!         call nc_write(filename,"sf_ann",dom%ann%sf,units="m/a",long_name="Snowfall (ann)", &
+!                       dim1="xc",dim2="yc",ncid=ncid)
         
         ! Close the netcdf file
         call nc_close(ncid)
 
         return 
 
-    end subroutine write_step_2D_combined
+    end subroutine rembo_write_step
 
     ! # Convert geopotential into geopotential height, (m2/s2) => (m)
     elemental function calc_geo_height(phi) result(Z)

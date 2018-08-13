@@ -3,6 +3,7 @@ module rembo
        
     use rembo_defs 
     use rembo_atm 
+    use rembo_physics 
 
     use nml 
     use ncio 
@@ -48,10 +49,24 @@ contains
         dom%bnd%f_shlf = f_shlf 
 
         ! == Calculate annual derived boundary variables =====
-        ! mask, f, dzsdx, dzsdy, dzsdxy 
 
-        ! To do 
+        ! Calculate atmospheric density from surface elevation
+        dom%now%rho_a = calc_airdens(dom%bnd%z_srf)
 
+        ! Calculate the coriolis parameter for the current gridpoints
+        dom%bnd%f = calc_coriolis(real(dom%grid%lat,wp))
+
+        ! Calculate surface gradients and total magnitude
+        call d_dx(dom%bnd%dzsdx,dom%bnd%z_srf,dx=real(dom%grid%G%dx*dom%grid%xy_conv,wp))
+        call d_dy(dom%bnd%dzsdy,dom%bnd%z_srf,dx=real(dom%grid%G%dy*dom%grid%xy_conv,wp))
+        dom%bnd%dzsdxy = calc_magnitude(dom%bnd%dzsdx,dom%bnd%dzsdy)
+
+        ! Calculate the rembo relaxation mask
+        dom%bnd%mask = 0
+        where(dom%bnd%z_srf .gt. 0.0) dom%bnd%mask = 1 
+
+        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,real(dom%grid%x,wp),real(dom%grid%y,wp),radius=20.0)  
+        ! ajr: to do: make radius a parameter [km] Distance from coast to relax to boundary temperatures over the ocean
 
         ! Loop over each month, calculate rembo atmosphere 
         do m = 1, nm 

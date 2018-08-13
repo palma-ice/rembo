@@ -11,7 +11,6 @@ module rembo_physics
     public :: calc_condensation
     public :: calc_precip
     public :: calc_snowfrac
-    public :: calc_magnitude
     public :: calc_coriolis
     public :: calc_geo_height
     public :: calc_u_geo
@@ -34,6 +33,11 @@ module rembo_physics
     public :: calc_radshort_surf_down
     public :: calc_ebs_sky
     
+    public :: d_dx 
+    public :: d_dy 
+    public :: calc_magnitude
+    public :: gen_relaxation
+
 contains
     
     elemental function calc_albedo_t2m(t2m,als_min,als_max,afac,tmid) result(al_s)
@@ -105,17 +109,6 @@ contains
         return 
 
     end function calc_snowfrac 
-
-    ! Get the vector magnitude from two components
-    elemental function calc_magnitude(u,v) result(umag)
-        implicit none 
-        real(wp), intent(IN)  :: u, v 
-        real(wp) :: umag 
-
-        umag = sqrt(u*u+v*v)
-
-        return
-    end function calc_magnitude 
 
     ! Get coriolis parameter (1/s)
     elemental function calc_coriolis(lat) result(f)
@@ -410,5 +403,118 @@ contains
         return 
 
     end function calc_ebs_sky 
+
+        ! Horizontal gradient, x-component
+    subroutine d_dx(du,u0,dx)  
+
+    implicit none
+
+    integer :: i, j, nx, ny
+    real(wp), intent(IN) :: u0(:,:)
+    real(wp) :: du(:,:)
+    real(wp) :: dx, inv_2dx
+
+    inv_2dx = 1.d0 / (2.d0 * dx)
+    nx = size(u0,1)
+    ny = size(u0,2)
+
+    ! Assign boundary values
+    du = 0.d0
+
+    do i = 2, nx-1
+        du(i,:) = (u0(i+1,:) - u0(i-1,:)) * inv_2dx
+    end do
+
+    return
+
+    end subroutine d_dx
+
+    ! Horizontal gradient, y-component
+    subroutine d_dy(du,u0,dx)  
+
+    implicit none
+
+    integer :: i, j, nx, ny
+    real(wp), intent(IN) :: u0(:,:)
+    real(wp) :: du(:,:)
+    real(wp) :: dx, inv_2dx
+
+    inv_2dx = 1.d0 / (2.d0 * dx)
+    nx = size(u0,1)
+    ny = size(u0,2)
+
+    ! Assign boundary values
+    du = 0.d0
+
+    do j = 2, ny-1
+        du(:,j) = (u0(:,j+1) - u0(:,j-1)) * inv_2dx
+    end do
+
+    return
+
+    end subroutine d_dy
+
+    ! Get the vector magnitude from two components
+    elemental function calc_magnitude(u,v) result(umag)
+        implicit none 
+        real(wp), intent(IN)  :: u, v 
+        real(wp) :: umag 
+
+        umag = sqrt(u*u+v*v)
+
+        return
+    end function calc_magnitude 
+
+    function gen_relaxation(zs,xx,yy,radius) result(relax) 
+        implicit none 
+        real(wp), intent(IN) :: zs(:,:) 
+        real(wp), intent(IN) :: xx(:,:)
+        real(wp), intent(IN) :: yy(:,:) 
+        integer :: relax(size(zs,1),size(zs,2)) 
+
+        ! Local variables
+        real(wp) :: radius, dist, mindist 
+        integer :: nx, ny, i, j, i1, j1 
+        real(wp), parameter :: zs_min = 10.0   ! [m]
+
+        nx = size(zs,1)
+        ny = size(zs,2)
+
+        ! Initialize relaxation matrix with fixed boundary
+        relax            = 0 
+        relax(1:2,:)     = 1
+        relax(nx-1:nx,:) = 1
+        relax(:,1:2)     = 1
+        relax(:,ny-1:ny) = 1
+
+        do i = 1, nx 
+        do j = 1, ny 
+
+            if (zs(i,j) .gt. zs_min) then    ! Land points have zero distance to land 
+
+                mindist = 0.0 
+
+            else                        ! How far is each ocean point to land?
+
+                ! Loop over all land points to find minimum distance to coast
+                mindist = 1e8
+                do i1 = 1, nx
+                    do j1 = 1, ny 
+                        if (zs(i1,j1) .gt. zs_min) then 
+                            dist = sqrt( (xx(i1,j1)-xx(i,j))**2 + (yy(i1,j1)-yy(i,j))**2 )
+                            if (dist .lt. mindist) mindist = dist  
+                        end if 
+                    end do 
+                end do
+            end if 
+
+            if (mindist .gt. radius) relax(i,j) = 1 
+
+        end do 
+        end do 
+
+        return
+
+    end function gen_relaxation 
 
 end module rembo_physics 
