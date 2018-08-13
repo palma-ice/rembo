@@ -83,7 +83,7 @@ module rembo_defs
         integer     :: en_nstep, ccw_nstep 
         real(wp)    :: k_c, k_p, k_z, k_x, e0, c1
         real(wp)    :: k_c_sec 
-        real(wp)    :: k_p_now, k_t, k_w, ps_a, ps_b 
+        real(wp)    :: k_p_now, k_t, k_w, sf_a, sf_b 
         real(wp)    :: f_k 
         real(wp)    :: nk1, nk2, nk3
         real(wp)    :: teff_sigma 
@@ -110,7 +110,7 @@ module rembo_defs
         real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
         real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
         real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
-        
+
         ! Derived boundary variables
         integer,  allocatable :: mask(:,:)     ! [--]    0: Ocean; 1: Land, 2: Grounded ice, 3: Floating ice
         real(wp), allocatable :: f(:,:)        ! [--]    Coriolis parameter
@@ -133,8 +133,8 @@ module rembo_defs
         ! Seasonal variables
         real(wp), allocatable :: t2m(:,:)   
         real(wp), allocatable :: ct2m(:,:)
-        real(wp), allocatable :: pp(:,:)
-        real(wp), allocatable :: ps(:,:)
+        real(wp), allocatable :: pr(:,:)
+        real(wp), allocatable :: sf(:,:)
         real(wp), allocatable :: q_s(:,:)
         real(wp), allocatable :: q_sat(:,:)
         real(wp), allocatable :: q_r(:,:)
@@ -163,7 +163,7 @@ module rembo_defs
         real(wp), allocatable :: tsl(:,:), tsl_bnd(:,:) 
         real(wp), allocatable :: en(:,:), en_bnd(:,:), en_F(:,:) 
         real(wp), allocatable :: ccw(:,:), ccw_bnd(:,:), ccw_F(:,:) 
-        real(wp), allocatable :: ccw_cw(:,:), ccw_pp(:,:) 
+        real(wp), allocatable :: ccw_cw(:,:), ccw_pr(:,:) 
         real(wp), allocatable :: tcw(:,:), tcw_bnd(:,:)
         real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), qr(:,:)  
 
@@ -171,7 +171,7 @@ module rembo_defs
         real(wp), allocatable :: kappa(:,:), kappaw(:,:) 
         real(wp) :: en_dt, tsl_fac, en_kr, en_kz
         integer :: en_nstep
-        logical :: bnd_pp 
+        logical :: bnd_pr 
     end type 
 
     type rembo_class

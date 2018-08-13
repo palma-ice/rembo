@@ -187,7 +187,7 @@ contains
         allocate(emb%ccw_bnd(nx,ny))
         allocate(emb%ccw_F(nx,ny))
         allocate(emb%ccw_cw(nx,ny))
-        allocate(emb%ccw_pp(nx,ny))
+        allocate(emb%ccw_pr(nx,ny))
         allocate(emb%tcw(nx,ny))
         allocate(emb%tcw_bnd(nx,ny))
 
@@ -226,7 +226,7 @@ contains
         emb%ccw_bnd     = 0.0
         emb%ccw_F       = 0.0
         emb%ccw_cw      = 0.0
-        emb%ccw_pp      = 0.0
+        emb%ccw_pr      = 0.0
         emb%tcw         = 0.0
         emb%tcw_bnd     = 0.0
 
@@ -292,7 +292,7 @@ contains
                 sum(dom%now%tcw,        mask=dom%bnd%mask>0)/npts, &     ! [mm]
                 sum(dom%now%ccw,        mask=dom%bnd%mask>0)/npts, &     ! [mm]
                 sum(dom%now%c_w*sec_day,mask=dom%bnd%mask>0)/npts, &     ! [mm/d]
-                sum(dom%now%pp*sec_day, mask=dom%bnd%mask>0)/npts        ! [mm/d]
+                sum(dom%now%pr*sec_day, mask=dom%bnd%mask>0)/npts        ! [mm/d]
 
         else 
             ! Print empty table 
@@ -338,8 +338,8 @@ contains
         call nml_read(filename,"rembo_params","k_p_now",  par%k_p_now  )
         call nml_read(filename,"rembo_params","k_t",  par%k_t  )
         call nml_read(filename,"rembo_params","k_w",  par%k_w  )
-        call nml_read(filename,"rembo_params","ps_a",  par%ps_a  )
-        call nml_read(filename,"rembo_params","ps_b",  par%ps_b  )
+        call nml_read(filename,"rembo_params","sf_a",  par%sf_a  )
+        call nml_read(filename,"rembo_params","sf_b",  par%sf_b  )
         call nml_read(filename,"rembo_params","f_k",  par%f_k  )
         call nml_read(filename,"rembo_params","nk1",  par%nk1  )
         call nml_read(filename,"rembo_params","nk2",  par%nk2  )
@@ -400,8 +400,8 @@ contains
         
         allocate(now%t2m(nx,ny))     ! Near-surface temp
         allocate(now%ct2m(nx,ny))    ! Near-surface temp inversion correction
-        allocate(now%pp(nx,ny))      ! Precipitation
-        allocate(now%ps(nx,ny))      ! Precipitation (snow)
+        allocate(now%pr(nx,ny))      ! Precipitation
+        allocate(now%sf(nx,ny))      ! Precipitation (snow)
         allocate(now%q_s(nx,ny))     ! Specific humidity at the surface (kg/kg)
         allocate(now%q_sat(nx,ny))   ! Saturated specific humidity at the surface (kg/kg)
         allocate(now%q_r(nx,ny))     ! Relative humidity (0 - 1)
@@ -439,8 +439,8 @@ contains
 
         now%t2m         = 0.0
         now%ct2m        = 0.0
-        now%pp          = 0.0        
-        now%ps          = 0.0
+        now%pr          = 0.0        
+        now%sf          = 0.0
         now%q_s         = 0.0 
         now%q_sat       = 0.0 
         now%q_r         = 0.0 
@@ -494,8 +494,8 @@ contains
 
         if (allocated(now%t2m) )        deallocate(now%t2m)     ! Near-surface temp
         if (allocated(now%ct2m) )       deallocate(now%ct2m)    ! Near-surface temp inversion correction
-        if (allocated(now%pp) )         deallocate(now%pp)      ! Precipitation
-        if (allocated(now%ps) )         deallocate(now%ps)      ! Precipitation (snow)
+        if (allocated(now%pr) )         deallocate(now%pr)      ! Precipitation
+        if (allocated(now%sf) )         deallocate(now%sf)      ! Precipitation (snow)
         if (allocated(now%q_s) )        deallocate(now%q_s)     ! Specific humidity at the surface (kg/kg)
         if (allocated(now%q_sat) )      deallocate(now%q_sat)   ! Saturated specific humidity at the surface (kg/kg)
         if (allocated(now%q_r) )        deallocate(now%q_r)     ! Relative humidity (0 - 1)
@@ -612,4 +612,29 @@ contains
 
     end subroutine rembo_bnd_dealloc 
 
+    subroutine rembo_write_init(dom,filename,time_init,units)
+
+        implicit none 
+
+        type(rembo_class), intent(IN) :: dom 
+        character(len=*),  intent(IN) :: filename 
+        real(wp),          intent(IN) :: time_init
+        character(len=*),  intent(IN) :: units
+
+        ! Local variables 
+
+        ! Initialize netcdf file and dimensions
+        call nc_create(filename)
+        call nc_write_dim(filename,"xc",    x=dom%grid%G%x,  units="kilometers")
+        call nc_write_dim(filename,"yc",    x=dom%grid%G%y,  units="kilometers")
+        call nc_write_dim(filename,"month", x=1,dx=1,nx=12,   units="month")
+        call nc_write_dim(filename,"time",  x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
+
+        ! Write grid information
+        call grid_write(dom%grid,filename,xnm="xc",ynm="yc",create=.FALSE.)
+
+        return
+
+    end subroutine rembo_write_init 
+    
 end module rembo 

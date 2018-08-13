@@ -5,16 +5,10 @@ program rembo_test
 
     implicit none 
 
-    type(grid_class)  :: grid 
-    type(rembo_class) :: rembo1 
-
     type rembo_forcing_class
         ! Climatology and forcing data for a whole year 
 
         real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
-        real(wp), allocatable :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
-        real(wp), allocatable :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
-        
         real(wp), allocatable :: S(:,:,:)        ! [W m-2] Insolation top-of-atmosphere
         real(wp), allocatable :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
         real(wp), allocatable :: al_s(:,:,:)     ! [--]    Surface albedo 
@@ -23,24 +17,86 @@ program rembo_test
     
     end type 
 
-    type(rembo_forcing_class) :: forc 
-
+    type(grid_class)            :: grid 
+    type(rembo_class)           :: rem1 
+    type(rembo_forcing_class)   :: forc 
+    
+    real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
+    real(wp), allocatable :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
+    real(wp), allocatable :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
+    
+    character(len=512) :: outfldr 
+    character(len=512) :: file_out 
+    real(wp)           :: time 
+    integer            :: m  
 
     call grid_init(grid,name="GRL-20KM",mtype="stereographic",units="kilometers", &
                                    lon180=.TRUE.,dx=20.d0,nx=91,dy=20.d0,ny=151, &
                                    lambda=-40.d0,phi=72.d0,alpha=8.4d0)
 
-    call rembo_init(rembo1,par_path="par/Greenland.nml",domain="Greenland",grid=grid)
+    ! Allocate topo data and load it 
+    call grid_allocate(grid,z_srf)
+    call grid_allocate(grid,f_ice)
+    call grid_allocate(grid,f_shlf)
+    call load_topo_rtopo2(z_srf,f_ice,f_shlf,path="ice_data/Greenland",grid_name=trim(grid%name))
 
     ! Load forcing
     call rembo_forc_alloc(forc,grid%G%nx,grid%G%ny)
     call load_clim_monthly_era(forc,path="ice_data/Greenland",grid_name=trim(grid%name))
 
-    !call rembo_update(dom,z_srf,f_ice,f_shlf,t2m,Z,co2_a,year)
+    ! Initialize rembo
+    call rembo_init(rem1,par_path="par/Greenland.nml",domain="Greenland",grid=grid)
+
+    ! Define output folder 
+    outfldr  = "output/"//trim(grid%name)//"/"
+    file_out = trim(outfldr)//"rembo.nc"
+    
+    ! Define additional forcing values 
+    forc%co2_a = 350.0    ! [ppm]
+
+    ! Define current year and update rembo (including insolation)
+    time       = 0.0      ! [kyr ago]   
+
+    call rembo_update(rem1,z_srf,f_ice,f_shlf,forc%t2m,forc%Z,forc%co2_a,int(time))
+
+    ! Write final result 
+    call rembo_write_init(rem1,file_out,time,units="kyr ago")
+    call write_step_2D_combined(rem1,forc,file_out,time)
 
     write(*,*) "rembo_test.x finished succesfully."
 
 contains 
+
+    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,path,grid_name)
+        ! Load the data into the rembo_class object
+
+        implicit none 
+
+        real(wp),          intent(INOUT) :: z_srf(:,:) 
+        real(wp),          intent(INOUT) :: f_ice(:,:) 
+        real(wp),          intent(INOUT) :: f_shlf(:,:) 
+        character(len=*),  intent(IN)    :: path 
+        character(len=*),  intent(IN)    :: grid_name 
+
+        ! Local variables
+        character(len=512) :: filename
+
+        filename = trim(path)//"/"//trim(grid_name)//"/"//trim(grid_name)//"_TOPO-RTOPO-2.0.1.nc"
+
+        ! Static fields
+
+        ! ## Surface elevation ##
+        call nc_read(filename,"z_srf",z_srf)
+        
+        ! Ice fractions
+        f_ice  = 0.0 
+        where (z_srf .gt. 0.0) f_ice = 1.0 
+
+        f_shlf = 0.0
+
+        return 
+
+    end subroutine load_topo_rtopo2
 
     subroutine load_clim_monthly_era(forc,path,grid_name)
         ! Load the data into the era_daily_class object,
@@ -61,6 +117,7 @@ contains
         
         character(len=512) :: filename, filename_pres 
         integer :: nx, ny, i0, i1, i2, m, nm  
+        real(wp) :: als_max, als_min, afac, tmid 
 
         nx = size(forc%z_srf,1)
         ny = size(forc%z_srf,2)
@@ -76,19 +133,19 @@ contains
         ! ## Surface elevation ##
         call nc_read(filename,"zs",forc%z_srf)
         
-        ! Ice fractions
-        forc%f_ice  = 0.0 
-        where (forc%z_srf .gt. 0.0) forc%f_ice = 1.0 
-
-        forc%f_shlf = 0.0 
-
         ! Monthly fields
 
         ! ## tas ## 
         call nc_read(filename,"t2m",forc%t2m)
 
-        ! ## ttcorr ## 
-        ! Get p_t[plev=650Mb]
+        ! ## al_s ## 
+        als_max =   0.80
+        als_min =   0.69
+        afac     =  -0.18
+        tmid     = 275.35
+        forc%al_s = calc_albedo_t2m(forc%t2m,als_min,als_max,afac,tmid)
+
+        ! Define pressure-level filenames
         i0 = index(filename,"ERA-INT",back=.TRUE.)
         i1 = i0 + 7
         i2 = len_trim(filename)
@@ -104,15 +161,6 @@ contains
             forc%Z(:,:,m) = real(var2Ddp,wp)
         end do 
         
-!         ! ## dzgdx, dzgdy ##
-!         ! Get horizontal gradient of geopotential height
-!         do m = 1, nm 
-!             call d_dx(var3Da(:,:,m),var3D(:,:,m),dx=dx)
-!             call d_dy(var3Db(:,:,m),var3D(:,:,m),dx=dx)
-!         end do 
-!         call convert_monthly_daily_3D(var3Da,erad%dzgdx,days=erad%days)
-!         call convert_monthly_daily_3D(var3Db,erad%dzgdy,days=erad%days)
-
 !         ! ## prw ## 
 !         call nc_read(filename,"tcw",var3D)
 !         call convert_monthly_daily_3D(var3D,erad%prw,days=erad%days)
@@ -157,25 +205,19 @@ contains
         integer,                   intent(IN)  :: nx, ny 
 
         if (allocated(forc%z_srf))  deallocate(forc%z_srf)
-        if (allocated(forc%f_ice))  deallocate(forc%f_ice)
-        if (allocated(forc%f_shlf)) deallocate(forc%f_shlf)
         if (allocated(forc%S))      deallocate(forc%S)
         if (allocated(forc%t2m))    deallocate(forc%t2m)
         if (allocated(forc%al_s))   deallocate(forc%al_s)
         if (allocated(forc%Z))      deallocate(forc%Z)
         
         allocate(forc%z_srf(nx,ny))
-        allocate(forc%f_ice(nx,ny))
-        allocate(forc%f_shlf(nx,ny))
-        
+
         allocate(forc%S(nx,ny,12))
         allocate(forc%t2m(nx,ny,12))
         allocate(forc%al_s(nx,ny,12))
         allocate(forc%Z(nx,ny,12))
         
         forc%z_srf  = 0.0 
-        forc%f_ice  = 0.0 
-        forc%f_shlf = 0.0 
         forc%S      = 0.0 
         forc%t2m    = 0.0
         forc%al_s   = 0.0
@@ -184,6 +226,78 @@ contains
         return 
 
     end subroutine rembo_forc_alloc 
+
+    subroutine write_step_2D_combined(dom,forc,filename,time)
+
+        implicit none 
+        
+        type(rembo_class),          intent(IN) :: dom
+        type(rembo_forcing_class),  intent(IN) :: forc 
+        character(len=*),           intent(IN) :: filename
+        real(wp),                   intent(IN) :: time
+
+        ! Local variables
+        integer    :: ncid, n, nx, ny, m, nm 
+        real(wp) :: time_prev 
+
+        ! Open the file for writing
+        call nc_open(filename,ncid,writable=.TRUE.)
+
+        ! Determine current writing time step (all the same year)
+        n  = 1
+        nx = dom%grid%G%nx 
+        ny = dom%grid%G%ny 
+        nm = 12
+
+        ! Update the time step
+        call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
+
+        ! == Forcing fields ==
+        
+        ! == REMBO boundary fields ==
+
+        call nc_write(filename,"z_srf",dom%bnd%z_srf,units="m",long_name="Surface elevation", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"f_ice",dom%bnd%f_ice,units="1",long_name="Ice fraction (grounded)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"f_shlf",dom%bnd%f_shlf,units="1",long_name="Ice fraction (floating)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"mask",dom%bnd%mask,units="1",long_name="Mask (solve REMBO or boundary)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+         
+        call nc_write(filename,"S",forc%S,units="W m**-2",long_name="Insolation TOA (boundary)", &
+                      dim1="xc",dim2="yc",dim3="month",ncid=ncid)
+        call nc_write(filename,"t2m_bnd",forc%t2m,units="K",long_name="Near-surface temperature (boundary)", &
+                      dim1="xc",dim2="yc",dim3="month",ncid=ncid)
+        call nc_write(filename,"al_s",forc%al_s,units="K",long_name="Surface albedo (boundary)", &
+                      dim1="xc",dim2="yc",dim3="month",ncid=ncid)
+!         call nc_write(filename,"co2_a",forc%co2_a,units="ppm",long_name="Atmospheric CO2 (boundary)", &
+!                       dim1="xc",dim2="yc",dim3="month",ncid=ncid)
+        call nc_write(filename,"Z",forc%Z,units="m",long_name="Geopotential height 750 Mb layer (boundary)", &
+                      dim1="xc",dim2="yc",dim3="month",ncid=ncid)
+
+        ! == REMBO fields == 
+
+        do m = 1, nm 
+            call nc_write(filename,"t2m",dom%now%t2m,units="K",long_name="Near-surface air temperature", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+        end do 
+        
+        call nc_write(filename,"Ta_ann",dom%ann%t2m,units="K",long_name="Near-surface air temperature (ann)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+!         call nc_write(filename,"Ta_sum",dom%ann%t2m,units="K",long_name="Near-surface air temperature (sum)", &
+!                       dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"pr_ann",dom%ann%pr,units="m/a",long_name="Precipitation (ann)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"sf_ann",dom%ann%sf,units="m/a",long_name="Snowfall (ann)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        
+        ! Close the netcdf file
+        call nc_close(ncid)
+
+        return 
+
+    end subroutine write_step_2D_combined
 
     ! # Convert geopotential into geopotential height, (m2/s2) => (m)
     elemental function calc_geo_height(phi) result(Z)
@@ -196,6 +310,22 @@ contains
 
         return
     end function calc_geo_height
+
+    elemental function calc_albedo_t2m(t2m,als_min,als_max,afac,tmid) result(al_s)
+        ! Calculate the surface albedo of snow as a function of near-surface temperature
+        ! Alexander Robinson, inspired from Slater et al, etc. 
+
+        implicit none
+
+        real(wp), intent(IN) :: t2m 
+        real(wp), intent(IN) :: als_min, als_max, afac, tmid 
+        real(wp) :: al_s 
+
+        al_s = als_min + (als_max - als_min)*(0.5*tanh(afac*(t2m-tmid))+0.5)
+
+        return 
+
+    end function calc_albedo_t2m
 
 end program rembo_test 
 

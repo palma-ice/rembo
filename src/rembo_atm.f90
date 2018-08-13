@@ -89,7 +89,7 @@ contains
                           swn=(now%swd - now%swd_s*(1.0-bnd%al_s)), &
                           lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
                           shf=now%shf_s,lhf=now%lhf_s, &
-                          lhp=(par%Lw*(now%pp-now%ps) + par%Ls*now%ps)*1.0, &
+                          lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
                           rco2=par%en_kdT + now%rco2_a) 
 
         ! Calculate inversion correction for moisture balance
@@ -109,11 +109,11 @@ contains
 !                                     par%k_c,par%k_x)
 
         ! Calculate the current cloud water content
-        call rembo_calc_ccw(now%pp,now%ccw,now%c_w,emb,par,ww=now%ww)   
+        call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,ww=now%ww)   
 
 
         ! Calculate snowfall (kg m**-2 s**-1)
-        now%ps = calc_snowfrac(now%t2m,par%ps_a,par%ps_b) * now%pp 
+        now%sf = calc_snowfrac(now%t2m,par%sf_a,par%sf_b) * now%pr 
 
         ! ## Calculate surface fluxes ###
 
@@ -209,11 +209,11 @@ contains
 
     end subroutine rembo_calc_en 
 
-    subroutine rembo_calc_ccw(pp,ccw,c_w,emb,par,ww)
+    subroutine rembo_calc_ccw(pr,ccw,c_w,emb,par,ww)
 
         implicit none 
 
-        real(wp),                intent(OUT)   :: pp(:,:)
+        real(wp),                intent(OUT)   :: pr(:,:)
         real(wp),                intent(OUT)   :: ccw(:,:)
         real(wp),                intent(OUT)   :: c_w(:,:)
         type(diffusion_class),   intent(INOUT) :: emb 
@@ -245,14 +245,14 @@ contains
         ! Get vertical wind for precipitation 
         ! ajr: TO DO 
 !         call map_field(emb%map_toemb,"ww",ww,emb%ww,method="nng",sigma=240.0,fill=.TRUE.,missing_value=missing_value)
-!         call map_field(emb%map_toemb,"ww",ww,emb%ccw_pp,method="radius",sigma=240.d0,fill=.TRUE.,missing_value=missing_value)
-!         emb%ww = (emb%ww+emb%ccw_pp)/2.d0 
+!         call map_field(emb%map_toemb,"ww",ww,emb%ccw_pr,method="radius",sigma=240.d0,fill=.TRUE.,missing_value=missing_value)
+!         emb%ww = (emb%ww+emb%ccw_pr)/2.d0 
 
 !         ! Get current moisture content [kg m-2]
 !         call map_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="radius",fill=.TRUE.,missing_value=missing_value)
             
         ! Calculate the initial lo-res precipitation rate [kg m-2 s-1]
-        !call map_field(emb%map_toemb,"pp", pp, emb%ccw_pp,method="nn",fill=.TRUE.,missing_value=missing_value)
+        !call map_field(emb%map_toemb,"pr", pr, emb%ccw_pr,method="nn",fill=.TRUE.,missing_value=missing_value)
         ! ajr: TO DO : calculate a basic rate somehow avoiding history 
 
 
@@ -261,7 +261,7 @@ contains
         emb%ccw_cw = calc_condensation(emb%tcw,emb%qr,emb%ww,par%k_c,par%k_x)
 
         ! Get moisture balance forcing [kg m-2 s-1]
-        emb%ccw_F = emb%ccw_cw - emb%ccw_pp 
+        emb%ccw_F = emb%ccw_cw - emb%ccw_pr 
         where(emb%mask==1) emb%ccw_F = 0.d0 
 
         ! ajr: Why was this called twice?
@@ -286,7 +286,7 @@ contains
 
             ! Now calculate the precipitation rate on emb grid (kg m**-2 s**-1)
             ! *Cheaper than reinterpolating, but necessary to update moisture balance
-            emb%ccw_pp = calc_precip(emb%ccw,emb%ww,emb%tsl-par%gamma*emb%z_srf,emb%z_srf,par%k_w,par%k_z,par%k_t) 
+            emb%ccw_pr = calc_precip(emb%ccw,emb%ww,emb%tsl-par%gamma*emb%z_srf,emb%z_srf,par%k_w,par%k_z,par%k_t) 
 
             ! ajr: Add equil. condition!!!
 
@@ -305,9 +305,9 @@ contains
 !                                missing_value=missing_value)
 
         ! Now calculate the high resolution precipitation rate (kg m**-2 s**-1)
-!         now%pp = calc_precip(now%ccw,now%ww,now%t2m,par%k_w,par%k_z,par%k_t) 
+!         now%pr = calc_precip(now%ccw,now%ww,now%t2m,par%k_w,par%k_z,par%k_t) 
         ! ajr: TO DO 
-!         pp = interp_bilinear(is_points=.TRUE.,x=emb%grid%G%x,y=emb%grid%G%y,z=emb%ccw_pp, &
+!         pr = interp_bilinear(is_points=.TRUE.,x=emb%grid%G%x,y=emb%grid%G%y,z=emb%ccw_pr, &
 !                                xout=emb%map_fromemb%x,yout=emb%map_fromemb%y, &
 !                                missing_value=missing_value)
 
