@@ -33,8 +33,8 @@ contains
         now%sp = calc_sp(bnd%z_srf)
 
         ! Get geostrophic components and magnitude of velocity
-        now%ug  = calc_u_geo(bnd%dZdy,bnd%f)
-        now%vg  = calc_v_geo(bnd%dZdx,bnd%f)
+        now%ug  = calc_u_geo(now%dZdy,bnd%f)
+        now%vg  = calc_v_geo(now%dZdx,bnd%f)
         now%uvg = calc_magnitude(now%ug,now%vg)
 
         ! Get horizontal gradient of temperature

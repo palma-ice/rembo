@@ -112,9 +112,7 @@ module rembo_defs
         real(wp), allocatable :: dzsdx(:,:)
         real(wp), allocatable :: dzsdy(:,:)
         real(wp), allocatable :: dzsdxy(:,:)
-        real(wp), allocatable :: dZdx(:,:)
-        real(wp), allocatable :: dZdy(:,:)
-
+        
     end type 
 
     ! Now define all variables of the domain
@@ -126,6 +124,8 @@ module rembo_defs
         real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
         real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
         real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
+        real(wp), allocatable :: dZdx(:,:)
+        real(wp), allocatable :: dZdy(:,:)
         
         ! Annual variables 
         real(wp), allocatable :: rco2_a(:,:)

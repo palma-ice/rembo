@@ -87,15 +87,15 @@ contains
             ! == Calculate monthly derived boundary variables =====
 
             ! Calc gradient of Z: dZdx, dZdy 
-
-            ! To do     
+            call d_dx(dom%now%dZdx,dom%now%Z,dx=real(dom%grid%G%dx*dom%grid%xy_conv,wp))
+            call d_dy(dom%now%dZdy,dom%now%Z,dx=real(dom%grid%G%dy*dom%grid%xy_conv,wp))
+            ! ajr: to do: move this inside of rembo_calc_atmosphere using local variables
             
-
-            ! Calculate rembo atmosphere...
+            ! == Calculate rembo atmosphere =====
 
             dom%now%t2m = dom%now%t2m_bnd
             
-
+            call rembo_calc_atmosphere(dom%now,dom%emb,dom%bnd,dom%par,day,year)
             
             ! Print summary 
             call rembo_print(dom,m,day,year)
@@ -456,7 +456,9 @@ contains
         allocate(now%al_s(nx,ny))    ! Surface albedo (0 - 1)
         allocate(now%co2_a(nx,ny))   ! Atmospheric CO2 (ppm)
         allocate(now%Z(nx,ny))       ! Geopotential height at input pressure level (eg 750Mb) (m)
-        
+        allocate(now%dZdx(nx,ny))    ! Geopotential height gradient (m m**-1)
+        allocate(now%dZdy(nx,ny))    ! Geopotential height gradient (m m**-1)
+
         allocate(now%rco2_a(nx,ny))  ! Radiative forcing of CO2 (W m-2)
         allocate(now%rho_a(nx,ny))   ! Air density (kg m-3)
         allocate(now%sp(nx,ny))      ! Surface pressure (Pa)
@@ -505,6 +507,8 @@ contains
         now%al_s        = 0.0 
         now%co2_a       = 0.0 
         now%Z           = 0.0 
+        now%dZdx        = 0.0   
+        now%dZdy        = 0.0  
 
         now%rco2_a      = 0.0 
         now%rho_a       = 0.0 
@@ -566,6 +570,8 @@ contains
         if (allocated(now%al_s ))       deallocate(now%al_s)    ! Surface albedo (0 - 1)
         if (allocated(now%co2_a ))      deallocate(now%co2_a)   ! Atmospheric CO2 (ppm)
         if (allocated(now%Z ))          deallocate(now%Z)       ! Geopotential height at input pressure level (eg 750Mb) (m)
+        if (allocated(now%dZdx ))       deallocate(now%dZdx)    ! Geopotential height gradient (m m**-1)
+        if (allocated(now%dZdy ))       deallocate(now%dZdy)    ! Geopotential height gradient (m m**-1)
         
         if (allocated(now%rco2_a) )     deallocate(now%rco2_a)  ! Radiative forcing of CO2 (W m-2)
         if (allocated(now%rho_a)  )     deallocate(now%rho_a)   ! Air density (kg m-3)
@@ -632,9 +638,7 @@ contains
         allocate(bnd%dzsdx(nx,ny))   ! Surface gradient (x-dir)
         allocate(bnd%dzsdy(nx,ny))   ! Surface gradient (y-dir)
         allocate(bnd%dzsdxy(nx,ny))  ! Surface gradient (magnitude)
-        allocate(bnd%dZdx(nx,ny))    ! Geopotential height gradient (m m**-1)
-        allocate(bnd%dZdy(nx,ny))    ! Geopotential height gradient (m m**-1)
-
+        
         bnd%z_srf       = 0.0
         bnd%f_ice       = 0.0 
         bnd%f_shlf      = 0.0 
@@ -644,9 +648,7 @@ contains
         bnd%dzsdx       = 0.0 
         bnd%dzsdy       = 0.0 
         bnd%dzsdxy      = 0.0    
-        bnd%dZdx        = 0.0   
-        bnd%dZdy        = 0.0  
-
+        
         return 
 
     end subroutine rembo_bnd_alloc 
@@ -666,8 +668,6 @@ contains
         if (allocated(bnd%dzsdx ))  deallocate(bnd%dzsdx)   ! Surface gradient (x-dir)
         if (allocated(bnd%dzsdy ))  deallocate(bnd%dzsdy)   ! Surface gradient (y-dir)
         if (allocated(bnd%dzsdxy )) deallocate(bnd%dzsdxy)  ! Surface gradient (magnitude)
-        if (allocated(bnd%dZdx ))   deallocate(bnd%dZdx)    ! Geopotential height gradient (m m**-1)
-        if (allocated(bnd%dZdy ))   deallocate(bnd%dZdy)    ! Geopotential height gradient (m m**-1)
 
         return 
 
