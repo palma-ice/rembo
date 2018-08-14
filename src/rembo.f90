@@ -66,7 +66,9 @@ contains
         where(dom%bnd%z_srf .gt. 0.0) dom%bnd%mask = 1 
 
         dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,real(dom%grid%x,wp),real(dom%grid%y,wp),radius=20.0)  
-        ! ajr: to do: make radius a parameter [km] Distance from coast to relax to boundary temperatures over the ocean
+        
+        ! EMB OUTPUT FOR TESTING 
+        call rembo_emb_write_init(dom%emb,"test.nc",time_init=real(year,wp),units="kyr ago")
 
         ! Loop over each month, calculate rembo atmosphere 
         do m = 1, nm 
@@ -102,6 +104,9 @@ contains
 
             ! Store data in monthly object 
             dom%mon(m) = dom%now
+
+            ! EMB OUTPUT FOR TESTING 
+            call rembo_emb_write_step_grid(dom%emb,"test.nc",m)
 
         end do 
 
@@ -405,7 +410,6 @@ contains
         call nml_read(filename,"rembo_params","nk1",  par%nk1  )
         call nml_read(filename,"rembo_params","nk2",  par%nk2  )
         call nml_read(filename,"rembo_params","nk3",  par%nk3  )
-        call nml_read(filename,"rembo_params","teff_sigma",  par%teff_sigma  )
         call nml_read(filename,"rembo_params","gamma",  par%gamma  )
         call nml_read(filename,"rembo_params","gamma2",  par%gamma2  )
         call nml_read(filename,"rembo_params","S0",  par%S0  )
@@ -437,8 +441,8 @@ contains
         call nml_read(filename,"rembo1_params","tb",  par%r1_tb  )
 
         ! How many time steps in 1 day, aprx?
-        par%en_nstep  = floor(sec_day / par%en_dt)
-        par%ccw_nstep = floor(sec_day / par%ccw_dt)
+        par%en_nstep  = floor(sec_day / par%en_dt)   * 10.0
+        par%ccw_nstep = floor(sec_day / par%ccw_dt)  * 10.0
         
         return
 
@@ -702,4 +706,74 @@ contains
 
     end subroutine rembo_write_init 
     
+    subroutine rembo_emb_write_init(emb,filename,time_init,units)
+
+        implicit none 
+
+        type(diffusion_class), intent(IN) :: emb 
+        character(len=*),  intent(IN) :: filename 
+        real(wp),          intent(IN) :: time_init
+        character(len=*),  intent(IN) :: units
+
+        ! Local variables 
+
+        ! Initialize netcdf file and dimensions
+        call nc_create(filename)
+        call nc_write_dim(filename,"xc",    x=emb%grid%G%x,  units="kilometers")
+        call nc_write_dim(filename,"yc",    x=emb%grid%G%y,  units="kilometers")
+        call nc_write_dim(filename,"month", x=1,dx=1,nx=12,   units="month")
+        call nc_write_dim(filename,"time",  x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
+
+        ! Write grid information
+        call grid_write(emb%grid,filename,xnm="xc",ynm="yc",create=.FALSE.)
+
+        return
+
+    end subroutine rembo_emb_write_init 
+    
+    subroutine rembo_emb_write_step_grid(emb,filename,m)
+
+        implicit none 
+
+        type(diffusion_class) :: emb 
+        character(len=*)  :: filename 
+        integer :: nx, ny, m 
+
+        nx = emb%grid%G%nx
+        ny = emb%grid%G%ny
+        
+        if (m .eq. 1) then 
+            call nc_write(filename,"z_srf",emb%z_srf,dim1="xc",dim2="yc")
+            call nc_write(filename,"mask", emb%mask, dim1="xc",dim2="yc")
+        end if 
+
+        call nc_write(filename,"kappa", real(emb%kappa),dim1="xc",dim2="yc",dim3="month", &
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"kappaw", real(emb%kappaw),dim1="xc",dim2="yc",dim3="month", &
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"tsl_bnd", real(emb%tsl_bnd),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"ccw_bnd",real(emb%ccw_bnd),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"tcw_bnd",real(emb%tcw_bnd),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"tsl",real(emb%tsl),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"ccw",real(emb%ccw),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"ccw_F",real(emb%ccw_F),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"tcw",real(emb%tcw),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"en",real(emb%en),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"en_bnd",real(emb%en_bnd),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"en_F",real(emb%en_F),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+            
+        return 
+
+    end subroutine rembo_emb_write_step_grid
+
 end module rembo 

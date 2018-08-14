@@ -57,9 +57,6 @@
     nk1        = 3.54             ! Cloud cover constant 1
     nk2        = 3.58             ! Cloud cover constant 2
     nk3        = -1.21e-2         ! Cloud cover constant 3
-
-    ! PDDs
-    teff_sigma = 5.0              ! [K] monthly standard deviation of temps
     
     ! Physical constants
     gamma      = 6.5e-3           ! [K m-1] Winter lapse rate

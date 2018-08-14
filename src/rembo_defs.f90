@@ -85,8 +85,7 @@ module rembo_defs
         real(wp)    :: k_c_sec 
         real(wp)    :: k_p_now, k_t, k_w, sf_a, sf_b 
         real(wp)    :: f_k 
-        real(wp)    :: nk1, nk2, nk3
-        real(wp)    :: teff_sigma 
+        real(wp)    :: nk1, nk2, nk3 
         real(wp)    :: gamma, gamma2 
         real(wp)    :: S0, Lw, Lm, Ls
         real(wp)    :: rho_w   

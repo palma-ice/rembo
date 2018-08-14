@@ -28,6 +28,7 @@ contains
 
         ! Local variables
         real(wp) :: als_max, als_min, afac, tmid    ! ajr: to do: move to parameters!!
+        integer  :: iter, n_iter 
 
         ! Get the surface pressure 
         now%sp = calc_sp(bnd%z_srf)
@@ -36,6 +37,10 @@ contains
         now%ug  = calc_u_geo(now%dZdy,bnd%f)
         now%vg  = calc_v_geo(now%dZdx,bnd%f)
         now%uvg = calc_magnitude(now%ug,now%vg)
+
+        n_iter = 10 
+
+        do iter = 1, n_iter 
 
         ! Get horizontal gradient of temperature
         !call gradient_1D(now%dtsldx,now%dtsldy,now%dtsldxy,now%t2m+bnd%z_srf*par%gamma,par%nx,par%ny,par%dx)
@@ -87,17 +92,28 @@ contains
         now%cc   = calc_cloudfrac(now%t2m,now%ccw,now%rho_a, &
                                          par%nk1,par%nk2,par%nk3)
         
+        ! ## Calculate surface fluxes ###
+
+        ! Shortwave radiation down (surface)
+        now%swd_s = calc_radshort_surf_down(now%S,now%cc,bnd%z_srf,&
+                                par%swds_a,par%swds_b,par%swds_c) 
+
+        ! Longwave radiation down (surface)
+        now%lwd_s = calc_rad_surf_down(now%t2m,now%cc,now%tcw, &
+                                       par%lwds_a,par%lwds_b,par%lwds_c,par%lwds_d)
+
         ! Calculate latent heat flux at the surface
 
         ! ajr: TO DO 
+        now%lhf_s = 0.0 
 
         ! Calculate sensible heat flux at the surface
 
         ! ajr: TO DO 
-
+        now%shf_s  = 0.0 
 
         ! Calculate energy balance on low-resolution grid
-        call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf,now%t2m_bnd, &
+        call rembo_calc_en(now%t2m,emb,par,day,bnd%mask,bnd%z_srf,now%t2m_bnd, &
                           swn=(now%swd - now%swd_s*(1.0-now%al_s)), &
                           lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
                           shf=now%shf_s,lhf=now%lhf_s, &
@@ -119,34 +135,26 @@ contains
 !         ! Now calculate the condensation rate (kg m**-2 s**-1)
 !         now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
 !                                     par%k_c,par%k_x)
-
+        
         ! Calculate the current cloud water content
         call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,ww=now%ww)   
-
 
         ! Calculate snowfall (kg m**-2 s**-1)
         now%sf = calc_snowfrac(now%t2m,par%sf_a,par%sf_b) * now%pr 
 
-        ! ## Calculate surface fluxes ###
-
-        ! Shortwave radiation down (surface)
-        now%swd_s = calc_radshort_surf_down(now%S,now%cc,bnd%z_srf,&
-                                par%swds_a,par%swds_b,par%swds_c) 
-
-        ! Longwave radiation down (surface)
-        now%lwd_s = calc_rad_surf_down(now%t2m,now%cc,now%tcw, &
-                                       par%lwds_a,par%lwds_b,par%lwds_c,par%lwds_d)
+        end do 
 
         return 
 
     end subroutine rembo_calc_atmosphere
 
-    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,swn,lwn,shf,lhf,lhp,rco2)
+    subroutine rembo_calc_en(t2m,emb,par,day,mask,z_srf,t2m_bnd,swn,lwn,shf,lhf,lhp,rco2)
 
         implicit none 
 
         real(wp),                intent(INOUT) :: t2m(:,:)
         type(diffusion_class),   intent(INOUT) :: emb  
+        integer,                 intent(IN)    :: mask(:,:)
         real(wp),                intent(IN)    :: z_srf(:,:)
         real(wp),                intent(IN)    :: t2m_bnd(:,:)
         real(wp),                intent(IN)    :: swn(:,:)
@@ -161,7 +169,11 @@ contains
         ! Local variables 
         real(wp), allocatable :: gamma(:,:)  
         real(wp) :: tsl_fac 
-        integer :: q 
+        integer :: q, nx, ny 
+
+        nx = emb%grid%G%nx 
+        ny = emb%grid%G%ny 
+
 
         ! Allocate working arrays
         allocate(gamma(size(t2m,1),size(t2m,2))) 
@@ -169,6 +181,8 @@ contains
         ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
         gamma = par%gamma  &
            + (0.5*cos((day-15)*2.0*pi/day_year)-0.5)*(par%gamma-par%gamma2)
+
+        !write(*,*) "gamma: ", day, minval(gamma), maxval(gamma)
 
         ! Get the tsl => column energy conversion
         ! tsl_fac = H_a[m] c_p[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
@@ -178,12 +192,39 @@ contains
         ! emb%kappa = par%en_D 
         emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/day_year))
         
+        ! Relaxation mask 
+        !emb%mask = mv 
+        call map_field(emb%map_toemb,"mask",mask,emb%mask,method="nn",fill=.TRUE.,missing_value=dble(mv))
+        !where (emb%mask .eq. mv) emb%mask = 1 
+
+        ! Ensure borders are relaxing too 
+        emb%mask(1,:)  = 1 
+        emb%mask(nx,:) = 1 
+        emb%mask(:,1)  = 1 
+        emb%mask(:,ny) = 1 
+        
         ! Boundary sea-level temperature, tsl
-        call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
-          
+        call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(mv))
+        
+        ! Ensure borders are populated  with nearest neighbors 
+        where (emb%tsl_bnd(2,:) .eq. 0.0) emb%tsl_bnd(2,:) = emb%tsl_bnd(3,:) 
+        where (emb%tsl_bnd(1,:) .eq. 0.0) emb%tsl_bnd(1,:) = emb%tsl_bnd(2,:) 
+        
+        where (emb%tsl_bnd(nx-1,:) .eq. 0.0) emb%tsl_bnd(nx-1,:) = emb%tsl_bnd(nx-2,:) 
+        where (emb%tsl_bnd(nx,:)   .eq. 0.0) emb%tsl_bnd(nx,:)   = emb%tsl_bnd(nx-1,:) 
+        
+        where (emb%tsl_bnd(:,2) .eq. 0.0) emb%tsl_bnd(:,2) = emb%tsl_bnd(:,3) 
+        where (emb%tsl_bnd(:,1) .eq. 0.0) emb%tsl_bnd(:,1) = emb%tsl_bnd(:,2) 
+        
+        where (emb%tsl_bnd(:,ny-1) .eq. 0.0) emb%tsl_bnd(:,ny-1) = emb%tsl_bnd(:,ny-2) 
+        where (emb%tsl_bnd(:,ny)   .eq. 0.0) emb%tsl_bnd(:,ny)   = emb%tsl_bnd(:,ny-1) 
+        
+
         ! Sea level temperature, tsl
-        call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
-            
+        !call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(mv))
+        ! Initialize to boundary field
+        emb%tsl = emb%tsl_bnd 
+
         ! Radiative forcing, en_F
         call map_field(emb%map_toemb,"en_F",swn + lwn + (shf+lhf) + lhp + rco2, &
                        emb%en_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
@@ -192,9 +233,10 @@ contains
         emb%en     = emb%tsl     *tsl_fac
         emb%en_bnd = emb%tsl_bnd *tsl_fac
 
+        if (.TRUE.) then 
         ! Calculate radiative balance over the day
-        do q = 1, par%en_nstep
-            where (emb%mask .eq. 1) emb%en = emb%en_bnd
+        do q = 1, 1  !par%en_nstep
+            !where (emb%mask .eq. 1) emb%en = emb%en_bnd
             call adv_diff_2D(emb%en,emb%en_bnd,emb%en_F,relax=emb%mask, &
                              dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
                              dy=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
@@ -206,16 +248,17 @@ contains
 !                                    dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr)
 
         end do 
+        end if 
 
         ! Re-calculate temperature 
         emb%tsl = emb%en /tsl_fac
 
-        call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nn",fill=.TRUE.,missing_value=dble(missing_value))
+        call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nn",fill=.TRUE.,missing_value=dble(mv))
 
-        ! ajr: TO DO !!
-!         t2m =  interp_bilinear(is_points=.TRUE.,x=emb%grid%G%x,y=emb%grid%G%y,z=emb%tsl, &
+!         ! ajr: TO DO !!  (seems to go really slow, or smt is wrong)
+!         t2m =  interp_bilinear(x=emb%grid%G%x,y=emb%grid%G%y,z=dble(emb%tsl), &
 !                                xout=emb%map_fromemb%x,yout=emb%map_fromemb%y, &
-!                                missing_value=missing_value)
+!                                missing_value=dble(mv))
 
         t2m = t2m - gamma*z_srf
 
