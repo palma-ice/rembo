@@ -20,7 +20,7 @@
     dist_rel   = 10.0             ! [km] Relaxation mask buffer (distance from coast)
     
     en_dt      = 1000             ! Diffusion time step, sec
-    en_D       = 8.0e5            ! [m-2 s-1] Diffusion constant, energy
+    en_D       = 1.0e7            ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 8.0e5            ! [m-2 s-1] Diffusion constant, energy
     en_D_sum   = 8.0e5            ! [m-2 s-1] Diffusion constant, energy
     en_kr      = 0.95             ! [1] Relaxation coefficient, energy (~95% of difference)
@@ -57,7 +57,7 @@
     nk1        = 3.54             ! Cloud cover constant 1
     nk2        = 3.58             ! Cloud cover constant 2
     nk3        = -1.21e-2         ! Cloud cover constant 3
-    
+
     ! Physical constants
     gamma      = 6.5e-3           ! [K m-1] Winter lapse rate
     gamma2     = 6.5e-3           ! [K m-1] Summer lapse rate

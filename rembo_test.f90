@@ -302,6 +302,8 @@ contains
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"dZdy",dom%mon(m)%dZdy,units="m",long_name="Gradient Geopotential height 750 Mb layer (boundary)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"gamma",dom%mon(m)%gamma,units="K m**-1",long_name="Atmospheric lapse rate", &
+                      dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
             ! CLimate fields
             call nc_write(filename,"t2m",dom%mon(m)%t2m,units="K",long_name="Near-surface air temperature", &

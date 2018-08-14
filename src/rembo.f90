@@ -180,7 +180,7 @@ contains
 
         if (dom%par%en_dt .gt. dt_check(1) .or. dom%par%ccw_dt .gt. dt_check(2)) then 
             write(*,*) "Time step too big!"
-            stop 
+            !stop 
         end if 
 
         write(*,*) "rembo_init:: Initialization complete for domain: "// &
@@ -441,8 +441,8 @@ contains
         call nml_read(filename,"rembo1_params","tb",  par%r1_tb  )
 
         ! How many time steps in 1 day, aprx?
-        par%en_nstep  = floor(sec_day / par%en_dt)   * 10.0
-        par%ccw_nstep = floor(sec_day / par%ccw_dt)  * 10.0
+        par%en_nstep  = floor(sec_day / par%en_dt)
+        par%ccw_nstep = floor(sec_day / par%ccw_dt)
         
         return
 
@@ -471,6 +471,7 @@ contains
         allocate(now%rho_a(nx,ny))   ! Air density (kg m-3)
         allocate(now%sp(nx,ny))      ! Surface pressure (Pa)
         
+        allocate(now%gamma(nx,ny))   ! Temperature lapse rate
         allocate(now%t2m(nx,ny))     ! Near-surface temp
         allocate(now%ct2m(nx,ny))    ! Near-surface temp inversion correction
         allocate(now%pr(nx,ny))      ! Precipitation
@@ -522,6 +523,7 @@ contains
         now%rho_a       = 0.0 
         now%sp          = 0.0 
 
+        now%gamma       = 0.0
         now%t2m         = 0.0
         now%ct2m        = 0.0
         now%pr          = 0.0        
@@ -585,6 +587,7 @@ contains
         if (allocated(now%rho_a)  )     deallocate(now%rho_a)   ! Air density (kg m-3)
         if (allocated(now%sp)     )     deallocate(now%sp)      ! Surface pressure (Pa)
 
+        if (allocated(now%gamma) )      deallocate(now%gamma)   ! Temperature lapse rate 
         if (allocated(now%t2m) )        deallocate(now%t2m)     ! Near-surface temp
         if (allocated(now%ct2m) )       deallocate(now%ct2m)    ! Near-surface temp inversion correction
         if (allocated(now%pr) )         deallocate(now%pr)      ! Precipitation
