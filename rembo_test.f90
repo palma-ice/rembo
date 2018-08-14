@@ -16,6 +16,7 @@ program rembo_test
         real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
         real(wp), allocatable :: S(:,:,:)        ! [W m-2] Insolation top-of-atmosphere
         real(wp), allocatable :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
+        real(wp), allocatable :: tsl(:,:,:)      ! [K]     Sea-level temperature (used for boundary)
         real(wp), allocatable :: al_s(:,:,:)     ! [--]    Surface albedo 
         real(wp), allocatable :: co2_a           ! [ppm]   Atmospheric CO2 concentration
         real(wp), allocatable :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
@@ -47,7 +48,7 @@ program rembo_test
 
     ! Load forcing
     call rembo_forc_alloc(forc,grid%G%nx,grid%G%ny)
-    call load_clim_monthly_era(forc,path="ice_data/Greenland",grid_name=trim(grid%name))
+    call load_clim_monthly_era(forc,path="ice_data/Greenland",grid_name=trim(grid%name),z_srf=z_srf)
 
     ! Initialize rembo
     call rembo_global_init("par/Greenland.nml")
@@ -104,7 +105,7 @@ contains
 
     end subroutine load_topo_rtopo2
 
-    subroutine load_clim_monthly_era(forc,path,grid_name)
+    subroutine load_clim_monthly_era(forc,path,grid_name,z_srf)
         ! Load the data into the era_daily_class object,
         ! Should output daily data for climatological mean
         ! *Actually loads hybrid boundary conditions: ECMWF (climate) + RCM (surface)
@@ -115,7 +116,7 @@ contains
         type(rembo_forcing_class), intent(INOUT) :: forc  
         character(len=*),          intent(IN)    :: path 
         character(len=*),          intent(IN)    :: grid_name 
-
+        real(wp),                  intent(IN)    :: z_srf(:,:)   ! Topography to be used in model 
         ! Local variables  
         real(wp), parameter :: T0 = 273.15d0 
         real(wp), allocatable :: var3D(:,:,:)
@@ -138,11 +139,18 @@ contains
 
         ! ## Surface elevation ##
         call nc_read(filename,"zs",forc%z_srf)
-        
+        where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
+
         ! Monthly fields
 
         ! ## tas ## 
         call nc_read(filename,"t2m",forc%t2m)
+
+        ! ## tsl and then correct temperature for model topography (instead of ERA topography)
+        do m = 1, nm 
+            forc%tsl(:,:,m) = forc%t2m(:,:,m) + 0.0065*forc%z_srf
+            forc%t2m(:,:,m) = forc%tsl(:,:,m) - 0.0065*z_srf  
+        end do 
 
         ! ## al_s ## 
         als_max =   0.80
@@ -213,6 +221,7 @@ contains
         if (allocated(forc%z_srf))  deallocate(forc%z_srf)
         if (allocated(forc%S))      deallocate(forc%S)
         if (allocated(forc%t2m))    deallocate(forc%t2m)
+        if (allocated(forc%tsl))    deallocate(forc%tsl)
         if (allocated(forc%al_s))   deallocate(forc%al_s)
         if (allocated(forc%Z))      deallocate(forc%Z)
         
@@ -220,12 +229,14 @@ contains
 
         allocate(forc%S(nx,ny,12))
         allocate(forc%t2m(nx,ny,12))
+        allocate(forc%tsl(nx,ny,12))
         allocate(forc%al_s(nx,ny,12))
         allocate(forc%Z(nx,ny,12))
         
         forc%z_srf  = 0.0 
         forc%S      = 0.0 
         forc%t2m    = 0.0
+        forc%tsl    = 0.0
         forc%al_s   = 0.0
         forc%Z      = 0.0
 
