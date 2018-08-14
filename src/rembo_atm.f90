@@ -28,6 +28,7 @@ contains
 
         ! Local variables
         real(wp) :: als_max, als_min, afac, tmid    ! ajr: to do: move to parameters!!
+        real(wp) :: beta                            ! ajr: to do: move to parameters!!
         integer  :: iter, n_iter 
 
         ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
@@ -112,13 +113,15 @@ contains
 
         ! Calculate latent heat flux at the surface
 
-        ! ajr: TO DO 
+        ! ajr: TO DO - assume zero for now 
         now%lhf_s = 0.0 
 
         ! Calculate sensible heat flux at the surface
 
-        ! ajr: TO DO 
+        ! ajr: TO DO - testing following Krebs-Kanzow etal, tc, (2018)
         now%shf_s  = 0.0 
+        beta       = 10.0      ! 7-20 W m−2 K−1 (Braithwaite 1995 et al)
+        now%shf_s  = beta*(now%t2m-T0)
 
         ! Calculate energy balance on low-resolution grid
         ! ajr: need to test whether it's better just to use slightly lower
