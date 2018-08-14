@@ -257,7 +257,7 @@ contains
         allocate(emb%uvg(nx,ny))
         allocate(emb%ww(nx,ny))
 
-        allocate(emb%qr(nx,ny))
+        allocate(emb%q_r(nx,ny))
 
         ! Diffusion
         allocate(emb%kappa(nx,ny))
@@ -296,7 +296,7 @@ contains
         emb%uvg         = 0.0
         emb%ww          = 0.0
 
-        emb%qr          = 0.0
+        emb%q_r         = 0.0
 
         ! Diffusion
         emb%kappa       = 0.0

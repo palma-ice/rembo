@@ -167,7 +167,7 @@ module rembo_defs
         real(wp), allocatable :: ccw(:,:), ccw_bnd(:,:), ccw_F(:,:) 
         real(wp), allocatable :: ccw_cw(:,:), ccw_pr(:,:) 
         real(wp), allocatable :: tcw(:,:), tcw_bnd(:,:)
-        real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), qr(:,:)  
+        real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), q_r(:,:)  
 
         ! Diffusion 
         real(wp), allocatable :: kappa(:,:), kappaw(:,:) 

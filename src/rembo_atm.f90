@@ -150,8 +150,8 @@ contains
 !         now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
 !                                     par%k_c,par%k_x)
         
-!         ! Calculate the current cloud water content
-!         call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,ww=now%ww)   
+        ! Calculate the current cloud water content
+        call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww)   
 
         ! Now calculate the high resolution precipitation rate (kg m**-2 s**-1)
         now%pr = calc_precip(now%ccw,now%ww,now%t2m,bnd%z_srf,par%k_w,par%k_z,par%k_t)
@@ -192,6 +192,8 @@ contains
         emb%mask(emb%grid%G%nx,:) = 1 
         emb%mask(:,1)             = 1 
         emb%mask(:,emb%grid%G%ny) = 1 
+        
+        call map_field(emb%map_toemb,"z_srf",z_srf,emb%z_srf,method="radius",fill=.TRUE.,missing_value=dble(mv))
         
         ! Get the 2D energy diffusion coefficient
         ! emb%kappa = par%en_D 
@@ -291,7 +293,7 @@ contains
 
     end subroutine rembo_calc_en 
 
-    subroutine rembo_calc_ccw(pr,ccw,c_w,emb,par,ww)
+    subroutine rembo_calc_ccw(pr,ccw,c_w,emb,par,tcw,q_r,ww)
 
         implicit none 
 
@@ -300,6 +302,8 @@ contains
         real(wp),                intent(INOUT) :: c_w(:,:)
         type(diffusion_class),   intent(INOUT) :: emb 
         type(rembo_param_class), intent(IN)    :: par 
+        real(wp),                intent(IN)    :: tcw(:,:)
+        real(wp),                intent(IN)    :: q_r(:,:)
         real(wp),                intent(IN)    :: ww(:,:)
 
         ! Local variables
@@ -308,11 +312,18 @@ contains
         !real(wp)  :: dtsl_mean    ! Average temp anomaly away from boundary temps 
 
         !emb%tcw     = calc_qs(emb%tsl_bnd+dtsl_mean-par%gamma*emb%z_srf,emb%z_srf,par%e0,par%c1) *emb%rho_a *par%H_e
-        emb%tcw_bnd = calc_qs(emb%tsl_bnd-par%gamma*emb%z_srf,emb%z_srf,par%e0,par%c1) *emb%rho_a *par%H_e
-        emb%tcw     = emb%tcw_bnd
+!         emb%tcw_bnd = calc_qs(emb%tsl_bnd-par%gamma*emb%z_srf,emb%z_srf,par%e0,par%c1) *emb%rho_a *par%H_e
+!         emb%tcw     = emb%tcw_bnd
+    
+        !emb%q_r = emb%tcw / (calc_qsat(emb%tsl_bnd+dtsl_mean-par%gamma*emb%z_srf,emb%z_srf) *emb%rho_a *par%H_e)
 
-        emb%qr = emb%tcw / (calc_qsat(emb%tsl_bnd+dtsl_mean-par%gamma*emb%z_srf,emb%z_srf) *emb%rho_a *par%H_e)
-
+        ! == Total water content ==
+        call map_field(emb%map_toemb,"tcw",tcw,emb%tcw,method="radius",fill=.TRUE.,missing_value=dble(mv))
+        
+        ! == Relative humidity == 
+        call map_field(emb%map_toemb,"q_r",q_r,emb%q_r,method="radius",fill=.TRUE.,missing_value=dble(mv))
+        
+        
         ! Get 2D diffusion constant
         emb%kappaw = par%ccw_D
 
@@ -330,28 +341,32 @@ contains
         ! Get vertical wind for precipitation
         sigma = emb%grid%G%dx*2.0  
         call map_field(emb%map_toemb,"ww",ww,emb%ww,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-        call map_field(emb%map_toemb,"ww",ww,emb%ccw_pr,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-        emb%ww = (emb%ww+emb%ccw_pr)/2.d0 
+!         call map_field(emb%map_toemb,"ww",ww,emb%ccw_pr,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
+!         emb%ww = (emb%ww+emb%ccw_pr)/2.d0 
+        ! ajr: not sure what the above average represented in rembo2-beta. For now just use ww directly...
 
         ! Get current moisture content [kg m-2]
         call map_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-            
+        
+        ! ajr: to do: define ccw_bnd!!!
+        emb%ccw_bnd = emb%ccw 
+
         ! Calculate the initial lo-res precipitation rate [kg m-2 s-1]
         call map_field(emb%map_toemb,"pr", pr, emb%ccw_pr,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
         ! ajr: TO DO : calculate a basic rate somehow avoiding history 
 
 
         ! Now calculate the condensation rate [kg m-2 s-1]
-        emb%ccw_cw = calc_condensation(emb%tcw,emb%qr,emb%ww,par%k_c,par%k_x)
+        emb%ccw_cw = calc_condensation(emb%tcw,emb%q_r,emb%ww,par%k_c,par%k_x)
 
         ! Get moisture balance forcing [kg m-2 s-1]
         emb%ccw_F = emb%ccw_cw - emb%ccw_pr 
         where(emb%mask==1) emb%ccw_F = 0.d0 
 
         ! Calculate moisture balance to equilibrium
-        do q = 1, 1 !par%ccw_nstep
+        do q = 1, par%ccw_nstep
             !where (emb%mask .eq. 1) emb%ccw = emb%ccw_bnd
-            call adv_diff_2D(emb%ccw,emb%ccw_bnd*emb%tcw/emb%tcw_bnd, &
+            call adv_diff_2D(emb%ccw,emb%ccw_bnd, & !*emb%tcw/emb%tcw_bnd, &
                              emb%ccw_F,relax=emb%mask, &
                              dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
                              dy=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
@@ -367,10 +382,12 @@ contains
 
             ! Now calculate the precipitation rate on emb grid (kg m**-2 s**-1)
             ! *Cheaper than reinterpolating, but necessary to update moisture balance
-            !emb%ccw_pr = calc_precip(emb%ccw,emb%ww,emb%tsl-par%gamma*emb%z_srf,emb%z_srf,par%k_w,par%k_z,par%k_t) 
+            emb%ccw_pr = calc_precip(emb%ccw,emb%ww,emb%tsl-par%gamma*emb%z_srf,emb%z_srf,par%k_w,par%k_z,par%k_t) 
 
-            ! ajr: Add equil. condition!!!
-
+            ! Get moisture balance forcing [kg m-2 s-1]
+            emb%ccw_F = emb%ccw_cw - emb%ccw_pr 
+            where(emb%mask==1) emb%ccw_F = 0.d0 
+            
         end do 
 
         ! Send cloud moisture content back to main domain pts

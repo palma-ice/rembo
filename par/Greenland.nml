@@ -19,10 +19,10 @@
     emb_dx     = 120.0            ! [km] Energy-moisture balance grid resolution
     dist_rel   = 10.0             ! [km] Relaxation mask buffer (distance from coast)
     
-    en_dt      = 100             ! Diffusion time step, sec
+    en_dt      = 1000             ! Diffusion time step, sec
     en_D       = 1.0e6            ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 1.0e6            ! [m-2 s-1] Diffusion constant, energy
-    en_D_sum   = 2.0e6            ! [m-2 s-1] Diffusion constant, energy
+    en_D_sum   = 1.0e6            ! [m-2 s-1] Diffusion constant, energy
     en_kr      = 0.95             ! [1] Relaxation coefficient, energy (~95% of difference)
 !     en_kz      = 0.00017          ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
 !     en_kl      = 0.33             ! [degrees-1] Kappa scalar with latitude (kl*lat) **REMBOv1=0.33 

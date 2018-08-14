@@ -319,7 +319,10 @@ contains
             ! CLimate fields
             call nc_write(filename,"t2m",dom%mon(m)%t2m,units="K",long_name="Near-surface air temperature", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
-        
+            
+            call nc_write(filename,"pr",dom%mon(m)%pr,units="mm d**-1",long_name="Precipitation", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            
         end do 
         
 !         call nc_write(filename,"Ta_ann",dom%ann%t2m,units="K",long_name="Near-surface air temperature (ann)", &
