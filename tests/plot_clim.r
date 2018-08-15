@@ -80,10 +80,10 @@ col.alb    = c("grey50","darkblue","skyblue","white")
 # Plot comparison
 if (TRUE) {
 
-    plot_year(rem,mar,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,type=ptype)  
+    #plot_year(rem,mar,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,type=ptype)  
     plot_comparison(rem,mar,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),zlim=c(-6,6))
     
-    plot_year(rem,mar,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,type=ptype)  
+    #plot_year(rem,mar,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,type=ptype)  
     plot_comparison(rem,mar,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),col=col.alb)
     
     # par(mfrow=c(2,3))
@@ -112,8 +112,10 @@ calc_albedo <- function(p,data,subset=c(1:length(data$t2m)),opt=FALSE)
     afac = p[3]
     tmid = p[4]
 
-    alb = amin+(amax-amin)*(0.5*tanh(afac*(data$t2m-tmid))+0.5) 
+    #alb = amin+(amax-amin)*(0.5*tanh(afac*(data$t2m-tmid))+0.5) 
     
+    alb = amin+(amax-amin)*afac*(data$t2m-tmid)
+
     if (opt) {
         err = rmse(alb-data$al_s,ii=subset)
         return(err)
@@ -130,7 +132,7 @@ if (FALSE) {
 
     #mm = gen_masks(mar$msk >= 50,topo$z_srf)   # Ice mask (MAR)
     #mm = gen_masks(mar$mask == 4,topo$z_srf,months=c(6:8))   # Ice and land mask (MAR)
-    mm = gen_masks(mar$mask == 4 & mar$msk < 50,topo$z_srf,months=c(6:8))   # Land mask (MAR)
+    mm = gen_masks(mar$mask == 4 & mar$msk < 50,topo$z_srf,months=c(6,7,8))   # Land mask (MAR)
     
     
     test     = data.frame(t2m=mar$t2m[mm$ij12],al_s=mar$al[mm$ij12])
