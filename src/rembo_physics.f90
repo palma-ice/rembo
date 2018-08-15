@@ -38,7 +38,8 @@ module rembo_physics
     public :: calc_magnitude
     public :: calc_gradient_to_sealevel
     public :: gen_relaxation
-
+    public :: remove_islands
+    
 contains
     
     elemental function calc_albedo_t2m(t2m,als_min,als_max,afac,tmid) result(al_s)
@@ -518,6 +519,7 @@ contains
         real(wp) :: radius, dist, mindist 
         integer :: nx, ny, i, j, i1, j1 
         real(wp), parameter :: zs_min = 10.0   ! [m]
+        real(wp) :: tmp(size(zs,1),size(zs,2))
 
         nx = size(zs,1)
         ny = size(zs,2)
@@ -529,9 +531,9 @@ contains
         relax(:,1:2)     = 1
         relax(:,ny-1:ny) = 1
 
-        do i = 1, nx 
         do j = 1, ny 
-
+        do i = 1, nx 
+        
             if (zs(i,j) .gt. zs_min) then    ! Land points have zero distance to land 
 
                 mindist = 0.0 
@@ -555,8 +557,50 @@ contains
         end do 
         end do 
 
+        call remove_islands(relax)
+
         return
 
     end function gen_relaxation 
+
+    subroutine remove_islands(mask)
+
+        implicit none 
+
+        integer :: mask(:,:) 
+
+        ! Local variables
+        integer :: nx, ny, i, j
+        real(wp) :: tmp(size(mask,1),size(mask,2))
+
+        nx = size(mask,1)
+        ny = size(mask,2)
+
+        ! Remove islands
+        tmp = mask
+
+        do j = 1, ny 
+        do i = 1, nx 
+            
+            if (tmp(i,j)   .eq. 1 .and.  &
+                tmp(i-1,j) .eq. 0 .and. tmp(i+1,j) .eq. 0 .and. &
+                tmp(i,j-1) .eq. 0 .and. tmp(i,j+1) .eq. 0) then 
+
+                mask(i,j) = 0
+
+            else if (tmp(i,j)   .eq. 0 .and.  &
+                     tmp(i-1,j) .eq. 1 .and. tmp(i+1,j) .eq. 1 .and. &
+                     tmp(i,j-1) .eq. 1 .and. tmp(i,j+1) .eq. 1) then 
+ 
+                mask(i,j) = 1
+
+            end if 
+
+        end do 
+        end do 
+
+        return 
+
+    end subroutine remove_islands
 
 end module rembo_physics 

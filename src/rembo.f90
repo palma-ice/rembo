@@ -23,7 +23,7 @@ module rembo
 
 contains 
 
-    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,t2m,Z,co2_a,year)
+    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,co2_a,year)
         ! Calculate atmosphere for each month of the year 
 
         implicit none 
@@ -33,6 +33,7 @@ contains
         real(wp), intent(IN) :: z_srf(:,:)      ! [m]     Surface elevation
         real(wp), intent(IN) :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
         real(wp), intent(IN) :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
+        real(wp), intent(IN) :: reg_mask(:,:)   ! [--]    Maximum region of interest to model 
         real(wp), intent(IN) :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
         real(wp), intent(IN) :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
         real(wp), intent(IN) :: co2_a           ! [ppm]   Atmospheric CO2 concentration
@@ -66,10 +67,8 @@ contains
 !                     real(dom%grid%x*dom%grid%xy_conv,wp),real(dom%grid%y*dom%grid%xy_conv,wp))
 
         ! Calculate the rembo relaxation mask
-        dom%bnd%mask = 0
-        where(dom%bnd%z_srf .gt. 0.0) dom%bnd%mask = 1 
-
         dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,real(dom%grid%x,wp),real(dom%grid%y,wp),radius=20.0)  
+        where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
         
         ! EMB OUTPUT FOR TESTING 
         call rembo_emb_write_init(dom%emb,"test.nc",time_init=real(year,wp),units="kyr ago")

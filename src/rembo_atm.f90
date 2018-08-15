@@ -192,7 +192,8 @@ contains
         emb%mask(emb%grid%G%nx,:) = 1 
         emb%mask(:,1)             = 1 
         emb%mask(:,emb%grid%G%ny) = 1 
-        
+        call remove_islands(emb%mask)
+
         call map_field(emb%map_toemb,"z_srf",z_srf,emb%z_srf,method="radius",fill=.TRUE.,missing_value=dble(mv))
         
         ! Get the 2D energy diffusion coefficient

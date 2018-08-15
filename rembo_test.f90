@@ -30,6 +30,7 @@ program rembo_test
     real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
     real(wp), allocatable :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
     real(wp), allocatable :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
+    real(wp), allocatable :: reg_mask(:,:)   ! [--]    Maximum region of interest
     
     character(len=512) :: outfldr 
     character(len=512) :: file_out 
@@ -44,7 +45,8 @@ program rembo_test
     call grid_allocate(grid,z_srf)
     call grid_allocate(grid,f_ice)
     call grid_allocate(grid,f_shlf)
-    call load_topo_rtopo2(z_srf,f_ice,f_shlf,path="ice_data/Greenland",grid_name=trim(grid%name))
+    call grid_allocate(grid,reg_mask)
+    call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path="ice_data/Greenland",grid_name=trim(grid%name))
 
     ! Load forcing
     call rembo_forc_alloc(forc,grid%G%nx,grid%G%ny)
@@ -64,7 +66,7 @@ program rembo_test
     ! Define current year and update rembo (including insolation)
     time       = 0.0      ! [kyr ago]   
 
-    call rembo_update(rem1,z_srf,f_ice,f_shlf,forc%t2m,forc%Z,forc%co2_a,int(time))
+    call rembo_update(rem1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%co2_a,int(time))
 
     ! Write final result 
     call rembo_write_init(rem1,file_out,time,units="kyr ago")
@@ -74,7 +76,7 @@ program rembo_test
 
 contains 
 
-    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,path,grid_name)
+    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path,grid_name)
         ! Load the data into the rembo_class object
 
         implicit none 
@@ -82,11 +84,19 @@ contains
         real(wp),          intent(INOUT) :: z_srf(:,:) 
         real(wp),          intent(INOUT) :: f_ice(:,:) 
         real(wp),          intent(INOUT) :: f_shlf(:,:) 
+        real(wp),          intent(INOUT) :: reg_mask(:,:) 
         character(len=*),  intent(IN)    :: path 
         character(len=*),  intent(IN)    :: grid_name 
 
         ! Local variables
         character(len=512) :: filename
+        real(wp), allocatable :: H_ice(:,:)  
+        integer :: nx, ny 
+
+        nx = size(z_srf,1)
+        ny = size(z_srf,2)
+
+        allocate(H_ice(nx,ny))
 
         filename = trim(path)//"/"//trim(grid_name)//"/"//trim(grid_name)//"_TOPO-RTOPO-2.0.1.nc"
 
@@ -95,11 +105,25 @@ contains
         ! ## Surface elevation ##
         call nc_read(filename,"z_srf",z_srf)
         
+        ! ## Ice thickness ##
+        call nc_read(filename,"H_ice",H_ice)
+        
         ! Ice fractions
         f_ice  = 0.0 
-        where (z_srf .gt. 0.0) f_ice = 1.0 
+        where (z_srf .gt. 0.0 .and. H_ice .gt. 10.0) f_ice = 1.0 
+        where (z_srf .gt. 0.0 .and. H_ice .lt. 10.0) f_ice = H_ice / 10.0 
 
         f_shlf = 0.0
+
+        ! Load regions to delete regions out of interest 
+        filename = trim(path)//"/"//trim(grid_name)//"/"//trim(grid_name)//"_REGIONS.nc"
+        call nc_read(filename,"mask",reg_mask)
+        
+        where(abs(reg_mask-3.2) .lt. 0.05)
+            reg_mask = 1.0
+        elsewhere
+            reg_mask = 0.0 
+        end where 
 
         return 
 
