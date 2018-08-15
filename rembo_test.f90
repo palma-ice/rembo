@@ -55,6 +55,7 @@ program rembo_test
     
     domain    = trim(rem1%par%domain)
     grid_name = trim(rem1%grid%name)
+    grid      = rem1%grid 
 
     infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
     !path_par  = "par/"//trim(domain)//".nml"
@@ -92,7 +93,8 @@ program rembo_test
     ! Stop timing 
     call cpu_time(finish)
 
-    print '("Time = ",f12.3," min.")', (finish-start)/60.0 
+    !print '("Time = ",f12.3," min.")', (finish-start)/60.0 
+    print '("Time = ",f12.3," sec.")', (finish-start) 
     
 contains 
 

@@ -102,6 +102,13 @@ def makejob(outpath,par_file,executable=None,force=False):
     if os.path.islink(dstname): os.unlink(dstname)
     os.symlink(srcpath,dstname)
 
+    ## Generate symbolic links to maps folder
+    srcname = "maps"
+    dstname = os.path.join(outpath,srcname)
+    srcpath = os.path.abspath(srcname)
+    if os.path.islink(dstname): os.unlink(dstname)
+    os.symlink(srcpath,dstname)
+
     # # Generate link to extra data folder for personal data files
     # srcname = "extra_data"
     # dstname = os.path.join(outpath,srcname)

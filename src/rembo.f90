@@ -82,7 +82,7 @@ contains
             ! == Store monthly boundary variables =====
 
             ! Calculate representative insolation for the month
-            dom%now%S = calc_insol_day(day,dom%grid%lat,dble(year),fldr="libs/insol/input")
+            dom%now%S = calc_insol_day(day,dom%grid%lat,dble(year),fldr="input")
 
             ! Save all other boundary variables 
             dom%now%t2m_bnd = t2m(:,:,m) 
