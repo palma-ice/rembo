@@ -42,8 +42,9 @@ if (TRUE) {
     # domain   = "Antarctica"
     # grid_name = "ANT-40KM" 
     
+    outfldr = file.path("../output/test1")
+    
     infldr  = file.path("../ice_data",domain,grid_name)
-    outfldr = file.path("../output",grid_name)
 
     if (domain == "Greenland") {
         # Load MAR climatology 

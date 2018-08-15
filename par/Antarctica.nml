@@ -10,6 +10,8 @@
 /
 
 &rembo_params
+    domain     = "Antarctica"
+    grid_name  = "ANT-40KM"
     restart    = "no"            ! "no" for no restart, or else the filename to restart from
     
     H_e        = 2500.0           ! [m] Vapor scale height

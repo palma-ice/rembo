@@ -54,7 +54,7 @@ contains
 
         !al_s = als_min + (als_max - als_min)*(0.5*tanh(afac*(t2m-tmid))+0.5)
         al_s = als_min+(als_max-als_min)*afac*(t2m-tmid)
-        
+
         return 
 
     end function calc_albedo_t2m
@@ -580,8 +580,8 @@ contains
         ! Remove islands
         tmp = mask
 
-        do j = 1, ny 
-        do i = 1, nx 
+        do j = 2, ny-1
+        do i = 2, nx-1 
             
             if (tmp(i,j)   .eq. 1 .and.  &
                 tmp(i-1,j) .eq. 0 .and. tmp(i+1,j) .eq. 0 .and. &
