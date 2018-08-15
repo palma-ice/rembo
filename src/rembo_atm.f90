@@ -47,7 +47,7 @@ contains
         ! Initialize emb object for this day 
         call rembo_calc_iterinit(emb,bnd%mask,bnd%z_srf,now%t2m_bnd,now%gamma,par,day)
 
-        n_iter = 10
+        n_iter = 2
 
         do iter = 1, n_iter 
 
@@ -75,10 +75,10 @@ contains
         now%uv_s = calc_magnitude(now%u_s,now%v_s)
 
         ! Calculate the surface albedo 
-        als_max =   0.80
-        als_min =   0.69
-        afac     =  -0.18
-        tmid     = 275.35
+        als_max =   0.81
+        als_min =   0.24
+        afac     =  -0.21
+        tmid     = 274.16
         now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
 
         ! ajr: TO do: implement loop updating t2m and al_s !!!
@@ -263,7 +263,7 @@ contains
         emb%en_bnd = emb%tsl_bnd *tsl_fac
          
         ! Calculate radiative balance over the day
-        do q = 1, par%en_nstep
+        do q = 1, par%en_nstep * 5
             !where (emb%mask .eq. 1) emb%en = emb%en_bnd
             call adv_diff_2D(emb%en,emb%en_bnd,emb%en_F,relax=emb%mask, &
                              dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
@@ -387,7 +387,7 @@ contains
             ! Get moisture balance forcing [kg m-2 s-1]
             emb%ccw_F = emb%ccw_cw - emb%ccw_pr 
             where(emb%mask==1) emb%ccw_F = 0.d0 
-            
+
         end do 
 
         ! Send cloud moisture content back to main domain pts
