@@ -69,7 +69,7 @@ contains
         ! Calculate the rembo relaxation mask
         dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,real(dom%grid%x,wp),real(dom%grid%y,wp),radius=20.0)  
         where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
-        
+
         ! EMB OUTPUT FOR TESTING 
         call rembo_emb_write_init(dom%emb,"test.nc",time_init=real(year,wp),units="kyr ago")
 
@@ -167,7 +167,7 @@ contains
         ! Check diffusion time step consistency
         dt_check(1) = diff2D_timestep(real(dom%emb%grid%G%dx*dom%emb%grid%xy_conv,wp), &
                                       real(dom%emb%grid%G%dy*dom%emb%grid%xy_conv,wp), &
-                                      dom%par%en_D)
+                                      min(dom%par%en_D_sum,dom%par%en_D_win))
         dt_check(2) = diff2D_timestep(real(dom%emb%grid%G%dx*dom%emb%grid%xy_conv,wp), &
                                       real(dom%emb%grid%G%dy*dom%emb%grid%xy_conv,wp), &
                                       dom%par%ccw_D)
