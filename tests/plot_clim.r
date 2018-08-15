@@ -12,6 +12,13 @@ load_mar = function(filename)
     return(dat)
 }
 
+load_racmo = function(filename)
+{
+    dat = my.read.nc(filename)
+    
+    return(dat)
+}
+
 gen_masks = function(mask,z_srf,months=c(1:12))
 {   # Input a 2D boolean mask, return 2D mask and 2D mask for each month
 
@@ -27,23 +34,40 @@ gen_masks = function(mask,z_srf,months=c(1:12))
 }
 
 # Load data 
-if (FALSE) {
+if (TRUE) {
 
-    domain   = "Greenland"
-    grid_name = "GRL-20KM" 
+    # domain   = "Greenland"
+    # grid_name = "GRL-20KM" 
 
+    domain   = "Antarctica"
+    grid_name = "ANT-40KM" 
+    
     infldr  = file.path("../ice_data",domain,grid_name)
     outfldr = file.path("../output",grid_name)
 
-    # Load MAR climatology 
-    mar = load_mar(file.path(infldr,paste0(grid_name,"_MARv3.5-ERA-30km-monthly_1981-2010.nc")))
-    #mar = load_mar(file.path(infldr,paste0(grid_name,"_MARv3.9-monthly-ERA_1981-2010.nc")))
-    
+    if (domain == "Greenland") {
+        # Load MAR climatology 
+        rcm = load_mar(file.path(infldr,paste0(grid_name,"_MARv3.5-ERA-30km-monthly_1981-2010.nc")))
+        #rcm = load_mar(file.path(infldr,paste0(grid_name,"_MARv3.9-monthly-ERA_1981-2010.nc")))
+
+        region_number = 3.2 
+
+    } else if (domain == "Antarctica") {
+        # Load RACMO climatology
+        rcm = load_racmo(file.path(infldr,paste0(grid_name,"_RACMO23-ERAINT-HYBRID_1981-2010.nc")))
+
+        region_number = 2.2
+    }
+
     topo   = my.read.nc(file.path(infldr,paste0(grid_name,"_TOPO-RTOPO-2.0.1.nc")))
     
     basins  = my.read.nc(file.path(infldr,paste0(grid_name,"_BASINS-nasa.nc")))
     regions = my.read.nc(file.path(infldr,paste0(grid_name,"_REGIONS.nc")))
     
+    mask  = topo$mask %in% c(2,3)   & abs(regions$mask-region_number) < 0.05 
+    mask2 = topo$mask %in% c(1,2,3) & abs(regions$mask-region_number) < 0.05 
+    masks = gen_masks(mask,topo$z_srf)
+
 }
 
 # Load REMBO output
@@ -59,10 +83,6 @@ if (TRUE) {
 # PLOTTING and TESTING
 #
 ########################################
-
-mask  = topo$mask %in% c(2,3)   & abs(regions$mask-3.2) < 0.05 
-mask2 = topo$mask %in% c(1,2,3) & abs(regions$mask-3.2) < 0.05 
-masks = gen_masks(mask,topo$z_srf)
 
 # mask = marc$mask == 2 & topo$mask != 3 
 # mask = marc$mask  > 0 & remboc$mask  > 0   # Ice sheet and land only  
@@ -80,27 +100,14 @@ col.alb    = c("grey50","darkblue","skyblue","white")
 # Plot comparison
 if (TRUE) {
 
-    #plot_year(rem,mar,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,type=ptype)  
-    plot_comparison(rem,mar,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),zlim=c(-6,6))
+    #plot_year(rem,rcm,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,type=ptype)  
+    plot_comparison(rem,rcm,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),zlim=c(-6,6))
     
-    #plot_year(rem,mar,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,type=ptype)  
-    plot_comparison(rem,mar,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),col=col.alb)
+    #plot_year(rem,rcm,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,type=ptype)  
+    #plot_comparison(rem,rcm,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),col=col.alb)
     
     # par(mfrow=c(2,3))
     # par(plt=c(0.05,0.9,0.05,0.95))
-
-    # m = 1 
-    # zlim = range(rem$t2m[,,m],mar$t2m[,,m])
-    # image.plot(rem$xc,rem$yc,rem$t2m[,,m],axes=FALSE,ann=FALSE,zlim=zlim)
-    # image.plot(mar$xc,mar$yc,mar$t2m[,,m],axes=FALSE,ann=FALSE,zlim=zlim)
-    # image.plot(mar$xc,mar$yc,rem$t2m[,,m]-mar$t2m[,,m],axes=FALSE,ann=FALSE,zlim=c(-10,10))
-
-    # m = 7 
-    # zlim = range(rem$t2m[,,m],mar$t2m[,,m])
-    # image.plot(rem$xc,rem$yc,rem$t2m[,,m],axes=FALSE,ann=FALSE,zlim=zlim)
-    # image.plot(mar$xc,mar$yc,mar$t2m[,,m],axes=FALSE,ann=FALSE,zlim=zlim)
-    # image.plot(mar$xc,mar$yc,rem$t2m[,,m]-mar$t2m[,,m],axes=FALSE,ann=FALSE,zlim=c(-10,10))
-
 
 }
 
@@ -130,12 +137,12 @@ if (FALSE) {
     #mm = gen_masks(topo$mask %in% c(2,3),topo$z_srf)   # Ice mask
     #mm = gen_masks(topo$mask %in% c(1,2,3),topo$z_srf)   # Ice and land mask
 
-    #mm = gen_masks(mar$msk >= 50,topo$z_srf)   # Ice mask (MAR)
-    #mm = gen_masks(mar$mask == 4,topo$z_srf,months=c(6:8))   # Ice and land mask (MAR)
-    mm = gen_masks(mar$mask == 4 & mar$msk < 50,topo$z_srf,months=c(6,7,8))   # Land mask (MAR)
+    #mm = gen_masks(rcm$msk >= 50,topo$z_srf)   # Ice mask (MAR)
+    #mm = gen_masks(rcm$mask == 4,topo$z_srf,months=c(6:8))   # Ice and land mask (MAR)
+    mm = gen_masks(rcm$mask == 4 & rcm$msk < 50,topo$z_srf,months=c(6,7,8))   # Land mask (MAR)
     
     
-    test     = data.frame(t2m=mar$t2m[mm$ij12],al_s=mar$al[mm$ij12])
+    test     = data.frame(t2m=rcm$t2m[mm$ij12],al_s=rcm$al[mm$ij12])
     new      = data.frame(t2m=seq(230,290,by=0.5))
     new$al_s = calc_albedo(p=c(0.2,0.83,-0.18,275.35),data=new)
 

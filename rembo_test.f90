@@ -32,33 +32,47 @@ program rembo_test
     real(wp), allocatable :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
     real(wp), allocatable :: reg_mask(:,:)   ! [--]    Maximum region of interest
     
+    character(len=56)  :: domain 
+    character(len=56)  :: grid_name 
+    character(len=512) :: infldr
+    character(len=512) :: par_path
     character(len=512) :: outfldr 
     character(len=512) :: file_out 
     real(wp)           :: time 
     integer            :: m, day  
 
-    call grid_init(grid,name="GRL-20KM",mtype="stereographic",units="kilometers", &
-                                   lon180=.TRUE.,dx=20.d0,nx=91,dy=20.d0,ny=151, &
-                                   lambda=-40.d0,phi=72.d0,alpha=8.4d0)
+!     domain    = "Greenland"
+!     grid_name = "GRL-20KM" 
+
+    domain    = "Antarctica"
+    grid_name = "ANT-40KM" 
+    
+    infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
+    par_path  = "par/"//trim(domain)//".nml"
+
+    ! Define output folder 
+    outfldr  = "output/"//trim(grid_name)//"/"
+    file_out = trim(outfldr)//"rembo.nc"
+    
+
+    ! Define rembo grid based on grid name
+    call rembo_grid_define(grid,grid_name)
 
     ! Allocate topo data and load it 
     call grid_allocate(grid,z_srf)
     call grid_allocate(grid,f_ice)
     call grid_allocate(grid,f_shlf)
     call grid_allocate(grid,reg_mask)
-    call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path="ice_data/Greenland",grid_name=trim(grid%name))
+    call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path=trim(infldr),domain=domain,grid_name=grid%name)
 
     ! Load forcing
     call rembo_forc_alloc(forc,grid%G%nx,grid%G%ny)
-    call load_clim_monthly_era(forc,path="ice_data/Greenland",grid_name=trim(grid%name),z_srf=z_srf)
+    call load_clim_monthly_era(forc,path=trim(infldr),grid_name=trim(grid%name),z_srf=z_srf)
 
     ! Initialize rembo
-    call rembo_global_init("par/Greenland.nml")
-    call rembo_init(rem1,par_path="par/Greenland.nml",domain="Greenland",grid=grid)
+    call rembo_global_init(trim(par_path))
+    call rembo_init(rem1,par_path=trim(par_path),domain=domain,grid=grid)
 
-    ! Define output folder 
-    outfldr  = "output/"//trim(grid%name)//"/"
-    file_out = trim(outfldr)//"rembo.nc"
     
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]
@@ -76,7 +90,7 @@ program rembo_test
 
 contains 
 
-    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path,grid_name)
+    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path,domain,grid_name)
         ! Load the data into the rembo_class object
 
         implicit none 
@@ -86,19 +100,21 @@ contains
         real(wp),          intent(INOUT) :: f_shlf(:,:) 
         real(wp),          intent(INOUT) :: reg_mask(:,:) 
         character(len=*),  intent(IN)    :: path 
+        character(len=*),  intent(IN)    :: domain
         character(len=*),  intent(IN)    :: grid_name 
 
         ! Local variables
         character(len=512) :: filename
         real(wp), allocatable :: H_ice(:,:)  
         integer :: nx, ny 
+        real(wp) :: region_number 
 
         nx = size(z_srf,1)
         ny = size(z_srf,2)
 
         allocate(H_ice(nx,ny))
 
-        filename = trim(path)//"/"//trim(grid_name)//"/"//trim(grid_name)//"_TOPO-RTOPO-2.0.1.nc"
+        filename = trim(path)//"/"//trim(grid_name)//"_TOPO-RTOPO-2.0.1.nc"
 
         ! Static fields
 
@@ -116,10 +132,19 @@ contains
         f_shlf = 0.0
 
         ! Load regions to delete regions out of interest 
-        filename = trim(path)//"/"//trim(grid_name)//"/"//trim(grid_name)//"_REGIONS.nc"
+        filename = trim(path)//"/"//trim(grid_name)//"_REGIONS.nc"
         call nc_read(filename,"mask",reg_mask)
         
-        where(abs(reg_mask-3.2) .lt. 0.05)
+        if (trim(domain) .eq. "Greenland") then 
+            region_number = 3.2 
+        else if (trim(domain) .eq. "Antarctica") then  
+            region_number = 2.2 
+        else 
+            write(*,*) "Domain not recognized: "//trim(domain)
+            stop 
+        end if 
+
+        where(abs(reg_mask-region_number) .lt. 0.05)
             reg_mask = 1.0
         elsewhere
             reg_mask = 0.0 
@@ -157,7 +182,7 @@ contains
         allocate(var3D(nx,ny,nm))
         allocate(var2Ddp(nx,ny))
         
-        filename = trim(path)//"/"//trim(grid_name)//"/ERA-INT/"//trim(grid_name)//"_ERA-INT_1981-2010.nc"
+        filename = trim(path)//"/ERA-INT/"//trim(grid_name)//"_ERA-INT_1981-2010.nc"
 
         ! Static fields
 
