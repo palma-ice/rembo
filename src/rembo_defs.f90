@@ -68,6 +68,7 @@ module rembo_defs
     type rembo_param_class
 
         character(len=256)  :: domain
+        character(len=256)  :: grid_name
         character(len=256)  :: restart 
         integer             :: npts, nx, ny
         real(wp)            :: dx 

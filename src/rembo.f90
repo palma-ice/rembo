@@ -117,16 +117,16 @@ contains
 
     end subroutine rembo_update 
     
-    subroutine rembo_init(dom,par_path,domain,grid)
+    subroutine rembo_init(dom,path_par,domain,grid)
 
         use solvers
 
         implicit none
         
         type(rembo_class), intent(INOUT) :: dom
-        character(len=*),  intent(IN)    :: par_path  
-        character(len=*),  intent(IN)    :: domain 
-        type(grid_class),  intent(IN)    :: grid 
+        character(len=*),  intent(IN)    :: path_par  
+        character(len=*),  intent(IN), optional :: domain 
+        type(grid_class),  intent(IN), optional :: grid 
 
         ! Local variables         
         character(len=256) :: filename, file_boundary 
@@ -135,13 +135,15 @@ contains
         character(len=64)  :: fmt1 
 
         ! Load the rembo parameters
-        call rembo_par_load(dom%par,trim(par_path),domain)
+        call rembo_par_load(dom%par,trim(path_par),domain)
 
-        ! Initialize rembo domain and grid
-        dom%grid       = grid 
-        dom%par%npts   = grid%npts 
-        dom%par%nx     = grid%G%nx 
-        dom%par%ny     = grid%G%ny 
+        ! Define rembo grid based on grid name
+        call rembo_grid_define(dom%grid,dom%par%grid_name,grid_in=grid)
+    
+        ! Initialize grid size variables
+        dom%par%npts   = dom%grid%npts 
+        dom%par%nx     = dom%grid%G%nx 
+        dom%par%ny     = dom%grid%G%ny 
         
         nm = size(dom%mon)
 
@@ -156,7 +158,7 @@ contains
         call rembo_alloc(dom%ann,dom%par%nx,dom%par%ny)
 
         ! Diffusion grid and variables
-        call rembo_emb_init(dom%emb,grid,dx=dom%par%emb_dx)
+        call rembo_emb_init(dom%emb,dom%grid,dx=dom%par%emb_dx)
         
         write(*,*) "rembo_init :: allocated rembo variables."
 
@@ -375,11 +377,14 @@ contains
     
     subroutine rembo_par_load(par,filename,domain)
 
-        type(rembo_param_class), intent(INOUT) :: par 
-        character(len=*),        intent(IN)    :: filename 
-        character(len=*),        intent(IN)    :: domain 
+        type(rembo_param_class),    intent(INOUT) :: par 
+        character(len=*),           intent(IN)    :: filename 
+        character(len=*),           intent(IN), optional :: domain 
 
         par%domain = trim(domain)
+
+        call nml_read(filename,"rembo_params","domain",     par%domain)
+        call nml_read(filename,"rembo_params","grid_name",  par%grid_name)
         call nml_read(filename,"rembo_params","restart",    par%restart    )
 
         call nml_read(filename,"rembo_params","H_e",  par%H_e   )
@@ -446,6 +451,9 @@ contains
         ! How many time steps in 1 day, aprx?
         par%en_nstep  = floor(sec_day / par%en_dt)
         par%ccw_nstep = floor(sec_day / par%ccw_dt)
+        
+        ! Overwrite parameter values with argument definitions if available
+        if (present(domain))     par%domain    = trim(domain)
         
         return
 

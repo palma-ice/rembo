@@ -35,29 +35,35 @@ program rembo_test
     character(len=56)  :: domain 
     character(len=56)  :: grid_name 
     character(len=512) :: infldr
-    character(len=512) :: par_path
+    character(len=512) :: path_par
     character(len=512) :: outfldr 
     character(len=512) :: file_out 
     real(wp)           :: time 
     integer            :: m, day  
 
-    domain    = "Greenland"
-    grid_name = "GRL-20KM" 
+    real(4) :: start, finish
 
-!     domain    = "Antarctica"
-!     grid_name = "ANT-40KM" 
+    ! Start timing 
+    call cpu_time(start)
+
+    ! Determine the parameter file from the command line 
+    call load_command_line_args(path_par)
+
+    ! Initialize rembo
+    call rembo_global_init(trim(path_par))
+    call rembo_init(rem1,path_par=trim(path_par))
     
+    domain    = trim(rem1%par%domain)
+    grid_name = trim(rem1%grid%name)
+
     infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
-    par_path  = "par/"//trim(domain)//".nml"
+    !path_par  = "par/"//trim(domain)//".nml"
 
     ! Define output folder 
-    outfldr  = "output/"//trim(grid_name)//"/"
+    !outfldr  = "output/"//trim(grid_name)//"/"
+    outfldr  = "./"
     file_out = trim(outfldr)//"rembo.nc"
     
-
-    ! Define rembo grid based on grid name
-    call rembo_grid_define(grid,grid_name)
-
     ! Allocate topo data and load it 
     call grid_allocate(grid,z_srf)
     call grid_allocate(grid,f_ice)
@@ -68,11 +74,6 @@ program rembo_test
     ! Load forcing
     call rembo_forc_alloc(forc,grid%G%nx,grid%G%ny)
     call load_clim_monthly_era(forc,path=trim(infldr),grid_name=trim(grid%name),z_srf=z_srf)
-
-    ! Initialize rembo
-    call rembo_global_init(trim(par_path))
-    call rembo_init(rem1,par_path=trim(par_path),domain=domain,grid=grid)
-
     
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]
@@ -86,8 +87,13 @@ program rembo_test
     call rembo_write_init(rem1,file_out,time,units="kyr ago")
     call rembo_write_step(rem1,forc,file_out,time)
 
-    write(*,*) "rembo_test.x finished succesfully."
+    call rembo_end(rem1)
 
+    ! Stop timing 
+    call cpu_time(finish)
+
+    print '("Time = ",f12.3," min.")', (finish-start)/60.0 
+    
 contains 
 
     subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path,domain,grid_name)
@@ -417,6 +423,29 @@ contains
         return 
 
     end function calc_albedo_t2m
+
+    subroutine load_command_line_args(path_par)
+
+        implicit none 
+
+        character(len=*), intent(OUT) :: path_par 
+
+        ! Local variables 
+        integer :: narg 
+
+        narg = command_argument_count()
+
+        if (narg .ne. 1) then 
+            write(*,*) "load_command_line_args:: Error: The following &
+            &argument must be provided: path_par"
+            stop 
+        end if 
+
+        call get_command_argument(1,path_par)
+
+        return 
+
+    end subroutine load_command_line_args 
 
 end program rembo_test 
 
