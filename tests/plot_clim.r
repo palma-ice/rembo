@@ -36,11 +36,11 @@ gen_masks = function(mask,z_srf,months=c(1:12))
 # Load data 
 if (TRUE) {
 
-    # domain   = "Greenland"
-    # grid_name = "GRL-20KM" 
+    domain   = "Greenland"
+    grid_name = "GRL-20KM" 
 
-    domain   = "Antarctica"
-    grid_name = "ANT-40KM" 
+    # domain   = "Antarctica"
+    # grid_name = "ANT-40KM" 
     
     infldr  = file.path("../ice_data",domain,grid_name)
     outfldr = file.path("../output",grid_name)
@@ -84,9 +84,6 @@ if (TRUE) {
 #
 ########################################
 
-# mask = marc$mask == 2 & topo$mask != 3 
-# mask = marc$mask  > 0 & remboc$mask  > 0   # Ice sheet and land only  
-# mask = marc$mask == 2 & remboc$mask == 2   # Ice sheet only 
 mask.alpha = 0 
 months = c(1,7,13)
 ptype  = "png" 
@@ -104,7 +101,7 @@ if (TRUE) {
     plot_comparison(rem,rcm,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),zlim=c(-6,6))
     
     #plot_year(rem,rcm,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,type=ptype)  
-    #plot_comparison(rem,rcm,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),col=col.alb)
+    plot_comparison(rem,rcm,vnm="al_s",onm="al",long_name="Surface albedo",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),col=col.alb)
     
     # par(mfrow=c(2,3))
     # par(plt=c(0.05,0.9,0.05,0.95))

@@ -41,11 +41,11 @@ program rembo_test
     real(wp)           :: time 
     integer            :: m, day  
 
-!     domain    = "Greenland"
-!     grid_name = "GRL-20KM" 
+    domain    = "Greenland"
+    grid_name = "GRL-20KM" 
 
-    domain    = "Antarctica"
-    grid_name = "ANT-40KM" 
+!     domain    = "Antarctica"
+!     grid_name = "ANT-40KM" 
     
     infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
     par_path  = "par/"//trim(domain)//".nml"
