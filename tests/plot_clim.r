@@ -47,7 +47,7 @@ if (FALSE) {
 }
 
 # Load REMBO output
-if (FALSE) {
+if (TRUE) {
 
     # Load REMBO output 
     rem = my.read.nc(file.path(outfldr,"rembo.nc"))
@@ -78,7 +78,7 @@ col.melt   = c("white","yellow","red","darkred")
 col.alb    = c("grey50","darkblue","skyblue","white")
 
 # Plot comparison
-if (FALSE) {
+if (TRUE) {
 
     plot_year(rem,mar,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,type=ptype)  
     plot_comparison(rem,mar,vnm="t2m",onm="t2m",long_name="2m-temp. (K)",top=topo,mask=mask2,alpha=0,type=ptype,months=c(1,7),zlim=c(-6,6))
@@ -123,7 +123,7 @@ calc_albedo <- function(p,data,subset=c(1:length(data$t2m)),opt=FALSE)
 }
 
 # Surface albedo 
-if (TRUE) {
+if (FALSE) {
 
     #mm = gen_masks(topo$mask %in% c(2,3),topo$z_srf)   # Ice mask
     #mm = gen_masks(topo$mask %in% c(1,2,3),topo$z_srf)   # Ice and land mask

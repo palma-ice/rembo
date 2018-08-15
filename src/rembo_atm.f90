@@ -74,12 +74,23 @@ contains
         now%v_s = now%vg 
         now%uv_s = calc_magnitude(now%u_s,now%v_s)
 
-        ! Calculate the surface albedo 
-        als_max =   0.81
-        als_min =   0.24
+        ! Calculate the surface albedo (ice surfaces)
+        als_min  =   0.24
+        als_max  =   0.81
         afac     =  -0.21
         tmid     = 274.16
-        now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
+        where (bnd%f_ice .ge. 0.5) &
+            now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
+
+        ! Calculate the surface albedo (non-ice surfaces)
+        als_min  =   0.13
+        als_max  =   1.22
+        afac     =  -0.10
+        tmid     = 270.23
+        where (bnd%f_ice .lt. 0.5) &
+            now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
+
+        where(now%al_s .gt. 0.81) now%al_s = 0.81 
 
         ! ajr: TO do: implement loop updating t2m and al_s !!!
 
