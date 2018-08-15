@@ -61,6 +61,10 @@ contains
         call d_dy(dom%bnd%dzsdy,dom%bnd%z_srf,dx=real(dom%grid%G%dy*dom%grid%xy_conv,wp))
         dom%bnd%dzsdxy = calc_magnitude(dom%bnd%dzsdx,dom%bnd%dzsdy)
 
+!         ! Test calculating gradient as distance to sea level 
+!         call calc_gradient_to_sealevel(dom%bnd%dzsdxy,dom%bnd%z_srf,dom%bnd%z_srf*0.0, &
+!                     real(dom%grid%x*dom%grid%xy_conv,wp),real(dom%grid%y*dom%grid%xy_conv,wp))
+
         ! Calculate the rembo relaxation mask
         dom%bnd%mask = 0
         where(dom%bnd%z_srf .gt. 0.0) dom%bnd%mask = 1 

@@ -36,6 +36,7 @@ module rembo_physics
     public :: d_dx 
     public :: d_dy 
     public :: calc_magnitude
+    public :: calc_gradient_to_sealevel
     public :: gen_relaxation
 
 contains
@@ -464,6 +465,47 @@ contains
 
         return
     end function calc_magnitude 
+
+    subroutine calc_gradient_to_sealevel(dzsdxy,z_srf,z_sl,xx,yy)
+
+        implicit none 
+
+        real(wp), intent(OUT) :: dzsdxy(:,:)
+        real(wp), intent(IN)  :: z_srf(:,:) 
+        real(wp), intent(IN)  :: z_sl(:,:) 
+        real(wp), intent(IN)  :: xx(:,:) 
+        real(wp), intent(IN)  :: yy(:,:) 
+        
+        ! Local variables
+        integer :: i, j, nx, ny
+        real(wp), allocatable :: dists(:,:) 
+        real(wp) :: dist_min 
+
+        nx = size(z_srf,1)
+        ny = size(z_srf,2)
+
+        allocate(dists(nx,ny))
+
+        dists = 0.0 
+
+        do j = 1, ny 
+        do i = 1, nx 
+
+            ! Calculate distances to all sea-level points
+            where (z_srf .eq. z_sl) dists = sqrt((xx-xx(i,j))**2+(yy-yy(i,j))**2)
+
+            ! Determine minimum distance and calculate slope 
+            dist_min = minval(dists,mask=dists .gt. 0.0)
+
+            dzsdxy(i,j) = (z_srf(i,j)-z_sl(i,j)) / dist_min 
+
+        end do 
+        end do 
+
+
+        return 
+
+    end subroutine calc_gradient_to_sealevel
 
     function gen_relaxation(zs,xx,yy,radius) result(relax) 
         implicit none 
