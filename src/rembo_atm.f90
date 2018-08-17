@@ -299,23 +299,23 @@ contains
         ! Sea level temperature, tsl
         call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(mv))
         
-        ! Radiative forcing, en_F
-        call map_field(emb%map_toemb,"en_F",swn + lwn + (shf+lhf) + lhp + rco2, &
+        ! Radiative forcing, en_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
+        call map_field(emb%map_toemb,"en_F",(swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac , &
                        emb%en_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
 
         ! Energy formulation
-        emb%en     = emb%tsl     *tsl_fac
-        emb%en_bnd = emb%tsl_bnd *tsl_fac
+!         emb%en     = emb%tsl     *tsl_fac
+!         emb%en_bnd = emb%tsl_bnd *tsl_fac
         
 !         ! Temperature formulation
 !         emb%en     = emb%tsl     
 !         emb%en_bnd = emb%tsl_bnd 
-!         emb%en_F   = emb%en_f / tsl_fac 
-         
+!         emb%en_F   = emb%en_F / tsl_fac    
+        
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
             !where (emb%mask .eq. 1) emb%en = emb%en_bnd
-            call adv_diff_2D(emb%en,emb%en_bnd,emb%en_F,relax=emb%mask, &
+            call adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%en_F,relax=emb%mask, &
                              dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
                              dy=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
                              dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr) !, &
@@ -328,7 +328,10 @@ contains
         end do 
 
         ! Re-calculate temperature from energy formulation
-        emb%tsl = emb%en /tsl_fac
+!         emb%tsl = emb%en /tsl_fac
+        
+!         ! Store output
+!         emb%tsl = emb%en 
 
         call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nn",fill=.TRUE.,missing_value=dble(mv))
         t2m = t2m - gamma*z_srf
