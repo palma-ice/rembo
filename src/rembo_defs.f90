@@ -136,6 +136,7 @@ module rembo_defs
         real(wp), allocatable :: gamma(:,:)
         real(wp), allocatable :: t2m(:,:)   
         real(wp), allocatable :: ct2m(:,:)
+        real(wp), allocatable :: tsurf(:,:)   
         real(wp), allocatable :: pr(:,:)
         real(wp), allocatable :: sf(:,:)
         real(wp), allocatable :: q_s(:,:)

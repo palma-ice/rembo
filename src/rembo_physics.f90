@@ -32,6 +32,7 @@ module rembo_physics
     public :: calc_rad_surf_down
     public :: calc_radshort_surf_down
     public :: calc_ebs_sky
+    public :: calc_sensible_heat_flux
     
     public :: d_dx 
     public :: d_dy 
@@ -407,7 +408,36 @@ contains
 
     end function calc_ebs_sky 
 
-        ! Horizontal gradient, x-component
+    elemental function calc_sensible_heat_flux(ts,ta,wind,rhoa,csh_pos,csh_neg,cap) result(shf)
+        ! Bulk formulation of sensible heat flux to the atmosphere
+        ! Following Krapp et al. (2017)
+
+        real(wp), intent(in) :: ts      !< surface temperature
+        real(wp), intent(in) :: ta      !< air temperature
+        real(wp), intent(in) :: wind    !< wind speed
+        real(wp), intent(in) :: rhoa    !< air density
+        real(wp), intent(in) :: csh_pos !< sensible heat exchange coefficient (for positive shf, ie summer)
+        real(wp), intent(in) :: csh_neg !< sensible heat exchange coefficient (for positive shf)
+        real(wp), intent(in) :: cap     !< air specific heat capacity
+        real(wp) :: shf                 !< sensible heat flux [W/m2]
+        
+        ! Local variables
+        real(wp) :: coeff
+
+        ! enhancement over land
+        if ( wind*(ts-ta) > 0.0_dp ) then
+            coeff = csh_pos
+        else
+            coeff = csh_neg
+        end if
+
+        shf = coeff*cap*rhoa*wind*(ts-ta)
+
+        return
+
+    end function calc_sensible_heat_flux
+
+    ! Horizontal gradient, x-component
     subroutine d_dx(du,u0,dx)  
 
     implicit none

@@ -1,5 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+
+##!/Users/robinson/anaconda3/bin/python
+
 '''
 Script to run one rembo simulation.
 '''
@@ -37,11 +40,12 @@ def run_rembo():
     force      = args.force 
     run        = args.run 
     submit     = args.submit 
-    wtime      = args.wall 
+    wtime      = args.wall  
     executable = args.exe 
 
-    # Submit overrides run 
-    if submit: run = True 
+    # Submit overrides run and print
+    if submit: 
+        run       = True  
 
     if args.out is None:
         outpath = "output/test"

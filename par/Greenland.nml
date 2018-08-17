@@ -42,7 +42,7 @@
     k_p        = 0.0
 
     ! Precipitation parameterization
-    k_w        = 500.0           ! [sec] Precipitation time constant
+    k_w        = 1000.0           ! [sec] Precipitation time constant
     k_t        = 0.0034            ! Precipitation temperature scalar
     k_z        = 10.0             ! Precipitation vertical wind scalar
     ps_a       = 0.273            ! Snow fraction constant

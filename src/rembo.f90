@@ -485,6 +485,7 @@ contains
         allocate(now%gamma(nx,ny))   ! Temperature lapse rate
         allocate(now%t2m(nx,ny))     ! Near-surface temp
         allocate(now%ct2m(nx,ny))    ! Near-surface temp inversion correction
+        allocate(now%tsurf(nx,ny))   ! Near-surface temp
         allocate(now%pr(nx,ny))      ! Precipitation
         allocate(now%sf(nx,ny))      ! Precipitation (snow)
         allocate(now%q_s(nx,ny))     ! Specific humidity at the surface (kg/kg)
@@ -537,6 +538,7 @@ contains
         now%gamma       = 0.0
         now%t2m         = 0.0
         now%ct2m        = 0.0
+        now%tsurf       = 0.0
         now%pr          = 0.0        
         now%sf          = 0.0
         now%q_s         = 0.0 
@@ -601,6 +603,7 @@ contains
         if (allocated(now%gamma) )      deallocate(now%gamma)   ! Temperature lapse rate 
         if (allocated(now%t2m) )        deallocate(now%t2m)     ! Near-surface temp
         if (allocated(now%ct2m) )       deallocate(now%ct2m)    ! Near-surface temp inversion correction
+        if (allocated(now%tsurf) )      deallocate(now%tsurf)   ! Surface temp
         if (allocated(now%pr) )         deallocate(now%pr)      ! Precipitation
         if (allocated(now%sf) )         deallocate(now%sf)      ! Precipitation (snow)
         if (allocated(now%q_s) )        deallocate(now%q_s)     ! Specific humidity at the surface (kg/kg)

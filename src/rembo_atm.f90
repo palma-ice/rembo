@@ -8,6 +8,10 @@ module rembo_atm
 
     implicit none 
 
+    real(wp), parameter :: cap  = 1000.0_wp  !< specific heat capacitiy of air [J/(kg K)]
+    ! ajr: move to rembo_defs later...
+
+
     private
     public rembo_calc_atmosphere
 
@@ -30,6 +34,7 @@ contains
         real(wp) :: als_max, als_min, afac, tmid    ! ajr: to do: move to parameters!!
         real(wp) :: beta                            ! ajr: to do: move to parameters!!
         integer  :: iter, n_iter 
+        integer  :: iter_surf, n_iter_surf 
 
         ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
         now%gamma = par%gamma  &
@@ -47,7 +52,8 @@ contains
         ! Initialize emb object for this day 
         call rembo_calc_iterinit(emb,bnd%mask,bnd%z_srf,now%t2m_bnd,now%gamma,par,day)
 
-        n_iter = 2
+        n_iter      = 2
+        n_iter_surf = 2 
 
         do iter = 1, n_iter 
 
@@ -124,7 +130,7 @@ contains
         now%cc   = calc_cloudfrac(now%t2m,now%ccw,now%rho_a, &
                                          par%nk1,par%nk2,par%nk3)
         
-        ! ## Calculate surface fluxes ###
+        ! ## Calculate surface fluxes to the atmosphere ###
 
         ! Shortwave radiation down (surface)
         now%swd_s = calc_radshort_surf_down(now%S,now%cc,bnd%z_srf,&
@@ -139,12 +145,27 @@ contains
         ! ajr: TO DO - assume zero for now 
         now%lhf_s = 0.0 
 
-        ! Calculate sensible heat flux at the surface
+        ! Iterate surface temperature and sensible heat flux calcs
+        do iter_surf = 1, n_iter_surf
+            
+            ! Calculate surface temperature 
 
-        ! ajr: TO DO - testing following Krebs-Kanzow etal, tc, (2018)
-        now%shf_s  = 0.0 
-        beta       = 10.0      ! 7-20 W m−2 K−1 (Braithwaite 1995 et al)
-        now%shf_s  = beta*(now%t2m-T0)
+            ! To do: calculate from energy balance equation (roughly)
+
+            now%tsurf = now%t2m 
+            where (bnd%f_ice .gt. 0.0 .and. now%tsurf .gt. T0) now%tsurf = T0 
+
+            ! Calculate sensible heat flux at the surface
+!             now%shf_s  = 0.0
+
+!             beta       = 0.0      ! 7-20 W m−2 K−1 (following Krebs-Kanzow etal, tc, 2018 and Braithwaite 1995 et al)
+!             now%shf_s  = beta*(T0-now%t2m)
+    
+            ! Following Krapp et al., 2017
+            now%shf_s  = calc_sensible_heat_flux(now%tsurf,now%t2m,now%uv_s,now%rho_a, &
+                                                    csh_pos=1.65e-3*2.4,csh_neg=1.65e-3,cap=cap)
+
+        end do 
 
         ! Calculate energy balance on low-resolution grid
         ! ajr: need to test whether it's better just to use slightly lower
@@ -282,9 +303,14 @@ contains
         call map_field(emb%map_toemb,"en_F",swn + lwn + (shf+lhf) + lhp + rco2, &
                        emb%en_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
 
-        ! Radiation
+        ! Energy formulation
         emb%en     = emb%tsl     *tsl_fac
         emb%en_bnd = emb%tsl_bnd *tsl_fac
+        
+!         ! Temperature formulation
+!         emb%en     = emb%tsl     
+!         emb%en_bnd = emb%tsl_bnd 
+!         emb%en_F   = emb%en_f / tsl_fac 
          
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
@@ -301,7 +327,7 @@ contains
 
         end do 
 
-        ! Re-calculate temperature 
+        ! Re-calculate temperature from energy formulation
         emb%tsl = emb%en /tsl_fac
 
         call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nn",fill=.TRUE.,missing_value=dble(mv))

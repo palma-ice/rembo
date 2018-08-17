@@ -373,10 +373,17 @@ contains
             call nc_write(filename,"gamma",dom%mon(m)%gamma,units="K m**-1",long_name="Atmospheric lapse rate", &
                       dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
-            ! CLimate fields
+            ! Climate fields
             call nc_write(filename,"t2m",dom%mon(m)%t2m,units="K",long_name="Near-surface air temperature", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"tsurf",dom%mon(m)%tsurf,units="K",long_name="Surface temperature", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"uv_s",dom%mon(m)%uv_s,units="m s**-1",long_name="Near-surface wind (magnitude)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"shf_s",dom%mon(m)%shf_s,units="W m**-2",long_name="Sensible heat flux", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
+
             call nc_write(filename,"pr",dom%mon(m)%pr,units="mm d**-1",long_name="Precipitation", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
