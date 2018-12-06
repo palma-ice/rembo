@@ -36,6 +36,7 @@ program rembo_test
     character(len=56)  :: grid_name 
     character(len=512) :: infldr
     character(len=512) :: path_par
+    character(len=512) :: path_const
     character(len=512) :: outfldr 
     character(len=512) :: file_out 
     real(wp)           :: time 
@@ -49,8 +50,14 @@ program rembo_test
     ! Determine the parameter file from the command line 
     call load_command_line_args(path_par)
 
+    ! Assume program is running from the output folder
+    outfldr = "./"
+
+    ! Define input and output locations 
+    path_const = trim(outfldr)//"rembo_const_Earth.nml"
+    
     ! Initialize rembo
-    call rembo_global_init(trim(path_par))
+    call rembo_global_init(trim(path_const))
     call rembo_init(rem1,path_par=trim(path_par))
     
     domain    = trim(rem1%par%domain)
@@ -58,11 +65,8 @@ program rembo_test
     grid      = rem1%grid 
 
     infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
-    !path_par  = "par/"//trim(domain)//".nml"
 
     ! Define output folder 
-    !outfldr  = "output/"//trim(grid_name)//"/"
-    outfldr  = "./"
     file_out = trim(outfldr)//"rembo.nc"
     
     ! Allocate topo data and load it 
