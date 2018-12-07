@@ -164,8 +164,7 @@ module rembo_defs
         real(wp), allocatable :: dzsdx(:,:), dzsdy(:,:), dzsdxy(:,:) 
 
         ! Energy and moisture balance variables
-        real(wp), allocatable :: tsl(:,:), tsl_bnd(:,:) 
-        real(wp), allocatable :: en(:,:), en_bnd(:,:), en_F(:,:) 
+        real(wp), allocatable :: tsl(:,:), tsl_bnd(:,:), tsl_F(:,:)  
         real(wp), allocatable :: ccw(:,:), ccw_bnd(:,:), ccw_F(:,:) 
         real(wp), allocatable :: ccw_cw(:,:), ccw_pr(:,:) 
         real(wp), allocatable :: tcw(:,:), tcw_bnd(:,:)
@@ -400,7 +399,7 @@ contains
                 case("ANT-1KM")
                     call grid_init(grid,name="ANT-1KM",mtype="polar_stereographic",units="kilometers", &
                            lon180=.TRUE.,dx=1.d0,nx=6241,dy=1.d0,ny=5841,lambda=0.d0,phi=-71.d0)
-                    
+
                 case DEFAULT
                     write(*,*) "rembo_grid_define:: error: grid name not recognized: "//trim(grid_name)
                     stop 

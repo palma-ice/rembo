@@ -245,20 +245,21 @@ contains
         emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/day_year))
         
         ! Boundary sea-level temperature, tsl
+        emb%tsl_bnd = mv 
         call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(mv))
         
         ! Ensure borders are populated  with nearest neighbors 
-        where (emb%tsl_bnd(2,:) .eq. 0.0) emb%tsl_bnd(2,:) = emb%tsl_bnd(3,:) 
-        where (emb%tsl_bnd(1,:) .eq. 0.0) emb%tsl_bnd(1,:) = emb%tsl_bnd(2,:) 
+        where (emb%tsl_bnd(2,:) .eq. mv) emb%tsl_bnd(2,:) = emb%tsl_bnd(3,:) 
+        where (emb%tsl_bnd(1,:) .eq. mv) emb%tsl_bnd(1,:) = emb%tsl_bnd(2,:) 
         
-        where (emb%tsl_bnd(nx-1,:) .eq. 0.0) emb%tsl_bnd(nx-1,:) = emb%tsl_bnd(nx-2,:) 
-        where (emb%tsl_bnd(nx,:)   .eq. 0.0) emb%tsl_bnd(nx,:)   = emb%tsl_bnd(nx-1,:) 
+        where (emb%tsl_bnd(nx-1,:) .eq. mv) emb%tsl_bnd(nx-1,:) = emb%tsl_bnd(nx-2,:) 
+        where (emb%tsl_bnd(nx,:)   .eq. mv) emb%tsl_bnd(nx,:)   = emb%tsl_bnd(nx-1,:) 
         
-        where (emb%tsl_bnd(:,2) .eq. 0.0) emb%tsl_bnd(:,2) = emb%tsl_bnd(:,3) 
-        where (emb%tsl_bnd(:,1) .eq. 0.0) emb%tsl_bnd(:,1) = emb%tsl_bnd(:,2) 
+        where (emb%tsl_bnd(:,2) .eq. mv) emb%tsl_bnd(:,2) = emb%tsl_bnd(:,3) 
+        where (emb%tsl_bnd(:,1) .eq. mv) emb%tsl_bnd(:,1) = emb%tsl_bnd(:,2) 
         
-        where (emb%tsl_bnd(:,ny-1) .eq. 0.0) emb%tsl_bnd(:,ny-1) = emb%tsl_bnd(:,ny-2) 
-        where (emb%tsl_bnd(:,ny)   .eq. 0.0) emb%tsl_bnd(:,ny)   = emb%tsl_bnd(:,ny-1) 
+        where (emb%tsl_bnd(:,ny-1) .eq. mv) emb%tsl_bnd(:,ny-1) = emb%tsl_bnd(:,ny-2) 
+        where (emb%tsl_bnd(:,ny)   .eq. mv) emb%tsl_bnd(:,ny)   = emb%tsl_bnd(:,ny-1) 
         
         ! Initialize temperature to boundary field
         emb%tsl = emb%tsl_bnd 
@@ -296,42 +297,30 @@ contains
         ! tsl_fac = H_a[m] c_p[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
         tsl_fac = par%en_Ha *1000.0 *1.225 !* 1.225 ! = 8.6e6
 
-        ! Sea level temperature, tsl
+        ! Boundary sea-level temperature, tsl
+        call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(mv))
+        
+        ! Sea-level temperature, tsl
         call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(mv))
         
-        ! Radiative forcing, en_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
-        call map_field(emb%map_toemb,"en_F",(swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac , &
-                       emb%en_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
+        ! Radiative forcing, tsl_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
+        call map_field(emb%map_toemb,"tsl_F",(swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac , &
+                       emb%tsl_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
 
-        ! Energy formulation
-!         emb%en     = emb%tsl     *tsl_fac
-!         emb%en_bnd = emb%tsl_bnd *tsl_fac
-        
-!         ! Temperature formulation
-!         emb%en     = emb%tsl     
-!         emb%en_bnd = emb%tsl_bnd 
-!         emb%en_F   = emb%en_F / tsl_fac    
-        
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
             !where (emb%mask .eq. 1) emb%en = emb%en_bnd
-            call adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%en_F,relax=emb%mask, &
+            call adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%tsl_F,relax=emb%mask, &
                              dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
                              dy=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
                              dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr) !, &
 !                              v_x=emb%ug,v_y=emb%vg)
-!             call solve_diff_2D_adi(emb%en,emb%en_bnd,emb%en_F,relax=emb%mask, &
+!             call solve_diff_2D_adi(emb%tsl,emb%tsl_bnd,emb%tsl_F,relax=emb%mask, &
 !                                    dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
 !                                    dy=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
 !                                    dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr)
 
         end do 
-
-        ! Re-calculate temperature from energy formulation
-!         emb%tsl = emb%en /tsl_fac
-        
-!         ! Store output
-!         emb%tsl = emb%en 
 
         call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nn",fill=.TRUE.,missing_value=dble(mv))
         t2m = t2m - gamma*z_srf

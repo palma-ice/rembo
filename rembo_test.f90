@@ -148,20 +148,20 @@ contains
         call nc_read(filename,"mask",reg_mask)
         
         if (trim(domain) .eq. "Greenland") then 
-            region_number = 3.2 
+            region_number = 1.3 
         else if (trim(domain) .eq. "Antarctica") then  
             region_number = 2.2 
         else 
             write(*,*) "Domain not recognized: "//trim(domain)
             stop 
         end if 
-
-        where(abs(reg_mask-region_number) .lt. 0.05)
-            reg_mask = 1.0
-        elsewhere
+         
+        where (reg_mask .ne. region_number) 
             reg_mask = 0.0 
-        end where 
-
+        elsewhere 
+            reg_mask = 1.0 
+        end where
+        
         return 
 
     end subroutine load_topo_rtopo2

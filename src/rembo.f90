@@ -243,9 +243,7 @@ contains
         ! Energy balance 
         allocate(emb%tsl(nx,ny))
         allocate(emb%tsl_bnd(nx,ny))
-        allocate(emb%en(nx,ny))
-        allocate(emb%en_bnd(nx,ny))
-        allocate(emb%en_F(nx,ny))
+        allocate(emb%tsl_F(nx,ny))
 
         ! Moisture balance
         allocate(emb%ccw(nx,ny))
@@ -282,9 +280,7 @@ contains
         ! Energy balance 
         emb%tsl         = 0.0
         emb%tsl_bnd     = 0.0
-        emb%en          = 0.0
-        emb%en_bnd      = 0.0
-        emb%en_F        = 0.0
+        emb%tsl_F       = 0.0
 
         ! Moisture balance
         emb%ccw         = 0.0
@@ -766,29 +762,25 @@ contains
 
         call nc_write(filename,"kappa", real(emb%kappa),dim1="xc",dim2="yc",dim3="month", &
                       start=[1,1,m],count=[nx,ny,1])
-        call nc_write(filename,"kappaw", real(emb%kappaw),dim1="xc",dim2="yc",dim3="month", &
-                      start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"tsl_bnd", real(emb%tsl_bnd),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
-        call nc_write(filename,"ccw_bnd",real(emb%ccw_bnd),dim1="xc",dim2="yc",dim3="month",&
-                      start=[1,1,m],count=[nx,ny,1])
-        call nc_write(filename,"tcw_bnd",real(emb%tcw_bnd),dim1="xc",dim2="yc",dim3="month",&
-                      start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"tsl",real(emb%tsl),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"tsl_F",real(emb%tsl_F),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"kappaw", real(emb%kappaw),dim1="xc",dim2="yc",dim3="month", &
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"ccw_bnd",real(emb%ccw_bnd),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"ccw",real(emb%ccw),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"ccw_F",real(emb%ccw_F),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"tcw_bnd",real(emb%tcw_bnd),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"tcw",real(emb%tcw),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
-        call nc_write(filename,"en",real(emb%en),dim1="xc",dim2="yc",dim3="month",&
-                      start=[1,1,m],count=[nx,ny,1])
-        call nc_write(filename,"en_bnd",real(emb%en_bnd),dim1="xc",dim2="yc",dim3="month",&
-                      start=[1,1,m],count=[nx,ny,1])
-        call nc_write(filename,"en_F",real(emb%en_F),dim1="xc",dim2="yc",dim3="month",&
-                      start=[1,1,m],count=[nx,ny,1])
-            
+        
         return 
 
     end subroutine rembo_emb_write_step_grid
