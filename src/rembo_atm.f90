@@ -40,7 +40,7 @@ contains
         now%gamma = par%gamma  &
            + (0.5*cos((day-15)*2.0*pi/day_year)-0.5)*(par%gamma-par%gamma2)
         !write(*,*) "gamma: ", day, minval(gamma), maxval(gamma)
-
+        
         ! Get the surface pressure 
         now%sp = calc_sp(bnd%z_srf)
 
@@ -49,6 +49,9 @@ contains
         now%vg  = calc_v_geo(now%dZdx,bnd%f)
         now%uvg = calc_magnitude(now%ug,now%vg)
 
+        ! Initialize t2m solution with boundary solution 
+        now%t2m = now%t2m_bnd 
+        
         ! Initialize emb object for this day 
         call rembo_calc_iterinit(emb,bnd%mask,bnd%z_srf,now%t2m_bnd,now%gamma,par,day)
 
@@ -76,8 +79,8 @@ contains
         ! Calculate the surface velocity 
 !         now%u_s = calc_u_surf()
 !         now%v_s = calc_v_surf()
-        now%u_s = now%ug 
-        now%v_s = now%vg 
+        now%u_s  = now%ug 
+        now%v_s  = now%vg 
         now%uv_s = calc_magnitude(now%u_s,now%v_s)
 
 !         ! Calculate the surface albedo (ice surfaces)

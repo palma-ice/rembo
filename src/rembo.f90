@@ -97,8 +97,6 @@ contains
             ! ajr: to do: move this inside of rembo_calc_atmosphere using local variables
             
             ! == Calculate rembo atmosphere =====
-
-            !dom%now%t2m = dom%now%t2m_bnd
             
             call rembo_calc_atmosphere(dom%now,dom%emb,dom%bnd,dom%par,day,year)
             
