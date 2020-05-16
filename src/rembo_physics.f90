@@ -69,8 +69,8 @@ contains
         real(wp), intent(IN) :: k_c, k_x
         real(wp) :: c_w 
 
-        c_w = (tcw/(k_c*sec_day))*qr * (1.d0 + k_x*ww)
-        c_w = max(c_w,0.d0)
+        c_w = (tcw/(k_c*sec_day))*qr * (1.0 + k_x*ww)
+        c_w = max(c_w,0.0)
 
         return
 
@@ -86,14 +86,14 @@ contains
 
         real(wp) :: k_tmp 
 
-!         pp = (ccw/k_w) * (1.d0 - k_t*tt) * 1.d0/rho_a
+!         pp = (ccw/k_w) * (1.0 - k_t*tt) * 1.0/rho_a
         
         k_tmp = k_t 
-!         if (zs > 0.d0) k_tmp = 0.d0 
+!         if (zs > 0.0) k_tmp = 0.0 
 
-        pp = (ccw/k_w) * (1.d0 + k_z*ww - k_tmp*tt)
+        pp = (ccw/k_w) * (1.0 + k_z*ww - k_tmp*tt)
 
-        pp = max(pp,0.d0)
+        pp = max(pp,0.0)
 
         return
 
@@ -108,8 +108,8 @@ contains
         real(wp), intent(IN) :: t2m, a, b 
         real(wp)             :: f 
 
-        f = -0.5d0*tanh(a*(t2m-b))+0.5d0 
-!         f = 1.d0 - 1.d0 / (1.d0+exp(-a*2.d0*(t2m-b)))
+        f = -0.50*tanh(a*(t2m-b))+0.50 
+!         f = 1.0 - 1.0 / (1.0+exp(-a*2.0*(t2m-b)))
         
         return 
 
@@ -123,7 +123,7 @@ contains
         real(wp), intent(IN)  :: lat
         real(wp) :: f
 
-        f = 2.d0*omega*sin(lat*degrees_to_radians)
+        f = 2.0*omega*sin(lat*degrees_to_radians)
 
         return
 
@@ -218,7 +218,7 @@ contains
         real(wp), intent(IN)  :: omega,T,p
         real(wp) :: w
         real(wp) :: rho
-        real(wp), parameter :: rgas = 287.058d0
+        real(wp), parameter :: rgas = 287.058_wp
         
         rho  = p/(rgas*T)         ! density => kg/m3
         w    = -1*omega/(rho*g) 
@@ -235,7 +235,7 @@ contains
         real(wp), intent(IN)  :: dTdx,dzsdx, f_k
         real(wp) :: uk
         
-        uk = f_k* min(0.d0,dTdx*dzsdx)
+        uk = f_k* min(0.0,dTdx*dzsdx)
         uk = sign(uk,-dzsdx)
 
         return
@@ -250,7 +250,7 @@ contains
         real(wp), intent(IN)  :: dTdy,dzsdy, f_k
         real(wp) :: vk
         
-        vk = f_k* min(0.d0,dTdy*dzsdy)
+        vk = f_k* min(0.0,dTdy*dzsdy)
         vk = sign(vk,-dzsdy)
 
         return
@@ -280,10 +280,10 @@ contains
 
         real(wp), intent(IN)  :: zs
         real(wp) :: sp
-        real(wp), parameter :: p0 = 101325d0
-        real(wp), parameter :: M  = 0.0289644d0
-        real(wp), parameter :: R  = 8.31447
-        real(wp), parameter :: T0 = 298.15d0 
+        real(wp), parameter :: p0 = 101325_wp
+        real(wp), parameter :: M  = 0.0289644_wp
+        real(wp), parameter :: R  = 8.31447_wp
+        real(wp), parameter :: T0 = 298.15_wp 
 
         sp = p0*exp(-g*M*zs/(R*T0))
 
@@ -297,12 +297,12 @@ contains
         
         real(wp), intent(IN)  :: Ts
         real(wp) :: esat
-        real(wp), parameter :: e0 = 6.112d0
-        real(wp), parameter :: c1 = 17.67d0
-        real(wp), parameter :: c2 = 243.5d0
-        real(wp), parameter :: T0 = 273.15d0 
+        real(wp), parameter :: e0 = 6.112_wp
+        real(wp), parameter :: c1 = 17.67_wp
+        real(wp), parameter :: c2 = 243.5_wp
+        real(wp), parameter :: T0 = 273.15_wp 
 
-        esat = e0*exp((c1*(Ts-T0))/(c2+(Ts-T0)))*100d0
+        esat = e0*exp((c1*(Ts-T0))/(c2+(Ts-T0)))*100_wp
 
         return
 
@@ -316,7 +316,7 @@ contains
         real(wp), intent(IN)  :: zs
         real(wp) :: rho_a 
 
-        rho_a = 1.3d0 * exp(-zs/8.6d3)
+        rho_a = 1.3_wp * exp(-zs/8.6d3)
 
         return
 
@@ -329,11 +329,11 @@ contains
 
         real(wp), intent(IN) :: p 
         real(wp) :: zs 
-        real(wp), parameter :: p0 = 1013.25d0
-        real(wp), parameter ::  g = 9.80665d0
-        real(wp), parameter ::  M = 0.0289644d0
-        real(wp), parameter ::  R = 8.31447d0
-        real(wp), parameter :: T0 = 288.15d0 
+        real(wp), parameter :: p0 = 1013.25_wp
+        real(wp), parameter ::  g = 9.80665_wp
+        real(wp), parameter ::  M = 0.0289644_wp
+        real(wp), parameter ::  R = 8.31447_wp
+        real(wp), parameter :: T0 = 288.15_wp 
 
         zs = -log(p/p0)*R*T0/(g*M)
 
@@ -350,19 +350,19 @@ contains
         real(wp), intent(IN)  :: Ts, zs
         real(wp), intent(IN) :: e0, c1 
         real(wp) :: qs, esat, p
-        real(wp), parameter :: ebs = 0.62198
-        real(wp), parameter :: c2  = 243.5d0
-        real(wp), parameter :: T0  = 273.15d0 
+        real(wp), parameter :: ebs = 0.62198_wp
+        real(wp), parameter :: c2  = 243.5_wp
+        real(wp), parameter :: T0  = 273.15_wp 
 
         ! First, calculate the saturation vapor pressure
         ! ( hPa *100 => Pa => kg/(m s2) )
-        esat = e0*exp((c1*(Ts-T0))/(c2+(Ts-T0)))*100d0
+        esat = e0*exp((c1*(Ts-T0))/(c2+(Ts-T0)))*100_wp
 
         ! and the surface pressure
         p    = calc_sp(zs)
 
         ! Then calculate the specific humidity
-        qs = ebs * esat / (p-(1.d0-ebs)*esat)
+        qs = ebs * esat / (p-(1.0-ebs)*esat)
 
         return
 
@@ -376,8 +376,8 @@ contains
         
         real(wp), intent(IN)  :: Ts, zs
         real(wp) :: qsat 
-        real(wp), parameter :: e0  = 6.112d0
-        real(wp), parameter :: c1  = 17.67d0
+        real(wp), parameter :: e0  = 6.112_wp
+        real(wp), parameter :: c1  = 17.67_wp
  
         ! Calculate the specific humidity with 
         ! the correct saturation parameters
