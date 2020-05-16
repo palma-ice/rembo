@@ -12,7 +12,6 @@ program rembo_test
         ! Climatology and forcing data for a whole year 
 
         real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
-        real(wp), allocatable :: S(:,:,:)        ! [W m-2] Insolation top-of-atmosphere
         real(wp), allocatable :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
         real(wp), allocatable :: tsl(:,:,:)      ! [K]     Sea-level temperature (used for boundary)
         real(wp), allocatable :: al_s(:,:,:)     ! [--]    Surface albedo 
@@ -22,7 +21,7 @@ program rembo_test
     end type 
 
     type(grid_class)            :: grid 
-    type(rembo_class)           :: rem1 
+    type(rembo_class)           :: rembo1 
     type(rembo_forcing_class)   :: forc 
     
     real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
@@ -56,11 +55,11 @@ program rembo_test
     
     ! Initialize rembo
     call rembo_global_init(trim(path_const))
-    call rembo_init(rem1,path_par=trim(path_par))
+    call rembo_init(rembo1,path_par=trim(path_par))
     
-    domain    = trim(rem1%par%domain)
-    grid_name = trim(rem1%grid%name)
-    grid      = rem1%grid 
+    domain    = trim(rembo1%par%domain)
+    grid_name = trim(rembo1%grid%name)
+    grid      = rembo1%grid 
 
     infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
 
@@ -84,13 +83,13 @@ program rembo_test
     ! Define current year and update rembo (including insolation)
     time       = 0.0      ! [kyr ago]   
 
-    call rembo_update(rem1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%co2_a,int(time))
+    call rembo_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%co2_a,int(time))
 
     ! Write final result 
-    call rembo_write_init(rem1,file_out,time,units="kyr ago")
-    call rembo_write_step(rem1,forc,file_out,time)
+    call rembo_write_init(rembo1,file_out,time,units="kyr ago")
+    call rembo_write_step(rembo1,forc,file_out,time)
 
-    call rembo_end(rem1)
+    call rembo_end(rembo1)
 
     ! Stop timing 
     call rembo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
@@ -278,7 +277,6 @@ contains
         integer,                   intent(IN)  :: nx, ny 
 
         if (allocated(forc%z_srf))  deallocate(forc%z_srf)
-        if (allocated(forc%S))      deallocate(forc%S)
         if (allocated(forc%t2m))    deallocate(forc%t2m)
         if (allocated(forc%tsl))    deallocate(forc%tsl)
         if (allocated(forc%al_s))   deallocate(forc%al_s)
@@ -286,14 +284,12 @@ contains
         
         allocate(forc%z_srf(nx,ny))
 
-        allocate(forc%S(nx,ny,12))
         allocate(forc%t2m(nx,ny,12))
         allocate(forc%tsl(nx,ny,12))
         allocate(forc%al_s(nx,ny,12))
         allocate(forc%Z(nx,ny,12))
         
         forc%z_srf  = 0.0 
-        forc%S      = 0.0 
         forc%t2m    = 0.0
         forc%tsl    = 0.0
         forc%al_s   = 0.0
