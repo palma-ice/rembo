@@ -13,7 +13,7 @@ module rembo_atm
 
 
     private
-    public rembo_calc_atmosphere
+    public :: rembo_calc_atmosphere
 
 contains 
 
@@ -63,10 +63,10 @@ contains
         ! Get horizontal gradient of temperature
         !call gradient_1D(now%dtsldx,now%dtsldy,now%dtsldxy,now%t2m+bnd%z_srf*par%gamma,par%nx,par%ny,par%dx)
         
-        ! Calculate katabatic wind field
+        ! Calculate katabatic wind field (ac-nodes)
         now%u_k  = calc_u_kata(now%dtsldx,bnd%dzsdx,f_k=par%f_k)
         now%v_k  = calc_v_kata(now%dtsldy,bnd%dzsdy,f_k=par%f_k)
-        now%uv_k = calc_magnitude(now%u_k,now%v_k)
+        now%uv_k = calc_magnitude_from_staggered(now%u_k,now%v_k)
 
 !         ! Combine wind fields 
 !         now%ug = now%ug + now%u_k 
@@ -74,7 +74,7 @@ contains
 !         now%uvg = calc_magnitude(now%ug,now%vg)
 
         ! Calculate vertical velocity
-        now%ww  = calc_w(now%ug,now%vg,bnd%dzsdx,bnd%dzsdy)
+        call calc_w(now%ww,now%ug,now%vg,bnd%dzsdx,bnd%dzsdy)
 
         ! Calculate the surface velocity 
 !         now%u_s = calc_u_surf()

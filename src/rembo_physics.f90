@@ -37,6 +37,7 @@ module rembo_physics
     public :: d_dx 
     public :: d_dy 
     public :: calc_magnitude
+    public :: calc_magnitude_from_staggered
     public :: calc_gradient_to_sealevel
     public :: gen_relaxation
     public :: remove_islands
@@ -160,15 +161,43 @@ contains
     end function calc_v_geo
 
     ! Get vertical wind
-    elemental function calc_w(u,v,dzdx,dzdy) result(w)
+    subroutine calc_w(w,u,v,dzdx,dzdy)
+        
         implicit none 
-        real(wp), intent(IN)  :: u, v, dzdx, dzdy
-        real(wp) :: w
+        
+        real(wp), intent(OUT) :: w(:,:)     ! aa-nodes
+        real(wp), intent(IN)  :: u(:,:)     ! ac-nodes
+        real(wp), intent(IN)  :: v(:,:)     ! ac-nodes 
+        real(wp), intent(IN)  :: dzdx(:,:)  ! ac-nodes
+        real(wp), intent(IN)  :: dzdy(:,:)  ! ac-nodes
 
-        w = u*dzdx + v*dzdy 
+        ! Local variables 
+        integer :: i, j, nx, ny 
+        integer :: im1, jm1 
+        real(wp) :: u_aa, v_aa, dzdx_aa, dzdy_aa  
+
+        nx = size(w,1)
+        ny = size(w,2) 
+
+
+        do j = 1, ny 
+        do i = 1, nx 
+
+            im1 = max(i-1,1)
+            jm1 = max(j-1,1) 
+
+            u_aa = 0.5*(u(i,j)+u(im1,j)) 
+            v_aa = 0.5*(v(i,j)+v(im1,j)) 
+            dzdx_aa = 0.5*(dzdx(i,j)+dzdx(im1,j))
+            dzdy_aa = 0.5*(dzdy(i,j)+dzdy(i,jm1))
+            
+            w(i,j) = u_aa*dzdx_aa + v_aa*dzdy_aa
+
+        end do 
+        end do  
 
         return
-    end function calc_w
+    end subroutine calc_w
 
     ! Get vertical wind from omega (Pa/s)
     elemental function calc_w_omega(omega,T,p) result(w)
@@ -446,8 +475,9 @@ contains
     integer :: i, j, nx, ny
     real(wp), intent(IN) :: u0(:,:)
     real(wp) :: du(:,:)
-    real(wp) :: dx, inv_2dx
+    real(wp) :: dx, inv_dx, inv_2dx
 
+    inv_dx  = 1.d0 / (dx)
     inv_2dx = 1.d0 / (2.d0 * dx)
     nx = size(u0,1)
     ny = size(u0,2)
@@ -455,9 +485,18 @@ contains
     ! Assign boundary values
     du = 0.d0
 
+if (.FALSE.) then 
+    ! Centered, second order
     do i = 2, nx-1
         du(i,:) = (u0(i+1,:) - u0(i-1,:)) * inv_2dx
     end do
+
+else 
+    ! Staggered, second order 
+    do i = 1, nx-1
+        du(i,:) = (u0(i+1,:) - u0(i,:)) * inv_dx
+    end do
+end if 
 
     return
 
@@ -471,8 +510,9 @@ contains
     integer :: i, j, nx, ny
     real(wp), intent(IN) :: u0(:,:)
     real(wp) :: du(:,:)
-    real(wp) :: dx, inv_2dx
+    real(wp) :: dx, inv_dx, inv_2dx
 
+    inv_dx  = 1.d0 / (dx)
     inv_2dx = 1.d0 / (2.d0 * dx)
     nx = size(u0,1)
     ny = size(u0,2)
@@ -480,9 +520,18 @@ contains
     ! Assign boundary values
     du = 0.d0
 
+if (.FALSE.) then 
+    ! Centered, second order
     do j = 2, ny-1
         du(:,j) = (u0(:,j+1) - u0(:,j-1)) * inv_2dx
     end do
+
+else 
+    ! Staggered, second order 
+    do j = 1, ny-1
+        du(:,j) = (u0(:,j+1) - u0(:,j)) * inv_dx
+    end do
+end if 
 
     return
 
@@ -499,6 +548,42 @@ contains
         return
     end function calc_magnitude 
 
+    function calc_magnitude_from_staggered(u,v) result(umag)
+        ! Calculate the centered (aa-nodes) magnitude of a vector 
+        ! from the staggered (ac-nodes) components
+
+        implicit none 
+        
+        real(wp), intent(IN)  :: u(:,:), v(:,:)  
+        real(wp) :: umag(size(u,1),size(u,2)) 
+
+        ! Local variables 
+        integer :: i, j, nx, ny 
+        integer :: ip1, jp1, im1, jm1 
+        real(wp) :: unow, vnow 
+
+        nx = size(u,1)
+        ny = size(u,2) 
+
+        umag = 0.0_wp 
+
+        do j = 1, ny 
+        do i = 1, nx
+
+            im1 = max(i-1,1)
+            jm1 = max(j-1,1)
+
+            unow = 0.5_wp*(u(i,j)+u(im1,j))
+            vnow = 0.5_wp*(v(i,j)+v(i,jm1))
+            umag(i,j) = sqrt(unow*unow+vnow*vnow)
+
+        end do 
+        end do 
+
+        return
+
+    end function calc_magnitude_from_staggered 
+    
     subroutine calc_gradient_to_sealevel(dzsdxy,z_srf,z_sl,xx,yy)
 
         implicit none 

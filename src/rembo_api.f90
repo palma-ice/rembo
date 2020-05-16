@@ -58,10 +58,10 @@ contains
         ! Calculate the coriolis parameter for the current gridpoints
         dom%bnd%f = calc_coriolis(real(dom%grid%lat,wp))
 
-        ! Calculate surface gradients and total magnitude
+        ! Calculate surface gradients and total magnitude, staggered onto ac-nodes 
         call d_dx(dom%bnd%dzsdx,dom%bnd%z_srf,dx=real(dom%grid%G%dx*dom%grid%xy_conv,wp))
         call d_dy(dom%bnd%dzsdy,dom%bnd%z_srf,dx=real(dom%grid%G%dy*dom%grid%xy_conv,wp))
-        dom%bnd%dzsdxy = calc_magnitude(dom%bnd%dzsdx,dom%bnd%dzsdy)
+        dom%bnd%dzsdxy = calc_magnitude_from_staggered(dom%bnd%dzsdx,dom%bnd%dzsdy)
 
 !         ! Test calculating gradient as distance to sea level 
 !         call calc_gradient_to_sealevel(dom%bnd%dzsdxy,dom%bnd%z_srf,dom%bnd%z_srf*0.0, &
