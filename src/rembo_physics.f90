@@ -126,9 +126,10 @@ contains
     end function calc_coriolis
 
 ! # Convert geopotential into geopotential height, (m2/s2) => (m)
-    elemental function calc_geo_height(phi) result(Z)
+    elemental function calc_geo_height(phi,g) result(Z)
         implicit none 
         real(wp), intent(IN)  :: phi
+        real(wp), intent(IN)  :: g
         real(wp) :: Z
 
         Z = phi/g

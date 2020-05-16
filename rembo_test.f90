@@ -2,10 +2,8 @@ program rembo_test
 
     use ncio
     use coord
-
-    use rembo_defs  
+      
     use rembo 
-
     use insolation 
 
     implicit none 
@@ -229,7 +227,7 @@ contains
         filename_pres = filename(1:i0-1)//"ERA-INT-750Mb"//filename(i1:i2)
 
         call nc_read(filename_pres,"p_z",var3D)
-        forc%Z  = calc_geo_height(var3D)
+        forc%Z  = calc_geo_height(var3D,g=real(9.80665,wp))
         do m = 1, nm 
             var2Ddp = real(forc%Z(:,:,m),dp)
             call diffuse(var2Ddp,iter=2,missing_value=-9999.d0)
@@ -408,34 +406,6 @@ contains
         return 
 
     end subroutine rembo_write_step
-
-    ! # Convert geopotential into geopotential height, (m2/s2) => (m)
-    elemental function calc_geo_height(phi) result(Z)
-        implicit none 
-        real(wp), intent(IN)  :: phi
-        real(wp) :: Z
-        real(wp), parameter :: g0 = 9.80665d0
-
-        Z = Phi/g0
-
-        return
-    end function calc_geo_height
-
-    elemental function calc_albedo_t2m(t2m,als_min,als_max,afac,tmid) result(al_s)
-        ! Calculate the surface albedo of snow as a function of near-surface temperature
-        ! Alexander Robinson, inspired from Slater et al, etc. 
-
-        implicit none
-
-        real(wp), intent(IN) :: t2m 
-        real(wp), intent(IN) :: als_min, als_max, afac, tmid 
-        real(wp) :: al_s 
-
-        al_s = als_min + (als_max - als_min)*(0.5*tanh(afac*(t2m-tmid))+0.5)
-
-        return 
-
-    end function calc_albedo_t2m
 
     subroutine load_command_line_args(path_par)
 

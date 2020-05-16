@@ -64,8 +64,7 @@ module rembo_defs
     real(wp), parameter :: day_year   = real(nd,wp)
     real(wp), parameter :: day_month  = real(ndm,wp)
     real(wp), parameter :: month_year = real(nm,wp)
-
-
+    
     ! First define all parameters needed to represent a given domain
     type rembo_param_class
 
@@ -196,7 +195,26 @@ module rembo_defs
     end type
 
 
-    public   ! All rembo defs are public
+    !public   ! All rembo defs are public
+    
+    ! safer ==>
+    private 
+
+    public :: dp, sp, wp, rembo_write_log, MISSING_VALUE_DEFAULT, MISSING_VALUE, MV
+    public :: ERR_DIST, ERR_IND, eps, pi, degrees_to_radians, radians_to_degrees
+    public :: rembo_use_omp, nd, nm, ndm 
+    public :: sec_year, g, omega, T0, rho_ice, rho_w, sec_day0, sec_day, sec_frac 
+    public :: day_year, day_month, month_year 
+    public :: rembo_param_class, rembo_boundary_class
+    public :: rembo_state_class 
+    public :: diffusion_class 
+    public :: rembo_class 
+    
+    public :: rembo_get_working_precision
+    public :: rembo_parse_path
+    public :: rembo_global_init
+    public :: rembo_grid_define
+    public :: rembo_cpu_time
 
 contains 
 

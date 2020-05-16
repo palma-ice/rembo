@@ -29,7 +29,10 @@ $(objdir)/rembo_physics.o : $(srcdir)/rembo_physics.f90 $(objdir)/rembo_defs.o
 $(objdir)/rembo_atm.o: $(srcdir)/rembo_atm.f90 $(objdir)/rembo_defs.o $(objdir)/solvers.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
-$(objdir)/rembo.o: $(srcdir)/rembo.f90 $(objdir)/rembo_atm.o $(objdir)/insolation.o
+$(objdir)/rembo_api.o: $(srcdir)/rembo_api.f90 $(objdir)/rembo_atm.o $(objdir)/insolation.o
+	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
+
+$(objdir)/rembo.o: $(srcdir)/rembo.f90 $(objdir)/rembo_defs.o $(objdir)/rembo_physics.o $(objdir)/rembo_api.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 ## YELMO TESTS ###############################################
@@ -49,6 +52,7 @@ rembo_libs = 		   $(objdir)/nml.o \
 rembo_base = 		   $(objdir)/rembo_defs.o \
 					   $(objdir)/rembo_physics.o \
 					   $(objdir)/rembo_atm.o \
+					   $(objdir)/rembo_api.o \
 	         		   $(objdir)/rembo.o
 
 rembo_tests = 		   
