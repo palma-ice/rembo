@@ -42,11 +42,11 @@ program rembo_test
     real(wp)           :: time 
     integer            :: m, day  
 
-    real(4) :: start, finish
-
+    real(8) :: cpu_start_time, cpu_end_time, cpu_dtime  
+    
     ! Start timing 
-    call cpu_time(start)
-
+    call rembo_cpu_time(cpu_start_time)
+    
     ! Determine the parameter file from the command line 
     call load_command_line_args(path_par)
 
@@ -95,11 +95,11 @@ program rembo_test
     call rembo_end(rem1)
 
     ! Stop timing 
-    call cpu_time(finish)
+    call rembo_cpu_time(cpu_end_time,cpu_start_time,cpu_dtime)
 
-    !print '("Time = ",f12.3," min.")', (finish-start)/60.0 
-    print '("Time = ",f12.3," sec.")', (finish-start) 
-    
+    write(*,"(a,f12.3,a)") "Time  = ",cpu_dtime/60.0 ," min"
+    !write(*,"(a,f12.1,a)") "Speed = ",(1e-3*(time_end-time_init))/(cpu_dtime/3600.0), " kiloyears / hr"
+
 contains 
 
     subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path,domain,grid_name)

@@ -36,6 +36,8 @@ module rembo_defs
     real(wp), parameter :: degrees_to_radians = real(pi / 180._dp,wp)  ! Conversion factor between radians and degrees
     real(wp), parameter :: radians_to_degrees = real(180._dp / pi,wp)  ! Conversion factor between degrees and radians
     
+    logical :: rembo_use_omp 
+
     integer,  parameter :: nd  = 360
     integer,  parameter :: nm  = 12
     integer,  parameter :: ndm = 30
@@ -227,13 +229,39 @@ contains
 
     subroutine rembo_global_init(filename)
 
+        !$ use omp_lib 
+
         character(len=*), intent(IN)  :: filename
         
         ! Local variables
         logical :: init_pars 
+        integer :: n_threads 
+        character(len=10) :: n_threads_str 
 
         init_pars = .TRUE. 
         
+        ! Check openmp status - set global variable to use as a switch 
+        rembo_use_omp = .FALSE. 
+        !$ rembo_use_omp = .TRUE.
+
+        ! Output some information about openmp status 
+        if (rembo_use_omp) then 
+            
+            n_threads = 1
+            !$ n_threads = omp_get_max_threads() 
+
+            write(n_threads_str,"(i10)") n_threads 
+            n_threads_str = adjustl(n_threads_str)
+
+            write(*,*) "rembo_global_init:: openmp is active, rembo will run on "//trim(n_threads_str)//" thread(s)."
+            
+        else 
+            
+            n_threads = 1
+            write(*,*) "rembo_global_init:: openmp is not active, rembo will run on 1 thread."
+
+        end if 
+
         ! Store parameter values in output object
         call nml_read(filename,"rembo_constants","sec_year",    sec_year,   init=init_pars)
         call nml_read(filename,"rembo_constants","g",           g,          init=init_pars)
@@ -412,4 +440,71 @@ contains
 
     end subroutine rembo_grid_define
     
+    subroutine rembo_cpu_time(time,time0,dtime)
+        ! Calculate time intervals using system_clock.
+
+        ! Note: for mulithreading, cpu_time() won't work properly.
+        ! Instead, system_clock() should be used as it is here, 
+        ! unless use_cpu_time=.TRUE. 
+
+        !$ use omp_lib
+
+        implicit none 
+
+        real(8), intent(OUT) :: time 
+        real(8), intent(IN),  optional :: time0 
+        real(8), intent(OUT), optional :: dtime 
+
+        ! Local variables
+        logical    :: using_omp 
+        integer(4) :: clock 
+        integer(4) :: clock_rate
+        integer(4) :: clock_max 
+        real(8)    :: wtime 
+
+        ! Check openmp status - set global variable to use as a switch 
+        using_omp = .FALSE. 
+        !$ using_omp = .TRUE.
+
+        if (using_omp) then 
+            ! --------------------------------------
+            ! omp_get_wtime must be used for multithread openmp execution to get timing on master thread 
+            ! The following lines will overwrite time with the result from omp_get_wtime on the master thread 
+
+            !$ time = omp_get_wtime()
+
+            ! --------------------------------------
+            
+        else 
+
+            ! cpu_time can be used for serial execution to get timing on 1 processor
+            call cpu_time(time)
+
+        end if 
+
+        if (present(dtime)) then 
+            ! Calculate time interval 
+
+            if (.not. present(time0)) then  
+                write(*,*) "rembo_cpu_time:: Error: time0 argument is missing, but necessary."
+                stop
+            end if 
+            
+            ! Calculate the difference between current time and time0 in [s]
+            dtime = time - time0
+
+            ! Limit dtime to non-zero number 
+            if (dtime .eq. 0.0d0) then
+                write(*,*) "rembo_cpu_time:: Error: dtime cannot equal zero - check precision of timing variables, &
+                            &which should be real(kind=8) to maintain precision."
+                write(*,*) "clock", time, time0, dtime  
+                stop  
+            end if 
+
+        end if 
+
+        return 
+
+    end subroutine rembo_cpu_time 
+
 end module rembo_defs 
