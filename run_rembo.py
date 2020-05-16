@@ -2,17 +2,27 @@
 # -*- coding: utf-8 -*-
 '''
 Script to run one rembo simulation.
+Example command to run an ensemble using 'job run' via the runner module:
+job run --shell -f -o output/run -p rembo.k_w=1000.0,1500.0 -- python run_rembo.py -x -r -e rembo {} par/rembo_Greenland.nml
 '''
 import subprocess as subp 
-import sys, os, argparse, shutil, glob, datetime, json
-from runner.ext.namelist import Namelist
+import sys, os, socket, argparse, shutil, glob, datetime, json
 
-# Shortcut to namelist fuctionality
-nml = Namelist()  # you could use your own module for reading namelist
+try:
+    from runner.ext.namelist import Namelist
+
+    # Shortcut to namelist fuctionality
+    nml = Namelist()  # you could use your own module for reading namelist
+
+    runner_is_installed = True 
+
+except:
+
+    runner_is_installed = False 
 
 
 def run_rembo():
-    '''Main subroutine to run rembo.'''
+    '''Main subroutine to run one simulation of rembo.'''
 
     ### Manage command-line arguments ############################
 
@@ -20,28 +30,30 @@ def run_rembo():
     parser = argparse.ArgumentParser()
 
     # Add options
-    parser.add_argument('-e','--exe',type=str,default='test',
-        help='''Define the executable file to use here. Shortcuts:
-test = librembo/bin/rembo_test.x
-''')
+    parser.add_argument('-e','--exe',type=str,default='benchmarks',
+        help='Define the executable file to use here.')
     parser.add_argument('-r','--run',action="store_true",
         help='Run the executable after preparing the job?')
     parser.add_argument('-s','--submit',action="store_true",
         help='Run the executable after preparing the job by submitting to the queue?')
+    parser.add_argument('-q','--qos',type=str, default='short',
+        help='Name of the qos the job should be submitted to (priority,short,medium,long)')
     parser.add_argument('-w','--wall', type=int, default=12,
         help='Maximum wall time to allow for job (only for jobs submitted to queue)')
+    parser.add_argument('--omp', type=int, default=0,
+        help='Specify number of threads for omp job submission (default = 0 implies no omp specification)')
     parser.add_argument('--email', type=str, default='None',
         help='Email address to send job notifications from cluster')
     parser.add_argument('--group', type=str, default='anthroia',
         help='Email address to send job notifications from cluster')
     parser.add_argument('-x',action="store_true",
-        help='Use this argument if run_rembo.py is being called by job run')
+        help='Use this argument if script is being called by job run')
 
     # Add arguments
     parser.add_argument('rundir',metavar='RUNDIR', type=str,
-         help='Path where rembo simulation will run and store output.')
+         help='Path where simulation will run and store output.')
     parser.add_argument('par_path',metavar='PAR_PATH', type=str,
-         help='Path where rembo simulation will run and store output.')
+         help='Path to parameter file.')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -52,17 +64,29 @@ test = librembo/bin/rembo_test.x
     exe_path    = args.exe       # Path relative to current working directory (cwd)
     run         = args.run 
     submit      = args.submit 
+    qos         = args.qos  
     wtime       = args.wall 
+    omp         = args.omp 
     useremail   = args.email 
     usergroup   = args.group
-    with_runner = args.x  
+    with_runner = args.x   
 
     # Arguments
     rundir      = args.rundir 
     par_path    = args.par_path  # Path relative to current working directory (cwd)
     
+    # Load simulation info from json configuration file 
+    if os.path.isfile("run_config.json"):
+        info = json.load(open("run_config.json"))
+    else: 
+        print("Required json file 'run_config.json' containing run options not found.")
+        sys.exit()
 
     # Additional options, consistency checks
+
+    if with_runner and not runner_is_installed:
+        print("The Python module 'runner' is not installed. Do not use option -x.")
+        sys.exit()
 
     # Copy the executable file to the output directory, or
     # call it from its compiled location?    
@@ -71,16 +95,20 @@ test = librembo/bin/rembo_test.x
     # Submit overrides run 
     if submit: run = True 
 
-    # Expand executable path shortcut if defined
-    if exe_path == "test":
-        exe_path = "librembo/bin/rembo_test.x" 
-
+    # Expand executable path shortcut if defined, otherwise exe_path remains unchanged.
+    if exe_path in info["exe_shortcuts"]:
+        exe_path = info["exe_shortcuts"].get(exe_path)
+    
     # Also extract executable and path filenames 
     exe_fname = os.path.basename(exe_path)
     par_fname = os.path.basename(par_path)
 
-    # Get path of constants parameter file
-    const_path = "par/rembo_const_Earth.nml"
+    # Get path of constants parameter file based on parameter name
+    # First set const_path to default, then see if it should be overwritten 
+    const_path = info["const_path_default"]
+    for key, value in info["const_paths"].items():
+        if key in par_fname: 
+            const_path = value 
 
     # Make sure input files exist 
     if not os.path.isfile(const_path):
@@ -114,38 +142,23 @@ test = librembo/bin/rembo_test.x
     shutil.copy(const_path,rundir)
 
     ## Generate symbolic links to input data folders
-    srcname = "input"
-    dstname = os.path.join(rundir,srcname)
-    srcpath = os.path.abspath(srcname)
-    if os.path.islink(dstname): os.unlink(dstname)
-    os.symlink(srcpath,dstname)
+    for srcname in info["links"]:
+        dstname = os.path.join(rundir,srcname)
+        if os.path.islink(dstname): os.unlink(dstname)
+        if os.path.islink(srcname):
+            linkto = os.readlink(srcname)
+            os.symlink(linkto, dstname)
+        elif os.path.isdir(srcname):
+            srcpath = os.path.abspath(srcname)
+            os.symlink(srcpath,dstname)
+        else:
+            print("Warning: path does not exist {}".format(srcname))
 
-    # # Generate link to extra data folder for personal data files
-    # srcname = "extra_data"
-    # dstname = os.path.join(rundir,srcname)
-    # srcpath = os.path.abspath(srcname)
-    # if os.path.islink(dstname): os.unlink(dstname)
-    # os.symlink(srcpath,dstname)
-
-    srcname = "ice_data"
-    dstname = os.path.join(rundir,srcname)
-    if os.path.islink(dstname): os.unlink(dstname)
-    if os.path.islink(srcname):
-        linkto = os.readlink(srcname)
-        os.symlink(linkto, dstname)
-    elif os.path.isdir(srcname):
-        srcpath = os.path.abspath(srcname)
-        os.symlink(srcpath,dstname)
-    else:
-        print("Warning: path does not exist {}".format(srcname))
-
-    ## Generate symbolic link to maps folder
-    srcname = "maps"
-    dstname = os.path.join(rundir,srcname)
-    srcpath = os.path.abspath(srcname)
-    if os.path.islink(dstname): os.unlink(dstname)
-    os.symlink(srcpath,dstname)
-
+    # Write the current git revision information to output directory 
+    if os.path.isdir(".git"):
+        head     = get_git_revision_hash()
+        git_info = open(os.path.join(rundir,"git_revision"),'w').write(head)
+        
     # 2. Run the job
 
     # Generate the appropriate executable command to run job
@@ -166,7 +179,7 @@ test = librembo/bin/rembo_test.x
 
         if submit:
             # Submit job to queue 
-            pid = submitjob(rundir,executable,par_fname,wtime,usergroup,useremail) 
+            pid = submitjob(rundir,executable,par_fname,qos,wtime,usergroup,useremail,omp) 
 
         else:
             # Run job in background 
@@ -179,32 +192,33 @@ test = librembo/bin/rembo_test.x
 def runjob(rundir,executable,par_path):
     '''Run a job generated with makejob.'''
 
-    cmd = "cd {} && exec {} {} > {} &".format(rundir,executable,par_path,"out.out")
-
+    env_cmd = ""
+    #env_cmd = "&& export OMP_NUM_THREADS=2" # && export OMP_THREAD_LIMIT=2"
+    
+    cmd = "cd {} {} && exec {} {} > {} &".format(rundir,env_cmd,executable,par_path,"out.out")
+    #cmd = "cd {} {} && mpiexec -n 2 {} {} > {} &".format(rundir,env_cmd,executable,par_path,"out.out")
+    
     print("Running job in background: {}".format(cmd))
 
     #os.system(cmd)
-    proc = subp.Popen(cmd,shell=True,stdin=None,stdout=None,stderr=None,close_fds=True)
+    #proc = subp.Popen(cmd,shell=True,stdin=None,stdout=None,stderr=None,close_fds=True)
     #pid  = proc.pid+1   # This is not necessarily accurate - do not use for anything
-    pid = 0
+    #pid = 0
 
-    # Alternative below is supposed to be more safe,
-    # and provide the proper pid of the process itself,
-    # but doesn't appear to actually work...
-    # cmd = ['cd',rundir,'&&','exec',executable,par_path,'>','out.out &']
-    # print " ".join(cmd)
-    # proc = subp.Popen(cmd,shell=True,stdin=None,stdout=None,stderr=None,close_fds=True)
-    # pid  = proc.pid
-    #print "pid = {}".format(pid)
+    # Run the command (ie, change to output directory and submit job)
+    # Note: the argument `shell=True` can be a security hazard, but should
+    # be ok in this context, see https://docs.python.org/2/library/subprocess.html#frequently-used-arguments
+    jobstatus = subp.check_call(cmd,shell=True)
 
-    return pid 
+    return jobstatus
 
-def submitjob(rundir,executable,par_path,wtime,usergroup,useremail):
+def submitjob(rundir,executable,par_path,qos,wtime,usergroup,useremail,omp):
     '''Submit a job to a HPC queue (qsub,sbatch)'''
 
     # Get info about current system
     username  = os.environ.get('USER')
-    hostname  = os.environ.get('HOSTNAME')
+    #hostname  = os.environ.get('HOSTNAME')
+    hostname  = socket.getfqdn()             # Returns full domain name
 
     # Command to be called 
     cmd = "{} {}".format(executable,par_path) 
@@ -213,23 +227,24 @@ def submitjob(rundir,executable,par_path,wtime,usergroup,useremail):
     nm_jobscript   = 'job.submit'
     path_jobscript = "{}/{}".format(rundir,nm_jobscript)
     
-    if "cei" in hostname:
-        script = jobscript_qsub(cmd,rundir,username,usergroup,wtime,useremail)
+    if "brigit" in hostname:
+        # Host is the UCM brigit cluster, use the following submit script
+        script  = jobscript_slurm_brigit(cmd,rundir,username,usergroup,qos,wtime,useremail,omp)
         jobfile = open(path_jobscript,'w').write(script)
-        cmd_job = "cd {} && qsub {}".format(rundir,nm_jobscript)
-        
+        cmd_job = "cd {} && sbatch {}".format(rundir,nm_jobscript)
+            
     else:
-        script  = jobscript_slurm(cmd,rundir,username,usergroup,wtime,useremail)
+        # Host is the PIK 2015 cluster, use the following submit script
+        script  = jobscript_slurm_pik(cmd,rundir,username,usergroup,qos,wtime,useremail,omp)
         jobfile = open(path_jobscript,'w').write(script)
         cmd_job = "cd {} && sbatch {}".format(rundir,nm_jobscript)
     
     # Run the command (ie, change to output directory and submit job)
-    #os.system(cmd_job)
-    proc = subp.Popen(cmd_job,shell=True,stdin=None,stdout=None,stderr=None,close_fds=True)
-    #pid  = proc.pid+1   # This is not necessarily accurate - do not use for anything
-    pid = 0
+    # Note: the argument `shell=True` can be a security hazard, but should
+    # be ok in this context, see https://docs.python.org/2/library/subprocess.html#frequently-used-arguments
+    jobstatus = subp.check_call(cmd_job,shell=True)
 
-    return pid 
+    return jobstatus 
 
 def runner_param_write(par_path,rundir):
     '''Wrapper to perform parameter updates according to runner.json file 
@@ -301,18 +316,101 @@ def autofolder(params,outfldr0):
 
     return outfldr
 
-def jobscript_slurm(cmd,rundir,username,usergroup,wtime,useremail):
+def get_git_revision_hash():
+    #githash = subp.check_output(['git', 'describe', '--always', '--long', 'HEAD']).strip()
+    githash = subp.check_output(['git', 'rev-parse', 'HEAD']).strip()
+    return githash.decode("ascii") 
+
+def jobscript_slurm_brigit(cmd,rundir,username,usergroup,qos,wtime,useremail,omp):
     '''Definition of the job script'''
 
     jobname = "rembo" 
-    # jobname = "rembo_{}".format(rundir)
+
+    # Check that wtime is consistent with qos
+    if qos == "short" and wtime > 24*7:
+        print("Error in wtime for '{}'' queue, wtime = {}".format(qos,wtime))
+        sys.exit()
+    
+    if omp > 0:
+        # Use openmp settings 
+        omp_script = """
+#SBATCH --mem=50000 
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task={} 
+
+export OMP_PROC_BIND=true  # make sure our threads stick to cores
+export OMP_NUM_THREADS={}  # matches how many cpus-per-task we asked for
+export OMP_NESTED=false
+export OMP_STACKSIZE=64M
+""".format(omp,omp)
+
+    else: 
+        # No openmp 
+        omp_script = "" 
+
+
+    script = """#! /bin/bash
+#SBATCH -p {}
+#SBATCH --time={}:00:00
+#SBATCH --job-name={}
+###SBATCH --account={}
+#SBATCH --mem=0 
+#SBATCH --mail-user={}
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-type=REQUEUE
+#SBATCH --output=./out.out
+#SBATCH --error=./out.err
+{}
+
+# Run the job
+{} 
+
+""".format(qos,wtime,jobname,usergroup,useremail,omp_script,cmd)
+
+    return script
+
+def jobscript_slurm_pik(cmd,rundir,username,usergroup,qos,wtime,useremail,omp):
+    '''Definition of the job script'''
+
+    jobname = "rembo" 
 
 # Extra parameter options
 ##SBATCH --partition=ram_gpu
 ##SBATCH --mem=50000 
+    
+    # Check that wtime is consistent with qos
+    if qos in ["priority","short"] and wtime > 24:
+        print("Error in wtime for '{}'' queue, wtime = {}".format(qos,wtime))
+        sys.exit()
+
+    if qos == "medium" and wtime > 24*7:
+        print("Error in wtime for '{}'' queue, wtime = {}".format(qos,wtime))
+        sys.exit()
+    
+    if omp > 0:
+        # Use openmp settings 
+        omp_script = """
+#SBATCH --mem=50000 
+#SBATCH --nodes=1
+#SBATCH --tasks-per-node=1
+#SBATCH --cpus-per-task={} 
+
+export OMP_PROC_BIND=true  # make sure our threads stick to cores
+export OMP_NUM_THREADS={}  # matches how many cpus-per-task we asked for
+export OMP_NESTED=false
+export OMP_STACKSIZE=64M
+""".format(omp,omp)
+
+    else: 
+        # No openmp 
+        omp_script = "" 
+
 
     script = """#! /bin/bash
-#SBATCH --qos=short
+#SBATCH --qos={}
+#SBATCH --time={}:00:00
 #SBATCH --job-name={}
 #SBATCH --account={}
 #SBATCH --mail-user={}
@@ -321,12 +419,12 @@ def jobscript_slurm(cmd,rundir,username,usergroup,wtime,useremail):
 #SBATCH --mail-type=REQUEUE
 #SBATCH --output=./out.out
 #SBATCH --error=./out.err
-#SBATCH --time={}:00:00
+{}
 
 # Run the job
 {} 
 
-""".format(jobname,usergroup,useremail,wtime,cmd)
+""".format(qos,wtime,jobname,usergroup,useremail,omp_script,cmd)
 
     return script
 

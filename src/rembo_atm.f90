@@ -197,7 +197,7 @@ contains
 !         now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
 !                                     par%k_c,par%k_x)
         
-        ! Calculate the current cloud water content
+        ! Calculate the current cloud water content  (kg m**-2)
         call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww)   
 
         ! Now calculate the high resolution precipitation rate (kg m**-2 s**-1)
