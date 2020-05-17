@@ -317,15 +317,16 @@ contains
         !call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(mv))
         
         ! Sea-level temperature, tsl
-        call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(mv))
-!         call map_field_conservative_map1(emb%map_toemb%map,"tsl",real(t2m+gamma*z_srf,dp),tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
-!         emb%tsl = real(tmp8,wp)
+!         call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(mv))
+        call map_field_conservative_map1(emb%map_toemb%map,"tsl",real(t2m+gamma*z_srf,dp),tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
+        emb%tsl = real(tmp8,wp)
 
         ! Radiative forcing, tsl_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
         call map_field(emb%map_toemb,"tsl_F",(swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac , &
                        emb%tsl_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
-!         call map_field_conservative_map1(emb%map_toemb%map,"tsl_F",real((swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac,dp), &
-!             tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
+!         tmp8hi = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac
+!         call map_field_conservative_map1(emb%map_toemb%map,"tsl_F",tmp8hi, &
+!                         tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
 !         emb%tsl_F = real(tmp8,wp)
 
         ! Calculate radiative balance over the day
@@ -343,9 +344,9 @@ contains
 
         end do 
 
-        !call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nn",fill=.TRUE.,missing_value=dble(mv))
-        call map_field_conservative_map1(emb%map_fromemb%map,"tsl",real(emb%tsl,dp),tmp8hi,method="mean",fill=.TRUE.,missing_value=dble(mv))
-        t2m = real(tmp8hi,wp)
+        call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="radius",fill=.TRUE.,missing_value=dble(mv))
+!         call map_field_conservative_map1(emb%map_fromemb%map,"tsl",real(emb%tsl,dp),tmp8hi,method="mean",fill=.TRUE.,missing_value=dble(mv))
+!         t2m = real(tmp8hi,wp)
         t2m = t2m - gamma*z_srf
 
 !         ! ajr: TO DO !!  (seems to go really slow, or smt is wrong)

@@ -378,10 +378,33 @@ contains
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"uv_s",dom%mon(m)%uv_s,units="m s**-1",long_name="Near-surface wind (magnitude)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
-            call nc_write(filename,"shf_s",dom%mon(m)%shf_s,units="W m**-2",long_name="Sensible heat flux", &
+            
+            call nc_write(filename,"swd",dom%mon(m)%swd,units="W m**-2",long_name="Shortwave radiation down (toa)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"al_p",dom%mon(m)%al_p,units="1",long_name="Planetary albedo", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"at",dom%mon(m)%at,units="1",long_name="Atmospheric transmissivity", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+
+
+            call nc_write(filename,"swd_s",dom%mon(m)%swd_s,units="W m**-2",long_name="Shortwave radiation down (surface)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"lwd_s",dom%mon(m)%lwd_s,units="W m**-2",long_name="Longwave radiation down (surface)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"shf_s",dom%mon(m)%shf_s,units="W m**-2",long_name="Sensible heat flux (surface)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"lhf_s",dom%mon(m)%lhf_s,units="W m**-2",long_name="Latent heat flux (surface)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"lwu_s",dom%mon(m)%lwu_s,units="W m**-2",long_name="Longwave radiation up (surface)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
-
+            call nc_write(filename,"ug",dom%mon(m)%ug,units="m s**-1",long_name="Geostrophic horizontal velocity, x-direction", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"vg",dom%mon(m)%vg,units="m s**-1",long_name="Geostrophic horizontal velocity, y-direction", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"uvg",dom%mon(m)%uvg,units="m s**-1",long_name="Geostrophic horizontal velocity, magnitude", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            
             call nc_write(filename,"pr",dom%mon(m)%pr,units="mm d**-1",long_name="Precipitation", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
