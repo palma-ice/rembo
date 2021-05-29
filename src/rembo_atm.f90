@@ -344,7 +344,7 @@ contains
 
         end do 
 
-        call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="radius",fill=.TRUE.,missing_value=dble(mv))
+        call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nng",fill=.TRUE.,missing_value=dble(mv),sigma=50.d0)
 !         call map_field_conservative_map1(emb%map_fromemb%map,"tsl",real(emb%tsl,dp),tmp8hi,method="mean",fill=.TRUE.,missing_value=dble(mv))
 !         t2m = real(tmp8hi,wp)
         t2m = t2m - gamma*z_srf
