@@ -1,6 +1,7 @@
 module rembo_atm 
 
     use coord 
+    use gaussian_filter 
     use solvers 
 
     use rembo_defs 
@@ -179,7 +180,8 @@ contains
                               lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
                               shf=now%shf_s,lhf=now%lhf_s, &
                               lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
-                              rco2=par%en_kdT + now%rco2_a) 
+                              rco2=par%en_kdT + now%rco2_a, &
+                              ug=now%ug,vg=now%vg) 
 
             ! Calculate inversion correction for moisture balance
             now%ct2m = calc_ttcorr1(now%t2m,bnd%z_srf,-2.4e-3,-3.7e-1,106.0)
@@ -271,6 +273,14 @@ contains
         where (emb%tsl_bnd(:,ny-1) .eq. mv) emb%tsl_bnd(:,ny-1) = emb%tsl_bnd(:,ny-2) 
         where (emb%tsl_bnd(:,ny)   .eq. mv) emb%tsl_bnd(:,ny)   = emb%tsl_bnd(:,ny-1) 
         
+if (.FALSE.) then 
+        ! Smooth data
+        tmp8 = emb%tsl_bnd 
+        write(*,*) "dx: ", emb%grid%G%dx, minval(tmp8), maxval(tmp8)
+        call filter_gaussian(var=tmp8,sigma=emb%grid%G%dx*2d0,dx=real(emb%grid%G%dx,dp))
+        emb%tsl_bnd = tmp8 
+end if
+
         ! Initialize temperature to boundary field
         emb%tsl = emb%tsl_bnd 
 
@@ -278,12 +288,14 @@ contains
 
     end subroutine rembo_calc_iterinit
 
-    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2)
+    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg)
 
         implicit none 
 
         real(wp),                intent(INOUT) :: t2m(:,:)
         type(diffusion_class),   intent(INOUT) :: emb  
+        type(rembo_param_class), intent(IN)    :: par 
+        integer,                 intent(IN)    :: day 
         real(wp),                intent(IN)    :: z_srf(:,:)
         real(wp),                intent(IN)    :: t2m_bnd(:,:)
         real(wp),                intent(IN)    :: gamma(:,:)
@@ -293,9 +305,9 @@ contains
         real(wp),                intent(IN)    :: lhf(:,:)
         real(wp),                intent(IN)    :: lhp(:,:)
         real(wp),                intent(IN)    :: rco2(:,:)
-        type(rembo_param_class), intent(IN)    :: par 
-        integer,                 intent(IN)    :: day 
-        
+        real(wp),                intent(IN)    :: ug(:,:)
+        real(wp),                intent(IN)    :: vg(:,:)
+
         ! Local variables  
         real(wp) :: tsl_fac 
         integer :: q, nx, ny 
@@ -328,6 +340,12 @@ contains
 !         call map_field_conservative_map1(emb%map_toemb%map,"tsl_F",tmp8hi, &
 !                         tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
 !         emb%tsl_F = real(tmp8,wp)
+        
+        ! Wind [m s-1] 
+        call map_field(emb%map_toemb,"ug",ug,emb%ug,method="radius", &
+                       fill=.TRUE.,missing_value=dble(missing_value))
+        call map_field(emb%map_toemb,"vg",vg,emb%vg,method="radius", &
+                       fill=.TRUE.,missing_value=dble(missing_value))
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
@@ -335,13 +353,8 @@ contains
             call adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%tsl_F,relax=emb%mask, &
                              dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
                              dy=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
-                             dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr) !, &
-!                              v_x=emb%ug,v_y=emb%vg)
-!             call solve_diff_2D_adi(emb%tsl,emb%tsl_bnd,emb%tsl_F,relax=emb%mask, &
-!                                    dx=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
-!                                    dy=real(emb%grid%G%dx*emb%grid%xy_conv,wp), &
-!                                    dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr)
-
+                             dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr, &
+                             v_x=emb%ug,v_y=emb%vg)
         end do 
 
         call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nng",fill=.TRUE.,missing_value=dble(mv),sigma=50.d0)

@@ -710,7 +710,7 @@ contains
         call nc_write_dim(filename,"yc",    x=dom%grid%G%y,  units="kilometers")
         call nc_write_dim(filename,"month", x=1,dx=1,nx=12,   units="month")
         call nc_write_dim(filename,"time",  x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
-        
+
         ! Write grid information
         call grid_write(dom%grid,filename,xnm="xc",ynm="yc",create=.FALSE.)
 
@@ -778,6 +778,11 @@ contains
         call nc_write(filename,"tcw_bnd",real(emb%tcw_bnd),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"tcw",real(emb%tcw),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        
+        call nc_write(filename,"ug",real(emb%ug),dim1="xc",dim2="yc",dim3="month",&
+                      start=[1,1,m],count=[nx,ny,1])
+        call nc_write(filename,"vg",real(emb%vg),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
         
         return 
