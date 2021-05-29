@@ -357,7 +357,7 @@ contains
 
         return 
 
-    end subroutine rembo_calc_en 
+    end subroutine rembo_calc_en
 
     subroutine rembo_calc_ccw(pr,ccw,c_w,emb,par,tcw,q_r,ww)
 
@@ -478,6 +478,6 @@ contains
 
         return 
 
-    end subroutine rembo_calc_ccw 
+    end subroutine rembo_calc_ccw
 
-end module rembo_atm 
+end module rembo_atm

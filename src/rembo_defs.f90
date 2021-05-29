@@ -410,6 +410,25 @@ contains
                             lon180=.TRUE.,x0=-720.d0,dx=1.0d0,nx=1681,y0=-3450.d0,dy=1.0d0,ny=2881, &
                             lambda=-45.d0,phi=70.d0)
 
+                ! ==== NEW ONES (29 May 2021) =======
+
+                case("GRL-32KM")
+                call grid_init(grid,name="GRL-32KM",mtype="polar_stereographic",units="kilometers", &
+                        lon180=.TRUE.,x0=-720.d0,dx=32.0d0,nx=54,y0=-3450.d0,dy=32.0d0,ny=91, &
+                        lambda=-45.d0,phi=70.d0)
+            
+                case("GRL-16KM")
+                    call grid_init(grid,name="GRL-16KM",mtype="polar_stereographic",units="kilometers", &
+                            lon180=.TRUE.,x0=-720.d0,dx=16.0d0,nx=106,y0=-3450.d0,dy=16.0d0,ny=181, &
+                            lambda=-45.d0,phi=70.d0)
+                
+                case("GRL-8KM")
+                    call grid_init(grid,name="GRL-8KM",mtype="polar_stereographic",units="kilometers", &
+                            lon180=.TRUE.,x0=-720.d0,dx=8.0d0,nx=211,y0=-3450.d0,dy=8.0d0,ny=361, &
+                            lambda=-45.d0,phi=70.d0)
+                
+                ! ==== END NEW ONES (29 May 2021) =======
+
                 case("Bamber01-20KM")
                     call grid_init(grid,name="Bamber01-20KM",mtype="polar_stereographic",units="kilometers", &
                             lon180=.TRUE.,x0=-800.d0,dx=20.d0,nx=76,y0=-3400.d0,dy=20.d0,ny=141, &

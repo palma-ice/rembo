@@ -1,6 +1,6 @@
 &rembo_params
     domain     = "Greenland"
-    grid_name  = "GRL-20KM"
+    grid_name  = "GRL-16KM"
     restart    = "no"            ! "no" for no restart, or else the filename to restart from
     
     H_e        = 2500.0           ! [m] Vapor scale height

@@ -114,7 +114,7 @@ contains
 
         return 
 
-    end subroutine rembo_update 
+    end subroutine rembo_update
     
     subroutine rembo_init(dom,path_par,domain,grid)
 
@@ -330,7 +330,7 @@ contains
 
         return 
 
-    end subroutine rembo_end 
+    end subroutine rembo_end
     
     subroutine rembo_print(dom,m,d,year)
 
@@ -368,7 +368,7 @@ contains
 
         return 
 
-    end subroutine rembo_print 
+    end subroutine rembo_print
     
     subroutine rembo_par_load(par,filename,domain)
 
@@ -573,7 +573,7 @@ contains
 
         return
 
-    end subroutine rembo_alloc 
+    end subroutine rembo_alloc
 
     subroutine rembo_dealloc(now)
 
@@ -638,7 +638,7 @@ contains
 
         return 
 
-    end subroutine rembo_dealloc 
+    end subroutine rembo_dealloc
 
     subroutine rembo_bnd_alloc(bnd,nx,ny)
 
@@ -671,7 +671,7 @@ contains
         
         return 
 
-    end subroutine rembo_bnd_alloc 
+    end subroutine rembo_bnd_alloc
 
     subroutine rembo_bnd_dealloc(bnd)
 
@@ -691,7 +691,7 @@ contains
 
         return 
 
-    end subroutine rembo_bnd_dealloc 
+    end subroutine rembo_bnd_dealloc
 
     subroutine rembo_write_init(dom,filename,time_init,units)
 
@@ -710,13 +710,13 @@ contains
         call nc_write_dim(filename,"yc",    x=dom%grid%G%y,  units="kilometers")
         call nc_write_dim(filename,"month", x=1,dx=1,nx=12,   units="month")
         call nc_write_dim(filename,"time",  x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
-
+        
         ! Write grid information
         call grid_write(dom%grid,filename,xnm="xc",ynm="yc",create=.FALSE.)
 
         return
 
-    end subroutine rembo_write_init 
+    end subroutine rembo_write_init
     
     subroutine rembo_emb_write_init(emb,filename,time_init,units)
 
@@ -741,7 +741,7 @@ contains
 
         return
 
-    end subroutine rembo_emb_write_init 
+    end subroutine rembo_emb_write_init
     
     subroutine rembo_emb_write_step_grid(emb,filename,m)
 
@@ -784,4 +784,4 @@ contains
 
     end subroutine rembo_emb_write_step_grid
 
-end module rembo_api 
+end module rembo_api

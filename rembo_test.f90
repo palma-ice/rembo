@@ -297,7 +297,7 @@ contains
 
         return 
 
-    end subroutine rembo_forc_alloc 
+    end subroutine rembo_forc_alloc
 
     subroutine rembo_write_step(dom,forc,filename,time)
 
@@ -447,7 +447,7 @@ contains
 
         return 
 
-    end subroutine load_command_line_args 
+    end subroutine load_command_line_args
 
-end program rembo_test 
+end program rembo_test
 
