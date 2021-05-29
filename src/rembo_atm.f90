@@ -148,7 +148,7 @@ contains
 
             ! ajr: TO DO - assume zero for now 
             now%lhf_s = 0.0 
-
+            
             ! Iterate surface temperature and sensible heat flux calcs
             do iter_surf = 1, n_iter_surf
                 
