@@ -2,14 +2,16 @@ module rembo_api
     ! Wrapper to hold all modules needed for librembo 
        
     use rembo_defs 
+    use rembo_grid
     use rembo_atm 
     use rembo_physics 
 
     use nml 
-    use ncio 
-    use coord 
+    use ncio  
     use solvers 
     use insolation 
+
+    use coordinates_mapping_scrip, only : map_scrip_init
 
     implicit none 
 
@@ -55,24 +57,25 @@ contains
         ! Calculate atmospheric density from surface elevation
         dom%now%rho_a = calc_airdens(dom%bnd%z_srf)
 
-        ! Calculate the coriolis parameter for the current gridpoints
+        ! Calculate the coriolis parameter for the current grid points
         dom%bnd%f = calc_coriolis(real(dom%grid%lat,wp))
 
         ! Calculate surface gradients and total magnitude, staggered onto ac-nodes 
-        call d_dx(dom%bnd%dzsdx,dom%bnd%z_srf,dx=real(dom%grid%G%dx*dom%grid%xy_conv,wp))
-        call d_dy(dom%bnd%dzsdy,dom%bnd%z_srf,dx=real(dom%grid%G%dy*dom%grid%xy_conv,wp))
+        call d_dx(dom%bnd%dzsdx,dom%bnd%z_srf,dx=dom%grid%dx)
+        call d_dy(dom%bnd%dzsdy,dom%bnd%z_srf,dx=dom%grid%dy)
         dom%bnd%dzsdxy = calc_magnitude_from_staggered(dom%bnd%dzsdx,dom%bnd%dzsdy)
 
 !         ! Test calculating gradient as distance to sea level 
 !         call calc_gradient_to_sealevel(dom%bnd%dzsdxy,dom%bnd%z_srf,dom%bnd%z_srf*0.0, &
-!                     real(dom%grid%x*dom%grid%xy_conv,wp),real(dom%grid%y*dom%grid%xy_conv,wp))
+!                     dom%grid%x,dom%grid%y)
 
         ! Calculate the rembo relaxation mask
-        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,real(dom%grid%x,wp),real(dom%grid%y,wp),radius=20.0)  
+        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,radius=20.0)  
         where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
 
         ! EMB OUTPUT FOR TESTING 
-        call rembo_emb_write_init(dom%emb,"test.nc",time_init=real(year,wp),units="kyr ago")
+        call rembo_emb_write_init(dom%emb,"test.nc",dom%par%domain,dom%par%grid_name, &
+                                                    time_init=real(year,wp),units="kyr ago")
 
         ! Loop over each month, calculate rembo atmosphere 
         do m = 1, nm 
@@ -83,7 +86,7 @@ contains
             ! == Store monthly boundary variables =====
 
             ! Calculate representative insolation for the month
-            dom%now%S = calc_insol_day(day,dom%grid%lat,dble(year),fldr="input")
+            dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
 
             ! Save all other boundary variables 
             dom%now%t2m_bnd = t2m(:,:,m) 
@@ -93,8 +96,8 @@ contains
             ! == Calculate monthly derived boundary variables =====
 
             ! Calc gradient of Z: dZdx, dZdy 
-            call d_dx(dom%now%dZdx,dom%now%Z,dx=real(dom%grid%G%dx*dom%grid%xy_conv,wp))
-            call d_dy(dom%now%dZdy,dom%now%Z,dx=real(dom%grid%G%dy*dom%grid%xy_conv,wp))
+            call d_dx(dom%now%dZdx,dom%now%Z,dx=dom%grid%dx)
+            call d_dy(dom%now%dZdy,dom%now%Z,dx=dom%grid%dy)
             ! ajr: to do: move this inside of rembo_calc_atmosphere using local variables
             
             ! == Calculate rembo atmosphere =====
@@ -125,7 +128,7 @@ contains
         type(rembo_class), intent(INOUT) :: dom
         character(len=*),  intent(IN)    :: path_par  
         character(len=*),  intent(IN), optional :: domain 
-        type(grid_class),  intent(IN), optional :: grid 
+        type(rgrid_class), intent(IN), optional :: grid 
 
         ! Local variables         
         character(len=256) :: filename, file_boundary 
@@ -137,12 +140,12 @@ contains
         call rembo_par_load(dom%par,trim(path_par),domain)
 
         ! Define rembo grid based on grid name
-        call rembo_grid_define(dom%grid,dom%par%grid_name,grid_in=grid)
+        call rembo_grid_define(dom%grid,dom%par%grid_path,dom%par%grid_name,grid_in=grid)
     
         ! Initialize grid size variables
         dom%par%npts   = dom%grid%npts 
-        dom%par%nx     = dom%grid%G%nx 
-        dom%par%ny     = dom%grid%G%ny 
+        dom%par%nx     = dom%grid%nx 
+        dom%par%ny     = dom%grid%ny 
         
         nm = size(dom%mon)
 
@@ -156,28 +159,30 @@ contains
         end do 
         call rembo_alloc(dom%ann,dom%par%nx,dom%par%ny)
 
-        ! Diffusion grid and variables
-        call rembo_emb_init(dom%emb,dom%grid,dx=dom%par%emb_dx)
+        ! Define emb diffusion grid and variables
+        call rembo_grid_define(dom%emb%grid,dom%par%grid_path_emb,dom%par%grid_name_emb)
+
+        call rembo_emb_init(dom%emb)
         
         write(*,*) "rembo_init :: allocated rembo variables."
 
         ! Perform mapping between emb and rembo grids
-        call map_init(dom%emb%map_toemb,  dom%grid,dom%emb%grid,max_neighbors=10,load=.TRUE.)
-        call map_init(dom%emb%map_fromemb,dom%emb%grid,dom%grid,max_neighbors=10,load=.TRUE.)
+        !call map_init(dom%emb%map_toemb,  dom%grid,dom%emb%grid,max_neighbors=10,load=.TRUE.)
+        !call map_init(dom%emb%map_fromemb,dom%emb%grid,dom%grid,max_neighbors=10,load=.TRUE.)
+        
+        ! Load the scrip map from file (should already have been generated via cdo externally)
+        call map_scrip_init(dom%emb%map_toemb,dom%grid%name,dom%emb%grid%name, &
+                                    method="con",fldr="maps",load=.TRUE.)
+        call map_scrip_init(dom%emb%map_fromemb,dom%emb%grid%name,dom%grid%name, &
+                                    method="con",fldr="maps",load=.TRUE.)
         
         ! Check diffusion time step consistency
-        dt_check(1) = diff2D_timestep(real(dom%emb%grid%G%dx*dom%emb%grid%xy_conv,wp), &
-                                      real(dom%emb%grid%G%dy*dom%emb%grid%xy_conv,wp), &
+        dt_check(1) = diff2D_timestep(dom%emb%grid%dx,dom%emb%grid%dy, &
                                       min(dom%par%en_D_sum,dom%par%en_D_win))
-        dt_check(2) = diff2D_timestep(real(dom%emb%grid%G%dx*dom%emb%grid%xy_conv,wp), &
-                                      real(dom%emb%grid%G%dy*dom%emb%grid%xy_conv,wp), &
+        dt_check(2) = diff2D_timestep(dom%emb%grid%dx,dom%emb%grid%dy, &
                                       dom%par%ccw_D)
-!         dt_check(1) = diff2Dadi_timestep(dom%emb%grid%G%dx*dom%emb%grid%xy_conv, &
-!                                          dom%emb%grid%G%dy*dom%emb%grid%xy_conv, &
-!                                          dom%par%en_D)
-!         dt_check(2) = diff2Dadi_timestep(dom%emb%grid%G%dx*dom%emb%grid%xy_conv, &
-!                                          dom%emb%grid%G%dy*dom%emb%grid%xy_conv, &
-!                                          dom%par%ccw_D)
+!         dt_check(1) = diff2Dadi_timestep(dom%emb%grid%dx,dom%emb%grid%dy,dom%par%en_D)
+!         dt_check(2) = diff2Dadi_timestep(dom%emb%grid%dx,dom%emb%grid%dy,dom%par%ccw_D)
         fmt1="(a,f10.1,a,f10.1,a)"
         write(*,fmt1) "Diffusion time step,   energy: ", dom%par%en_dt, " s ( max = ",dt_check(1)," s )"
         write(*,fmt1) "Diffusion time step, moisture: ", dom%par%ccw_dt," s ( max = ",dt_check(2)," s )"
@@ -194,7 +199,7 @@ contains
 
     end subroutine rembo_init
 
-    subroutine rembo_emb_init(emb,grid,dx)
+    subroutine rembo_emb_init(emb)
         ! Initialize the diffusion variables on
         ! the desired grid resolution.
         ! grid = original grid definition of rembo
@@ -203,32 +208,11 @@ contains
         implicit none
 
         type(diffusion_class), intent(INOUT) :: emb 
-        type(grid_class),      intent(IN)    :: grid 
-        real(wp),              intent(IN)    :: dx 
-        
+
         integer :: nx, ny 
-        character(len=256) :: name 
-        real(wp), allocatable :: x(:)
-        real(wp), allocatable :: y(:) 
 
-        if (dx .ge. 100.d0) then 
-            write(name,"(a,i3,a)") trim(grid%name)//"-emb", int(dx), "km"
-        else if (dx .ge. 10.d0) then 
-            write(name,"(a,i2,a)") trim(grid%name)//"-emb", int(dx), "km"
-        else
-            write(*,*) "rembo_emb_init:: Error: ", &
-            "Such a high resolution grid for diffusion is not supported."
-            write(*,*) "emb dx =",dx 
-            stop 
-        end if 
-
-        ! Initialize the diffusion grid
-        call grid_init(emb%grid,grid,name, &
-                       x0=minval(grid%x)-dx,dx=real(dx,dp),nx=ceiling((maxval(grid%x)-minval(grid%x))/dx)+2, &
-                       y0=minval(grid%y)-dx,dy=real(dx,dp),ny=ceiling((maxval(grid%y)-minval(grid%y))/dx)+2)
-
-        nx = emb%grid%G%nx
-        ny = emb%grid%G%ny 
+        nx = emb%grid%nx
+        ny = emb%grid%ny 
 
         ! Topography 
         allocate(emb%mask(nx,ny))
@@ -332,6 +316,34 @@ contains
 
     end subroutine rembo_end
     
+    subroutine rembo_grid_define(grid,grid_name,grid_path,grid_in)
+
+        implicit none 
+
+        type(rgrid_class), intent(OUT)  :: grid  
+        character(len=*), intent(INOUT) :: grid_name      ! Overwritable if grid_in is present
+        character(len=*), intent(IN)    :: grid_path
+        type(rgrid_class), intent(IN), optional :: grid_in 
+
+        if (present(grid_in)) then 
+
+            grid = grid_in 
+
+            ! Ensure parameter grid_name is consistent with defined grid 
+            grid_name = grid%name 
+        
+        else 
+            ! Define rembo grid from predefined options (currently only from file)
+
+            ! Use grid_path to load grid definition from NetCDF file 
+            call rembo_init_grid(grid,grid_path,grid_name)
+
+        end if 
+
+        return 
+
+    end subroutine rembo_grid_define
+    
     subroutine rembo_print(dom,m,d,year)
 
         implicit none 
@@ -385,13 +397,15 @@ contains
         group1 = "rembo" 
         group2 = "rembo1" 
 
-        call nml_read(filename,group1,"domain",     par%domain)
-        call nml_read(filename,group1,"grid_name",  par%grid_name)
-        call nml_read(filename,group1,"restart",    par%restart    )
+        call nml_read(filename,group1,"domain",         par%domain)
+        call nml_read(filename,group1,"grid_name",      par%grid_name)
+        call nml_read(filename,group1,"grid_name_emb",  par%grid_name_emb)
+        call nml_read(filename,group1,"grid_path",      par%grid_path)
+        call nml_read(filename,group1,"grid_path_emb",  par%grid_path_emb)
+        call nml_read(filename,group1,"restart",        par%restart)
 
-        call nml_read(filename,group1,"H_e",  par%H_e   )
-        call nml_read(filename,group1,"emb_dx",  par%emb_dx  )
-        call nml_read(filename,group1,"rembo1",  par%rembo1  )
+        call nml_read(filename,group1,"H_e",            par%H_e)
+        call nml_read(filename,group1,"rembo1",         par%rembo1)
         call nml_read(filename,group1,"dist_rel",  par%dist_rel  )
         call nml_read(filename,group1,"en_dt",  par%en_dt  )
         call nml_read(filename,group1,"en_D",  par%en_D  )
@@ -458,6 +472,10 @@ contains
         
         ! Overwrite parameter values with argument definitions if available
         if (present(domain))     par%domain    = trim(domain)
+        
+        ! Make sure to parse grid_path and grid_path_emb
+        call rembo_parse_path(par%grid_path,par%domain,par%grid_name)
+        call rembo_parse_path(par%grid_path_emb,par%domain,par%grid_name_emb)
         
         return
 
@@ -715,24 +733,26 @@ contains
 
         ! Initialize netcdf file and dimensions
         call nc_create(filename)
-        call nc_write_dim(filename,"xc",    x=dom%grid%G%x,  units="kilometers")
-        call nc_write_dim(filename,"yc",    x=dom%grid%G%y,  units="kilometers")
-        call nc_write_dim(filename,"month", x=1,dx=1,nx=12,   units="month")
+        call nc_write_dim(filename,"xc",    x=dom%grid%xc,  units="kilometers")
+        call nc_write_dim(filename,"yc",    x=dom%grid%yc,  units="kilometers")
+        call nc_write_dim(filename,"month", x=1,dx=1,nx=12, units="month")
         call nc_write_dim(filename,"time",  x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
 
         ! Write grid information
-        call grid_write(dom%grid,filename,xnm="xc",ynm="yc",create=.FALSE.)
+        call rembo_grid_write(dom%grid,filename,dom%par%domain,dom%par%grid_name,create=.FALSE.)
 
         return
 
     end subroutine rembo_write_init
     
-    subroutine rembo_emb_write_init(emb,filename,time_init,units)
+    subroutine rembo_emb_write_init(emb,filename,domain,grid_name,time_init,units)
 
         implicit none 
 
         type(diffusion_class), intent(IN) :: emb 
         character(len=*),  intent(IN) :: filename 
+        character(len=*),  intent(IN) :: domain
+        character(len=*),  intent(IN) :: grid_name
         real(wp),          intent(IN) :: time_init
         character(len=*),  intent(IN) :: units
 
@@ -740,13 +760,13 @@ contains
 
         ! Initialize netcdf file and dimensions
         call nc_create(filename)
-        call nc_write_dim(filename,"xc",    x=emb%grid%G%x,  units="kilometers")
-        call nc_write_dim(filename,"yc",    x=emb%grid%G%y,  units="kilometers")
-        call nc_write_dim(filename,"month", x=1,dx=1,nx=12,   units="month")
+        call nc_write_dim(filename,"xc",    x=emb%grid%xc,  units="kilometers")
+        call nc_write_dim(filename,"yc",    x=emb%grid%yc,  units="kilometers")
+        call nc_write_dim(filename,"month", x=1,dx=1,nx=12, units="month")
         call nc_write_dim(filename,"time",  x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
 
         ! Write grid information
-        call grid_write(emb%grid,filename,xnm="xc",ynm="yc",create=.FALSE.)
+        call rembo_grid_write(emb%grid,filename,domain,grid_name,create=.FALSE.)
 
         return
 
@@ -760,8 +780,8 @@ contains
         character(len=*)  :: filename 
         integer :: nx, ny, m 
 
-        nx = emb%grid%G%nx
-        ny = emb%grid%G%ny
+        nx = emb%grid%nx
+        ny = emb%grid%ny
         
         if (m .eq. 1) then 
             call nc_write(filename,"z_srf",emb%z_srf,dim1="xc",dim2="yc")

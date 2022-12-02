@@ -1,7 +1,8 @@
 module rembo_defs 
 
-    use nml 
-    use coord 
+    use nml
+    
+    use coordinates_mapping_scrip, only : map_scrip_class
 
     implicit none 
 
@@ -70,6 +71,9 @@ module rembo_defs
 
         character(len=256)  :: domain
         character(len=256)  :: grid_name
+        character(len=256)  :: grid_name_emb
+        character(len=256)  :: grid_path
+        character(len=256)  :: grid_path_emb
         character(len=256)  :: restart 
         integer             :: npts, nx, ny
         real(wp)            :: dx 
@@ -77,7 +81,6 @@ module rembo_defs
         ! Physics
         real(wp)    :: H_e   ! Precip vapor scale height (m)
         logical     :: rembo1  
-        real(wp)    :: emb_dx 
         real(wp)    :: dist_rel
         real(wp)    :: en_dt, en_D, en_kr, en_kz, en_kl, en_kdT, en_Ha 
         real(wp)    :: en_D_win, en_D_sum 
@@ -98,6 +101,41 @@ module rembo_defs
         real(wp)    :: shfs_Cm, shfs_p   
         real(wp)    :: r1_ta, r1_tb 
 
+    end type
+
+    type rgrid_class 
+
+        ! Grid name 
+        character(len=256) :: name 
+        
+        ! Parameters
+        integer    :: nx, ny, npts
+        real(wp)   :: dx, dy
+
+        ! Projection parameters (optional)
+        character(len=256) :: mtype 
+        real(wp)   :: lambda
+        real(wp)   :: phi
+        real(wp)   :: alpha
+        real(wp)   :: scale
+        real(wp)   :: x_e
+        real(wp)   :: y_n
+        real(wp)   :: semi_major_axis
+        real(wp)   :: inverse_flattening
+        logical    :: is_sphere 
+        logical    :: is_projection 
+
+        ! Axes
+        real(wp), allocatable :: xc(:)    
+        real(wp), allocatable :: yc(:) 
+
+        ! Grid arrays 
+        real(wp), allocatable :: x(:,:)
+        real(wp), allocatable :: y(:,:)
+        real(wp), allocatable :: lon(:,:)
+        real(wp), allocatable :: lat(:,:)
+        real(wp), allocatable :: area(:,:)
+        
     end type
 
     type rembo_boundary_class
@@ -156,8 +194,8 @@ module rembo_defs
     ! Define all variables needed for diffusion on lo-res grid
     type diffusion_class
 
-        type(grid_class)      :: grid ! EMB diffusion resolution grid
-        type(map_class)       :: map_toemb, map_fromemb  ! map EMB => rembo grid
+        type(rgrid_class)     :: grid ! EMB diffusion resolution grid
+        type(map_scrip_class) :: map_toemb, map_fromemb  ! map EMB <=> rembo grid
 
         ! Relaxation mask, topography  
         integer,  allocatable :: mask(:,:)
@@ -181,7 +219,7 @@ module rembo_defs
     type rembo_class
 
         type(rembo_param_class)   :: par        ! physical parameters
-        type(grid_class)          :: grid       ! Grid definition   (from coordinates module)
+        type(rgrid_class)         :: grid       ! Grid definition   (from coordinates module)
         
         ! Boundary variables
         type(rembo_boundary_class) :: bnd 
@@ -206,6 +244,7 @@ module rembo_defs
     public :: sec_year, g, omega, T0, rho_ice, rho_w, sec_day0, sec_day, sec_frac 
     public :: day_year, day_month, month_year 
     public :: rembo_param_class, rembo_boundary_class
+    public :: rgrid_class
     public :: rembo_state_class 
     public :: diffusion_class 
     public :: rembo_class 
@@ -213,7 +252,6 @@ module rembo_defs
     public :: rembo_get_working_precision
     public :: rembo_parse_path
     public :: rembo_global_init
-    public :: rembo_grid_define
     public :: rembo_cpu_time
 
 contains 
@@ -306,176 +344,6 @@ contains
         return
 
     end subroutine rembo_global_init
-    
-    subroutine rembo_grid_define(grid,grid_name,grid_in)
-
-        implicit none 
-
-        type(grid_class), intent(OUT)   :: grid  
-        character(len=*), intent(INOUT) :: grid_name      ! Overwritable if grid_in is present
-        type(grid_class), intent(IN), optional :: grid_in 
-
-        if (present(grid_in)) then 
-
-            grid = grid_in 
-
-            ! Ensure parameter grid_name is consistent with defined grid 
-            grid_name = grid%name 
-        
-        else 
-            ! Define rembo grid from predefined options 
-
-            select case(trim(grid_name))
-
-                ! Note - all North projections now use the ESPG-3413
-                ! polar stereographic projection with (lambda=-45.d0,phi=70.d0)
-                ! Smaller Northern domains like Eurasia and Greenland use
-                ! the same projection for consistency. 
-                ! ESPG-3413 (lambda=-45.d0,phi=70.d0) is used for Greenland in 
-                ! model intercomparison exercises, eg ISMIP6. 
-
-                ! NORTH DOMAINS ======================= 
-
-                case("NH-40KM")
-                    call grid_init(grid,name="NH-40KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-4900.d0,dx=40.0d0,nx=221,y0=-5400.d0,dy=40.0d0,ny=221, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("NH-20KM")
-                    call grid_init(grid,name="NH-20KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-4900.d0,dx=20.0d0,nx=441,y0=-5400.d0,dy=20.0d0,ny=441, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("NH-10KM")
-                    call grid_init(grid,name="NH-10KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-4900.d0,dx=10.0d0,nx=881,y0=-5400.d0,dy=10.0d0,ny=881, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("NH-5KM")
-                    call grid_init(grid,name="NH-5KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-4900.d0,dx=5.0d0,nx=1761,y0=-5400.d0,dy=5.0d0,ny=1761, &
-                            lambda=-45.d0,phi=70.d0)
-            
-                ! EURASIA DOMAINS ======================= 
-
-                case("EIS-40KM")
-                    call grid_init(grid,name="EIS-40KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=380.d0,dx=40.0d0,nx=89,y0=-5000.d0,dy=40.0d0,ny=161, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("EIS-20KM")
-                    call grid_init(grid,name="EIS-20KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=380.d0,dx=20.0d0,nx=177,y0=-5000.d0,dy=20.0d0,ny=321, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("EIS-10KM")
-                    call grid_init(grid,name="EIS-10KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=380.d0,dx=10.0d0,nx=353,y0=-5000.d0,dy=10.0d0,ny=641, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("EIS-5KM")
-                    call grid_init(grid,name="EIS-5KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=380.d0,dx=5.0d0,nx=705,y0=-5000.d0,dy=5.0d0,ny=1281, &
-                            lambda=-45.d0,phi=70.d0)
-                    
-                ! GREENLAND DOMAINS =======================
-
-                case("GRL-40KM")
-                    call grid_init(grid,name="GRL-40KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-720.d0,dx=40.0d0,nx=43,y0=-3450.d0,dy=40.0d0,ny=73, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("GRL-20KM")
-                    call grid_init(grid,name="GRL-20KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-720.d0,dx=20.0d0,nx=85,y0=-3450.d0,dy=20.0d0,ny=145, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("GRL-10KM")
-                    call grid_init(grid,name="GRL-10KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-720.d0,dx=10.0d0,nx=169,y0=-3450.d0,dy=10.0d0,ny=289, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("GRL-5KM")
-                    call grid_init(grid,name="GRL-5KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-720.d0,dx=5.0d0,nx=337,y0=-3450.d0,dy=5.0d0,ny=577, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("GRL-2KM")
-                    call grid_init(grid,name="GRL-2KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-720.d0,dx=2.0d0,nx=841,y0=-3450.d0,dy=2.0d0,ny=1441, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("GRL-1KM")
-                    call grid_init(grid,name="GRL-1KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-720.d0,dx=1.0d0,nx=1681,y0=-3450.d0,dy=1.0d0,ny=2881, &
-                            lambda=-45.d0,phi=70.d0)
-
-                ! ==== NEW ONES (29 May 2021) =======
-
-                case("GRL-32KM")
-                call grid_init(grid,name="GRL-32KM",mtype="polar_stereographic",units="kilometers", &
-                        lon180=.TRUE.,x0=-720.d0,dx=32.0d0,nx=54,y0=-3450.d0,dy=32.0d0,ny=91, &
-                        lambda=-45.d0,phi=70.d0)
-            
-                case("GRL-16KM")
-                    call grid_init(grid,name="GRL-16KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-720.d0,dx=16.0d0,nx=106,y0=-3450.d0,dy=16.0d0,ny=181, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                case("GRL-8KM")
-                    call grid_init(grid,name="GRL-8KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-720.d0,dx=8.0d0,nx=211,y0=-3450.d0,dy=8.0d0,ny=361, &
-                            lambda=-45.d0,phi=70.d0)
-                
-                ! ==== END NEW ONES (29 May 2021) =======
-
-                case("Bamber01-20KM")
-                    call grid_init(grid,name="Bamber01-20KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-800.d0,dx=20.d0,nx=76,y0=-3400.d0,dy=20.d0,ny=141, &
-                            lambda=-39.d0,phi=90.d0)
-
-                case("Bamber01-10KM")
-                    call grid_init(grid,name="Bamber01-10KM",mtype="polar_stereographic",units="kilometers", &
-                            lon180=.TRUE.,x0=-800.d0,dx=10.d0,nx=151,y0=-3400.d0,dy=10.d0,ny=281, &
-                            lambda=-39.d0,phi=90.d0)
-
-                ! ANTARCTICA DOMAINS ======================= 
-
-                case("ANT-80KM")
-                    call grid_init(grid,name="ANT-80KM",mtype="polar_stereographic",units="kilometers", &
-                           lon180=.TRUE.,dx=80.d0,nx=79,dy=80.d0,ny=74,lambda=0.d0,phi=-71.d0)
-
-                case("ANT-40KM")
-                    call grid_init(grid,name="ANT-40KM",mtype="polar_stereographic",units="kilometers", &
-                           lon180=.TRUE.,dx=40.d0,nx=157,dy=40.d0,ny=147,lambda=0.d0,phi=-71.d0)
-
-                case("ANT-20KM")
-                    call grid_init(grid,name="ANT-20KM",mtype="polar_stereographic",units="kilometers", &
-                           lon180=.TRUE.,dx=20.d0,nx=313,dy=20.d0,ny=293,lambda=0.d0,phi=-71.d0)
-
-                case("ANT-10KM")
-                    call grid_init(grid,name="ANT-10KM",mtype="polar_stereographic",units="kilometers", &
-                           lon180=.TRUE.,dx=10.d0,nx=625,dy=10.d0,ny=585,lambda=0.d0,phi=-71.d0)
-
-                case("ANT-5KM")
-                    call grid_init(grid,name="ANT-5KM",mtype="polar_stereographic",units="kilometers", &
-                           lon180=.TRUE.,dx=5.d0,nx=1249,dy=5.d0,ny=1169,lambda=0.d0,phi=-71.d0)
-
-                case("ANT-1KM")
-                    call grid_init(grid,name="ANT-1KM",mtype="polar_stereographic",units="kilometers", &
-                           lon180=.TRUE.,dx=1.d0,nx=6241,dy=1.d0,ny=5841,lambda=0.d0,phi=-71.d0)
-
-                case DEFAULT
-                    write(*,*) "rembo_grid_define:: error: grid name not recognized: "//trim(grid_name)
-                    stop 
-
-            end select
-
-        end if 
-
-        return 
-
-    end subroutine rembo_grid_define
     
     subroutine rembo_cpu_time(time,time0,dtime)
         ! Calculate time intervals using system_clock.

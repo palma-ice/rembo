@@ -1,10 +1,11 @@
 program rembo_test
 
     use ncio
-    use coord
-      
     use rembo 
     use insolation 
+
+    use coordinates_mapping_scrip, only : map_scrip_class, map_scrip_init, map_scrip_field, &
+                                            gen_map_filename, nc_read_interp
 
     implicit none 
 
@@ -302,7 +303,7 @@ contains
         nlat =  721
 
         allocate(var2D_latlon(nlon,nlat))
-        
+
         filename = trim(path)//"/ERA-INT/"//trim(grid_name)//"_ERA-INT_1981-2010.nc"
 
         ! Static fields
