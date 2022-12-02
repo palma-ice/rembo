@@ -28,12 +28,6 @@ ifeq ($(debug), 2)
 	DFLAGS   = $(DFLAGS_PROFILE)
 endif
 
-# Determine whether to use openmp flags 
-FFLAGS = $(FFLAGS_DEFAULT)
-ifeq ($(openmp), 1)
-	FFLAGS = $(FFLAGS_OPENMP)
-endif
-
 ###############################################
 ##							
 ## List of rembo rules and source files
