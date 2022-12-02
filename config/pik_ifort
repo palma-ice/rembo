@@ -4,6 +4,7 @@ INC_NC  = -I${NETCDF_FORTRANROOT}/include
 LIB_NC  = -L${NETCDF_FORTRANROOT}/lib -lnetcdff -L${NETCDF_CROOT}/lib -lnetcdf
 
 FFLAGS  = -module $(objdir) -L$(objdir)
+
 LFLAGS  = $(LIB_NC) -Wl,-zmuldefs
 
 DFLAGS_NODEBUG = -O2 -fp-model precise
