@@ -64,9 +64,12 @@
     alp_a      = 0.58      ! Planetary albedo   0.67 
     alp_b      = 0.20      ! Planetary albedo   0.1 
     alp_c      = 0.024     ! Planetary albedo   0.026 
-    lwu_a      = 198       ! Outgoing longwave radiation, toa: a
-    lwu_b      = 1.11      ! Outgoing longwave radiation, toa: b*t2m
-    lwu_c      = 0.061     ! Outgoing longwave radiation, toa: c*S
+    !lwu_a      = 198       ! Outgoing longwave radiation, toa: a
+    !lwu_b      = 1.11      ! Outgoing longwave radiation, toa: b*t2m
+    !lwu_c      = 0.061     ! Outgoing longwave radiation, toa: c*S
+    lwu_a      = 195 
+    lwu_b      = 1.25 
+    lwu_c      = 0.0
     swds_a     = 0.77      ! Incoming shortwave radiation, surface: a
     swds_b     = 0.31      ! Incoming shortwave radiation, surface: -b*cc
     swds_c     = 0.00034   ! Incoming shortwave radiation, surface: *exp(-c*zs))*S

@@ -122,11 +122,12 @@ contains
             where(now%al_p .gt. 1.0) now%al_p = 1.0  
         
             ! Calculate the outgoing long-wave radiation at toa
-            now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15) + par%lwu_c*now%S
-
+            !now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15) + par%lwu_c*now%S
+            now%lwu = par%lwu_a + par%lwu_b*now%t2m
+            
             ! Calculate the incoming short-wave radiation at toa
             now%swd = (1.0-now%al_p)*now%S 
-
+        
             ! Calculate radiative forcing of CO2
             now%rco2_a  = calc_rad_co2(now%co2_a)
 
@@ -182,7 +183,7 @@ contains
                               lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
                               rco2=par%en_kdT + now%rco2_a, &
                               ug=now%ug,vg=now%vg) 
-
+        
             ! Calculate inversion correction for moisture balance
             now%ct2m = calc_ttcorr1(now%t2m,bnd%z_srf,-2.4e-3,-3.7e-1,106.0)
 
@@ -323,7 +324,7 @@ end if
         ! Get the tsl => column energy conversion
         ! tsl_fac = H_a[m] c_p[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
         tsl_fac = par%en_Ha *1000.0 *1.225 !* 1.225 ! = 8.6e6
-
+        
         ! ajr: calculated inside of `rembo_calc_iterinit`, not needed here
         !! Boundary sea-level temperature, tsl
         !call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(mv))
@@ -334,7 +335,7 @@ end if
         emb%tsl = real(tmp8,wp)
 
         ! Radiative forcing, tsl_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
-        call map_field(emb%map_toemb,"tsl_F",(swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac , &
+        call map_field(emb%map_toemb,"tsl_F", (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac , &
                        emb%tsl_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
 !         tmp8hi = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac
 !         call map_field_conservative_map1(emb%map_toemb%map,"tsl_F",tmp8hi, &

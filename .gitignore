@@ -4,5 +4,5 @@ librembo
 tests/plots
 output
 ice_data
-maps
+maps/*.nc
 

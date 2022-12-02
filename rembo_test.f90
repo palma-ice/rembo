@@ -269,6 +269,86 @@ contains
 
     end subroutine load_clim_monthly_era
 
+    subroutine load_clim_monthly_era_latlon(forc,path,grid_name,z_srf)
+        ! Load the monthly data from ERA5 on global latlon grid,
+        ! interpolate online to current grid using maps.
+
+        implicit none 
+
+        type(rembo_forcing_class), intent(INOUT) :: forc  
+        character(len=*),          intent(IN)    :: path 
+        character(len=*),          intent(IN)    :: grid_name 
+        real(wp),                  intent(IN)    :: z_srf(:,:)   ! Topography to be used in model 
+        ! Local variables  
+        real(wp), parameter :: T0 = 273.15d0 
+        real(wp), allocatable :: var3D(:,:,:)
+        real(dp), allocatable :: var2Ddp(:,:)
+        
+        character(len=512) :: filename, filename_pres 
+        integer :: nx, ny, i0, i1, i2, m, nm  
+        real(wp) :: als_max, als_min, afac, tmid 
+
+        integer :: nlon, nlat 
+        real(wp), allocatable :: var2D_latlon(:,:) 
+
+        nx = size(forc%z_srf,1)
+        ny = size(forc%z_srf,2)
+        nm = 12 
+
+        allocate(var3D(nx,ny,nm))
+        allocate(var2Ddp(nx,ny))
+        
+        nlon = 1440
+        nlat =  721
+
+        allocate(var2D_latlon(nlon,nlat))
+        
+        filename = trim(path)//"/ERA-INT/"//trim(grid_name)//"_ERA-INT_1981-2010.nc"
+
+        ! Static fields
+
+        ! ## Surface elevation ##
+        call nc_read(filename,"zs",forc%z_srf)
+        where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
+
+        ! Monthly fields
+
+        ! ## tas ## 
+        call nc_read(filename,"t2m",forc%t2m)
+
+        ! ## tsl and then correct temperature for model topography (instead of ERA topography)
+        do m = 1, nm 
+            forc%tsl(:,:,m) = forc%t2m(:,:,m) + 0.0065*forc%z_srf
+            forc%t2m(:,:,m) = forc%tsl(:,:,m) - 0.0065*z_srf  
+        end do 
+
+        ! ## al_s ## 
+        als_max =   0.80
+        als_min =   0.69
+        afac     =  -0.18
+        tmid     = 275.35
+        forc%al_s = calc_albedo_t2m(forc%t2m,als_min,als_max,afac,tmid)
+
+        ! Define pressure-level filenames
+        i0 = index(filename,"ERA-INT",back=.TRUE.)
+        i1 = i0 + 7
+        i2 = len_trim(filename)
+
+        ! ## zg (750Mb) ## 
+        filename_pres = filename(1:i0-1)//"ERA-INT-750Mb"//filename(i1:i2)
+
+        call nc_read(filename_pres,"p_z",var3D)
+        forc%Z  = calc_geo_height(var3D,g=real(9.80665,wp))
+        do m = 1, nm 
+            var2Ddp = real(forc%Z(:,:,m),dp)
+            call diffuse(var2Ddp,iter=2,missing_value=-9999.d0)
+            forc%Z(:,:,m) = real(var2Ddp,wp)
+        end do 
+        
+        return 
+
+    end subroutine load_clim_monthly_era_latlon
+
     subroutine rembo_forc_alloc(forc,nx,ny)
 
         implicit none 

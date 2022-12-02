@@ -1,0 +1,24 @@
+#
+# gridID 1
+#
+gridtype  = projection
+gridsize  = 1288
+xsize     = 28
+ysize     = 46
+xname     = xc
+xunits    = "km"
+yname     = yc
+yunits    = "km"
+xfirst    = -720
+xinc      = 64
+yfirst    = -3450
+yinc      = 64
+grid_mapping = crs
+grid_mapping_name = polar_stereographic
+straight_vertical_longitude_from_pole = -45.
+latitude_of_projection_origin = 90.
+standard_parallel = 70.
+false_easting = 0.
+false_northing = 0.
+semi_major_axis = 6378137.
+inverse_flattening = 298.257223563
