@@ -243,7 +243,7 @@ contains
 
         ! Relaxation mask (ensure borders are relaxing too)
         !call map_field(emb%map_toemb,"mask",mask,emb%mask,method="nn",fill=.TRUE.,missing_value=dble(mv))
-        call map_scrip_field(emb%map_toemb,"mask",mask,emb%mask,method="nn",missing_value=int(mv))
+        call map_scrip_field(emb%map_toemb,"mask",mask,emb%mask,method="mean",missing_value=int(mv))
 
         emb%mask(1,:)           = 1 
         emb%mask(emb%grid%nx,:) = 1 

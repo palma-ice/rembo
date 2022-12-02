@@ -4,7 +4,7 @@ program rembo_test
     use rembo 
     use insolation 
 
-    use coordinates_mapping_scrip, only : map_scrip_class, map_scrip_init, map_scrip_field, &
+    use coordinates_mapping_scrip, only : map_scrip_class, map_scrip_init, &
                                             gen_map_filename, nc_read_interp
 
     implicit none 
@@ -64,8 +64,6 @@ program rembo_test
     nx = rembo1%grid%nx 
     ny = rembo1%grid%ny 
 
-    infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
-
     ! Define output folder 
     file_out = trim(outfldr)//"rembo.nc"
     
@@ -74,12 +72,19 @@ program rembo_test
     allocate(f_ice(nx,ny))
     allocate(f_shlf(nx,ny))
     allocate(reg_mask(nx,ny))
+
+    infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
     call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path=trim(infldr),domain=domain,grid_name=grid_name)
 
     ! Load forcing
     call rembo_forc_alloc(forc,nx,ny)
-    call load_clim_monthly_era(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
-    
+
+    !infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
+    !call load_clim_monthly_era(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
+
+    infldr    = "ice_data/"
+    call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
+
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]
 
@@ -288,6 +293,8 @@ contains
         real(wp), allocatable :: var3D(:,:,:)
         real(dp), allocatable :: var2Ddp(:,:)
         
+        type(map_scrip_class) :: mps 
+
         character(len=512) :: filename, filename_pres 
         integer :: nx, ny, i0, i1, i2, m, nm  
         real(wp) :: als_max, als_min, afac, tmid 
@@ -306,6 +313,19 @@ contains
         nlat =  721
 
         allocate(var2D_latlon(nlon,nlat))
+
+        ! Intialize the map (ERA5 to grid_name)
+        call map_scrip_init(mps,"ERA5",grid_name,method="con",fldr="maps",load=.TRUE.)
+        
+
+        ! ## Surface elevation ##
+        filename = trim(path)//"/ERA5/era5_orography.nc"
+        call nc_read_interp(filename,"z",forc%z_srf,mps=mps,method="mean")
+        forc%z_srf = forc%z_srf / 9.81
+        where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
+
+        write(*,*) "z_srf: ", minval(forc%z_srf), maxval(forc%z_srf)
+        stop "DONE."
 
         filename = trim(path)//"/ERA-INT/"//trim(grid_name)//"_ERA-INT_1981-2010.nc"
 

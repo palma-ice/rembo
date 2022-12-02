@@ -24,7 +24,7 @@ module rembo_api
     public :: rembo_end 
     public :: rembo_write_init 
     public :: rembo_grid_write 
-    
+
 contains 
 
     subroutine rembo_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,co2_a,year)
@@ -140,9 +140,13 @@ contains
         ! Load the rembo parameters
         call rembo_par_load(dom%par,trim(path_par),domain)
 
-        ! Define rembo grid based on grid name
-        call rembo_grid_define(dom%grid,dom%par%grid_path,dom%par%grid_name,grid_in=grid)
-    
+        write(*,*) "Here 1."
+
+        ! Define rembo grid based on input filename
+        call rembo_grid_define(dom%grid,dom%par%grid_name,dom%par%grid_path,grid_in=grid)
+
+        write(*,*) "Here X."
+        
         ! Initialize grid size variables
         dom%par%npts   = dom%grid%npts 
         dom%par%nx     = dom%grid%nx 
@@ -161,7 +165,7 @@ contains
         call rembo_alloc(dom%ann,dom%par%nx,dom%par%ny)
 
         ! Define emb diffusion grid and variables
-        call rembo_grid_define(dom%emb%grid,dom%par%grid_path_emb,dom%par%grid_name_emb)
+        call rembo_grid_define(dom%emb%grid,dom%par%grid_name_emb,dom%par%grid_path_emb)
 
         call rembo_emb_init(dom%emb)
         
@@ -316,7 +320,7 @@ contains
         return 
 
     end subroutine rembo_end
-    
+
     subroutine rembo_grid_define(grid,grid_name,grid_path,grid_in)
 
         implicit none 
@@ -335,6 +339,8 @@ contains
         
         else 
             ! Define rembo grid from predefined options (currently only from file)
+
+            write(*,*) "grid_path: ", trim(grid_path) 
 
             ! Use grid_path to load grid definition from NetCDF file 
             call rembo_init_grid(grid,grid_path,grid_name)
