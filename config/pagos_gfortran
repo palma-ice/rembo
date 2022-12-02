@@ -3,14 +3,6 @@ FC = gfortran
 INC_NC  = -I/opt/local/include
 LIB_NC  = -L/opt/local/lib -lnetcdff -lnetcdf
 
-#COORDROOT = /Users/robinson/models/EURICE/coordinates/libcoordinates
-#INC_COORD = -I${COORDROOT}/include
-#LIB_COORD = -L${COORDROOT}/include -lcoordinates
-
-#LISROOT = /Users/robinson/apps/lis/lis
-#INC_LIS = -I${LISROOT}/include 
-#LIB_LIS = -L${LISROOT}/lib/ -llis
-
 FFLAGS = -I$(objdir) -J$(objdir) -m64 -ffree-line-length-none 
 
 LFLAGS  = $(LIB_NC)
