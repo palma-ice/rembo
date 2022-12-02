@@ -346,7 +346,7 @@ contains
 
         ! Get spline coefficients b, c, d
         allocate(b(n),c(n),d(n))
-        call spline (x, y, b, c, d, n)
+        call spline_dble(x, y, b, c, d, n)
 
         do i = 1, nout 
             if (xout(i) .lt. x(1)) then

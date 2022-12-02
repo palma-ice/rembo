@@ -23,7 +23,8 @@ module rembo_api
     public :: rembo_init 
     public :: rembo_end 
     public :: rembo_write_init 
-
+    public :: rembo_grid_write 
+    
 contains 
 
     subroutine rembo_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,co2_a,year)

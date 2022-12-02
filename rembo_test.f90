@@ -21,7 +21,6 @@ program rembo_test
     
     end type 
 
-    type(grid_class)            :: grid 
     type(rembo_class)           :: rembo1 
     type(rembo_forcing_class)   :: forc 
     
@@ -39,6 +38,7 @@ program rembo_test
     character(len=512) :: file_out 
     real(wp)           :: time 
     integer            :: m, day  
+    integer            :: nx, ny 
 
     real(8) :: cpu_start_time, cpu_end_time, cpu_dtime  
     
@@ -59,8 +59,10 @@ program rembo_test
     call rembo_init(rembo1,path_par=trim(path_par))
     
     domain    = trim(rembo1%par%domain)
-    grid_name = trim(rembo1%grid%name)
-    grid      = rembo1%grid 
+    grid_name = trim(rembo1%grid%name) 
+
+    nx = rembo1%grid%nx 
+    ny = rembo1%grid%ny 
 
     infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
 
@@ -68,15 +70,15 @@ program rembo_test
     file_out = trim(outfldr)//"rembo.nc"
     
     ! Allocate topo data and load it 
-    call grid_allocate(grid,z_srf)
-    call grid_allocate(grid,f_ice)
-    call grid_allocate(grid,f_shlf)
-    call grid_allocate(grid,reg_mask)
-    call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path=trim(infldr),domain=domain,grid_name=grid%name)
+    allocate(z_srf(nx,ny))
+    allocate(f_ice(nx,ny))
+    allocate(f_shlf(nx,ny))
+    allocate(reg_mask(nx,ny))
+    call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path=trim(infldr),domain=domain,grid_name=grid_name)
 
     ! Load forcing
-    call rembo_forc_alloc(forc,grid%G%nx,grid%G%ny)
-    call load_clim_monthly_era(forc,path=trim(infldr),grid_name=trim(grid%name),z_srf=z_srf)
+    call rembo_forc_alloc(forc,nx,ny)
+    call load_clim_monthly_era(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
     
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]
@@ -230,7 +232,8 @@ contains
         forc%Z  = calc_geo_height(var3D,g=real(9.80665,wp))
         do m = 1, nm 
             var2Ddp = real(forc%Z(:,:,m),dp)
-            call diffuse(var2Ddp,iter=2,missing_value=-9999.d0)
+            !ajr: disabled below with update to coordinates-light... to do:
+            !call diffuse(var2Ddp,iter=2,missing_value=-9999.d0)
             forc%Z(:,:,m) = real(var2Ddp,wp)
         end do 
         
@@ -342,7 +345,8 @@ contains
         forc%Z  = calc_geo_height(var3D,g=real(9.80665,wp))
         do m = 1, nm 
             var2Ddp = real(forc%Z(:,:,m),dp)
-            call diffuse(var2Ddp,iter=2,missing_value=-9999.d0)
+            !ajr: disabled below with update to coordinates-light... to do:
+            !call diffuse(var2Ddp,iter=2,missing_value=-9999.d0)
             forc%Z(:,:,m) = real(var2Ddp,wp)
         end do 
         
@@ -398,8 +402,8 @@ contains
 
         ! Determine current writing time step (all the same year)
         n  = 1
-        nx = dom%grid%G%nx 
-        ny = dom%grid%G%ny 
+        nx = dom%grid%nx 
+        ny = dom%grid%ny 
         nm = size(dom%mon)
 
         ! Update the time step
