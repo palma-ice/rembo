@@ -83,7 +83,8 @@ program rembo_test
     !call load_clim_monthly_era(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
 
     infldr    = "ice_data/"
-    call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
+    call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name, &
+                                                            z_srf=z_srf,dx=rembo1%grid%dx)
 
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]
@@ -278,7 +279,7 @@ contains
 
     end subroutine load_clim_monthly_era
 
-    subroutine load_clim_monthly_era_latlon(forc,path,grid_name,z_srf)
+    subroutine load_clim_monthly_era_latlon(forc,path,grid_name,z_srf,dx)
         ! Load the monthly data from ERA5 on global latlon grid,
         ! interpolate online to current grid using maps.
 
@@ -288,6 +289,8 @@ contains
         character(len=*),          intent(IN)    :: path 
         character(len=*),          intent(IN)    :: grid_name 
         real(wp),                  intent(IN)    :: z_srf(:,:)   ! Topography to be used in model 
+        real(wp),                  intent(IN)    :: dx 
+        
         ! Local variables  
         real(wp), parameter :: T0 = 273.15d0 
         real(wp), allocatable :: var3D(:,:,:)
@@ -324,22 +327,11 @@ contains
         forc%z_srf = forc%z_srf / 9.81
         where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
 
-        write(*,*) "z_srf: ", minval(forc%z_srf), maxval(forc%z_srf)
-        stop "DONE."
-
-        filename = trim(path)//"/ERA-INT/"//trim(grid_name)//"_ERA-INT_1981-2010.nc"
-
-        ! Static fields
-
-        ! ## Surface elevation ##
-        call nc_read(filename,"zs",forc%z_srf)
-        where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
-
-        ! Monthly fields
-
-        ! ## tas ## 
-        call nc_read(filename,"t2m",forc%t2m)
-
+        ! ## Near-surface air temperature (monthly) ##
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_2m_temperature_1961-1990.nc"
+        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean")
+        
         ! ## tsl and then correct temperature for model topography (instead of ERA topography)
         do m = 1, nm 
             forc%tsl(:,:,m) = forc%t2m(:,:,m) + 0.0065*forc%z_srf
@@ -352,23 +344,23 @@ contains
         afac     =  -0.18
         tmid     = 275.35
         forc%al_s = calc_albedo_t2m(forc%t2m,als_min,als_max,afac,tmid)
-
-        ! Define pressure-level filenames
-        i0 = index(filename,"ERA-INT",back=.TRUE.)
-        i1 = i0 + 7
-        i2 = len_trim(filename)
-
+        
         ! ## zg (750Mb) ## 
-        filename_pres = filename(1:i0-1)//"ERA-INT-750Mb"//filename(i1:i2)
-
-        call nc_read(filename_pres,"p_z",var3D)
-        forc%Z  = calc_geo_height(var3D,g=real(9.80665,wp))
-        do m = 1, nm 
-            var2Ddp = real(forc%Z(:,:,m),dp)
-            !ajr: disabled below with update to coordinates-light... to do:
-            !call diffuse(var2Ddp,iter=2,missing_value=-9999.d0)
-            forc%Z(:,:,m) = real(var2Ddp,wp)
-        end do 
+        ! ## Geopotential height 750Mb (monthly) ##
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_geopotential_750_1961-1990.nc"
+        call nc_read_interp(filename,"z",forc%Z,mps=mps,method="mean", &
+                        filt_method="gaussian",filt_par=[32e3_wp,dx])
+        
+        write(*,*) "z_srf:  ", minval(forc%z_srf), maxval(forc%z_srf)
+        write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),   maxval(forc%t2m(:,:,1))
+        write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),   maxval(forc%t2m(:,:,7))
+        write(*,*) "al_s 1: ", minval(forc%al_s(:,:,1)),   maxval(forc%al_s(:,:,1))
+        write(*,*) "al_s 7: ", minval(forc%al_s(:,:,7)),   maxval(forc%al_s(:,:,7))
+        write(*,*) "Z 1:    ", minval(forc%Z(:,:,1)),   maxval(forc%Z(:,:,1))
+        write(*,*) "Z 7:    ", minval(forc%Z(:,:,7)),   maxval(forc%Z(:,:,7))
+        
+        write(*,*) "Loaded ERA5 boundary climate dataset."
         
         return 
 

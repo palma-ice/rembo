@@ -116,7 +116,7 @@ contains
             ! Make sure no strange limits are broken
             where(now%al_s .gt. 0.81) now%al_s = 0.81 
             where(now%al_s .lt. 0.10) now%al_s = 0.10
-        
+
         
             ! Calculate the planetary albedo 
             now%al_p = par%alp_a + par%alp_b*now%al_s - par%alp_c*now%tcw 
@@ -174,6 +174,7 @@ contains
 
             end do 
 
+if (.FALSE.) then
             ! Calculate energy balance on low-resolution grid
             ! ajr: need to test whether it's better just to use slightly lower
             ! resolution for the whole atmosphere, but one grid. (High resolution
@@ -185,7 +186,8 @@ contains
                               lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
                               rco2=par%en_kdT + now%rco2_a, &
                               ug=now%ug,vg=now%vg) 
-        
+end if 
+
             ! Calculate inversion correction for moisture balance
             now%ct2m = calc_ttcorr1(now%t2m,bnd%z_srf,-2.4e-3,-3.7e-1,106.0)
 
@@ -201,9 +203,11 @@ contains
 !             ! Now calculate the condensation rate (kg m**-2 s**-1)
 !             now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
 !                                         par%k_c,par%k_x)
-        
+
+if (.FALSE.) then
             ! Calculate the current cloud water content  (kg m**-2)
             call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww)   
+end if 
 
             ! Now calculate the high resolution precipitation rate (kg m**-2 s**-1)
             now%pr = calc_precip(now%ccw,now%ww,now%t2m,bnd%z_srf,par%k_w,par%k_z,par%k_t)
@@ -243,7 +247,7 @@ contains
 
         ! Relaxation mask (ensure borders are relaxing too)
         !call map_field(emb%map_toemb,"mask",mask,emb%mask,method="nn",fill=.TRUE.,missing_value=dble(mv))
-        call map_scrip_field(emb%map_toemb,"mask",mask,emb%mask,method="mean",missing_value=int(mv))
+        call map_scrip_field(emb%map_toemb,"mask",mask,emb%mask,method="count",missing_value=int(mv))
 
         emb%mask(1,:)           = 1 
         emb%mask(emb%grid%nx,:) = 1 
@@ -254,7 +258,8 @@ contains
         !call map_field(emb%map_toemb,"z_srf",z_srf,emb%z_srf,method="radius",fill=.TRUE.,missing_value=dble(mv))
         !call map_field_conservative_map1(emb%map_toemb%map,"z_srf",real(z_srf,dp),tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
         !emb%z_srf = real(tmp8,wp)
-        call map_scrip_field(emb%map_toemb,"z_srf",z_srf,emb%z_srf,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"z_srf",z_srf,emb%z_srf,method="mean", &
+                                        missing_value=real(mv,wp),fill_method="weighted")
 
         ! Get the 2D energy diffusion coefficient
         ! emb%kappa = par%en_D 
@@ -265,7 +270,8 @@ contains
         !call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(mv))
         !call map_field_conservative_map1(emb%map_toemb%map,"tsl_bnd",real(t2m_bnd+gamma*z_srf,dp),tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
         !emb%tsl_bnd = real(tmp8,wp)
-        call map_scrip_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="mean", &
+                                                        missing_value=real(mv,wp),fill_method="weighted")
 
         ! Ensure borders are populated  with nearest neighbors 
         where (emb%tsl_bnd(2,:) .eq. mv) emb%tsl_bnd(2,:) = emb%tsl_bnd(3,:) 
@@ -339,7 +345,8 @@ end if
 !         call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(mv))
         !call map_field_conservative_map1(emb%map_toemb%map,"tsl",real(t2m+gamma*z_srf,dp),tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
         !emb%tsl = real(tmp8,wp)
-        call map_scrip_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="mean", &
+                                                missing_value=real(mv,wp),fill_method="weighted")
 
         ! Radiative forcing, tsl_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
         !call map_field(emb%map_toemb,"tsl_F", (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac , &
@@ -349,7 +356,7 @@ end if
 !                         tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
 !         emb%tsl_F = real(tmp8,wp)
         call map_scrip_field(emb%map_toemb,"tsl_F", (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac, &
-                        emb%tsl_F,method="mean",missing_value=real(mv,wp))
+                        emb%tsl_F,method="mean",missing_value=real(mv,wp),fill_method="weighted")
 
 
         ! Wind [m s-1] 
@@ -357,8 +364,10 @@ end if
         !                fill=.TRUE.,missing_value=dble(missing_value))
         ! call map_field(emb%map_toemb,"vg",vg,emb%vg,method="radius", &
         !                fill=.TRUE.,missing_value=dble(missing_value))
-        call map_scrip_field(emb%map_toemb,"ug",ug,emb%ug,method="mean",missing_value=real(mv,wp))
-        call map_scrip_field(emb%map_toemb,"vg",vg,emb%vg,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"ug",ug,emb%ug,method="mean", &
+                                    missing_value=real(mv,wp),fill_method="weighted")
+        call map_scrip_field(emb%map_toemb,"vg",vg,emb%vg,method="mean", &
+                                    missing_value=real(mv,wp),fill_method="weighted")
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
@@ -413,11 +422,13 @@ end if
 
         ! == Total water content ==
         !call map_field(emb%map_toemb,"tcw",tcw,emb%tcw,method="radius",fill=.TRUE.,missing_value=dble(mv))
-        call map_scrip_field(emb%map_toemb,"tcw",tcw,emb%tcw,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"tcw",tcw,emb%tcw,method="mean", &
+                                    missing_value=real(mv,wp),fill_method="weighted")
 
         ! == Relative humidity == 
         !call map_field(emb%map_toemb,"q_r",q_r,emb%q_r,method="radius",fill=.TRUE.,missing_value=dble(mv))
-        call map_scrip_field(emb%map_toemb,"q_r",q_r,emb%q_r,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"q_r",q_r,emb%q_r,method="mean", &
+                                    missing_value=real(mv,wp),fill_method="weighted")
         
         ! Get 2D diffusion constant
         emb%kappaw = par%ccw_D
@@ -438,20 +449,23 @@ end if
         !call map_field(emb%map_toemb,"ww",ww,emb%ww,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
 !         call map_field(emb%map_toemb,"ww",ww,emb%ccw_pr,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
 !         emb%ww = (emb%ww+emb%ccw_pr)/2.d0 
-        call map_scrip_field(emb%map_toemb,"ww",ww,emb%ww,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"ww",ww,emb%ww,method="mean", &
+                                    missing_value=real(mv,wp),fill_method="weighted")
 
         ! ajr: not sure what the above average represented in rembo2-beta. For now just use ww directly...
         
         ! Get current moisture content [kg m-2]
         !call map_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-        call map_scrip_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="mean", &
+                                    missing_value=real(mv,wp),fill_method="weighted")
 
         ! ajr: to do: define ccw_bnd!!!
         emb%ccw_bnd = emb%ccw 
 
         ! Calculate the initial lo-res precipitation rate [kg m-2 s-1]
         !call map_field(emb%map_toemb,"pr", pr, emb%ccw_pr,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-        call map_scrip_field(emb%map_toemb,"pr",pr,emb%ccw_pr,method="mean",missing_value=real(mv,wp))
+        call map_scrip_field(emb%map_toemb,"pr",pr,emb%ccw_pr,method="mean", &
+                                    missing_value=real(mv,wp),fill_method="weighted")
 
         ! ajr: TO DO : calculate a basic rate somehow avoiding history 
 

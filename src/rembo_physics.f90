@@ -54,8 +54,8 @@ contains
         real(wp), intent(IN) :: als_min, als_max, afac, tmid 
         real(wp) :: al_s 
 
-        !al_s = als_min + (als_max - als_min)*(0.5*tanh(afac*(t2m-tmid))+0.5)
-        al_s = als_min+(als_max-als_min)*afac*(t2m-tmid)
+        al_s = als_min + (als_max - als_min)*(0.5*tanh(afac*(t2m-tmid))+0.5)
+        !al_s = als_min+(als_max-als_min)*afac*(t2m-tmid)
 
         return 
 

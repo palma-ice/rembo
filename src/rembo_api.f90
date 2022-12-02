@@ -71,7 +71,7 @@ contains
 !                     dom%grid%x,dom%grid%y)
 
         ! Calculate the rembo relaxation mask
-        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,radius=20.0)  
+        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,radius=16.0)  
         where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
 
         ! EMB OUTPUT FOR TESTING 
@@ -88,7 +88,7 @@ contains
 
             ! Calculate representative insolation for the month
             dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
-
+            
             ! Save all other boundary variables 
             dom%now%t2m_bnd = t2m(:,:,m) 
             dom%now%co2_a   = co2_a 
