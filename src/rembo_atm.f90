@@ -20,7 +20,7 @@ module rembo_atm
 
 contains 
 
-    subroutine rembo_calc_atmosphere(now,emb,bnd,par,day,year)
+    subroutine rembo_calc_atmosphere(now,emb,bnd,grid,par,day,year)
         ! Calculate the equilibrium rembo atmosphere solution 
         ! for a given day of a given year (can be representative of a month)
 
@@ -29,6 +29,7 @@ contains
         type(rembo_state_class),    intent(INOUT) :: now     ! rembo atmosphere variables
         type(diffusion_class),      intent(INOUT) :: emb     ! Diffusion variables
         type(rembo_boundary_class), intent(IN)    :: bnd     ! rembo boundary variables
+        type(rgrid_class),          intent(IN)    :: grid    ! rembo grid information
         type(rembo_param_class),    intent(IN)    :: par     ! rembo parameters
         integer, intent(IN) :: day 
         integer, intent(IN) :: year 
@@ -185,7 +186,7 @@ if (.TRUE.) then
                               shf=now%shf_s,lhf=now%lhf_s, &
                               lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
                               rco2=par%en_kdT + now%rco2_a, &
-                              ug=now%ug,vg=now%vg) 
+                              ug=now%ug,vg=now%vg,dx=grid%dx) 
 end if 
 
             ! Calculate inversion correction for moisture balance
@@ -280,7 +281,7 @@ end if
 
     end subroutine rembo_calc_iterinit
 
-    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg)
+    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,dx)
 
         implicit none 
 
@@ -299,7 +300,8 @@ end if
         real(wp),                intent(IN)    :: rco2(:,:)
         real(wp),                intent(IN)    :: ug(:,:)
         real(wp),                intent(IN)    :: vg(:,:)
-
+        real(wp),                intent(IN)    :: dx
+        
         ! Local variables  
         real(wp) :: tsl_fac 
         integer :: q, nx, ny 
@@ -339,8 +341,8 @@ end if
         end do 
 
         ! Sea-level temperature, tsl
-        call map_scrip_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="mean",missing_value=real(mv,wp))
-        ! ajr: previous version used Gaussian smoothing at this step too: sigma=50.0_wp
+        call map_scrip_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="mean",missing_value=real(mv,wp), &
+                                                    filt_method="gaussian",filt_par=[emb%grid%dx/2_wp,dx])
         t2m = t2m - gamma*z_srf
 
         return 
@@ -369,6 +371,10 @@ end if
         call map_scrip_field(emb%map_toemb,"tcw",tcw,emb%tcw,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
 
+        ! Set tcw_bnd for completeness
+        ! ajr: eventually remove this variable
+        emb%tcw_bnd = emb%tcw 
+
         ! == Relative humidity == 
         call map_scrip_field(emb%map_toemb,"q_r",q_r,emb%q_r,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
@@ -390,8 +396,8 @@ end if
                                     missing_value=real(mv,wp),fill_method="weighted")
 
         ! Get current moisture content [kg m-2]
-        call map_scrip_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="mean", &
-                                    missing_value=real(mv,wp),fill_method="weighted")
+        ! call map_scrip_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="mean", &
+        !                             missing_value=real(mv,wp),fill_method="weighted")
 
         ! ajr: to do: define ccw_bnd!!!
         emb%ccw_bnd = emb%ccw 
@@ -408,12 +414,12 @@ end if
 
         ! Get moisture balance forcing [kg m-2 s-1]
         emb%ccw_F = emb%ccw_cw - emb%ccw_pr 
-        where(emb%mask==1) emb%ccw_F = 0.d0 
+        !where(emb%mask==1) emb%ccw_F = 0.d0 
 
         ! Calculate moisture balance to equilibrium
         do q = 1, par%ccw_nstep
             call adv_diff_2D(emb%ccw,emb%ccw_bnd,emb%ccw_F,relax=emb%mask,dx=emb%grid%dx,dy=emb%grid%dy, &
-                            dt=par%ccw_dt,kappa=emb%kappaw,k_relax=par%ccw_kr) !,v_x=emb%ug,v_y=emb%vg)
+                            dt=par%ccw_dt,kappa=emb%kappaw,k_relax=par%ccw_kr,v_x=emb%ug,v_y=emb%vg)
 
             where (emb%ccw .lt. 0.d0) emb%ccw = 0.d0
 
@@ -432,7 +438,7 @@ end if
                                             filt_method="gaussian",filt_par=[emb%grid%dx*2.0,emb%grid%dx])
         call map_scrip_field(emb%map_fromemb,"c_w",emb%ccw_cw,c_w,method="mean",missing_value=real(mv,wp), &
                                             filt_method="gaussian",filt_par=[emb%grid%dx*2.0,emb%grid%dx])
-        
+
         return 
 
     end subroutine rembo_calc_ccw

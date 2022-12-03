@@ -315,7 +315,8 @@ contains
 
         filename = trim(path)//"/ERA5/clim/"&
                         //"era5_monthly-single-levels_2m_temperature_1961-1990.nc"
-        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean")
+        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean", &
+                                filt_method="gaussian",filt_par=[32e3_wp,dx])
         
         ! Get tsl and then correct temperature for model topography (instead of ERA topography)
         do m = 1, nm 

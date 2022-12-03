@@ -103,7 +103,7 @@ contains
             
             ! == Calculate rembo atmosphere =====
             
-            call rembo_calc_atmosphere(dom%now,dom%emb,dom%bnd,dom%par,day,year)
+            call rembo_calc_atmosphere(dom%now,dom%emb,dom%bnd,dom%grid,dom%par,day,year)
             
             ! Print summary 
             call rembo_print(dom,m,day,year)
