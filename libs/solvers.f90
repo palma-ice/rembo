@@ -360,11 +360,7 @@ contains
             uadv = 0.d0 
         end if 
 
-!         uu = utmp + dt*(kappa*udiff-uadv) + F - k_relax*relax*(utmp-u0)
-
-        ! Corrected formulation!!!
-        ! [u] = [u] + [s]*([m2/s]*[u/m2]-[u/s]+[u/s] - [1/s][u])
-        ! [u] = [u] + [s]*([u/s])
+        ! Update uu
         uu = utmp + dt*(kappa*udiff - uadv + F) - k_relax*relax*(utmp-u0)
 
         

@@ -10,9 +10,6 @@
     rembo1     = .FALSE.
 
     ! Diffusion parameters
-    emb_dx     = 120.0            ! [km] Energy-moisture balance grid resolution
-    dist_rel   = 10.0             ! [km] Relaxation mask buffer (distance from coast)
-    
     en_dt      = 1000              ! Diffusion time step, sec
     en_D       = 1.0e6            ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 1.0e6            ! [m-2 s-1] Diffusion constant, energy

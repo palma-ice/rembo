@@ -174,7 +174,7 @@ contains
 
             end do 
 
-if (.FALSE.) then
+if (.TRUE.) then
             ! Calculate energy balance on low-resolution grid
             ! ajr: need to test whether it's better just to use slightly lower
             ! resolution for the whole atmosphere, but one grid. (High resolution
@@ -204,7 +204,7 @@ end if
 !             now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
 !                                         par%k_c,par%k_x)
 
-if (.FALSE.) then
+if (.TRUE.) then
             ! Calculate the current cloud water content  (kg m**-2)
             call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww)   
 end if 
@@ -273,27 +273,6 @@ end if
         call map_scrip_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="mean", &
                                                         missing_value=real(mv,wp),fill_method="weighted")
 
-        ! Ensure borders are populated  with nearest neighbors 
-        where (emb%tsl_bnd(2,:) .eq. mv) emb%tsl_bnd(2,:) = emb%tsl_bnd(3,:) 
-        where (emb%tsl_bnd(1,:) .eq. mv) emb%tsl_bnd(1,:) = emb%tsl_bnd(2,:) 
-        
-        where (emb%tsl_bnd(nx-1,:) .eq. mv) emb%tsl_bnd(nx-1,:) = emb%tsl_bnd(nx-2,:) 
-        where (emb%tsl_bnd(nx,:)   .eq. mv) emb%tsl_bnd(nx,:)   = emb%tsl_bnd(nx-1,:) 
-        
-        where (emb%tsl_bnd(:,2) .eq. mv) emb%tsl_bnd(:,2) = emb%tsl_bnd(:,3) 
-        where (emb%tsl_bnd(:,1) .eq. mv) emb%tsl_bnd(:,1) = emb%tsl_bnd(:,2) 
-        
-        where (emb%tsl_bnd(:,ny-1) .eq. mv) emb%tsl_bnd(:,ny-1) = emb%tsl_bnd(:,ny-2) 
-        where (emb%tsl_bnd(:,ny)   .eq. mv) emb%tsl_bnd(:,ny)   = emb%tsl_bnd(:,ny-1) 
-        
-if (.FALSE.) then 
-        ! Smooth data
-        tmp8 = emb%tsl_bnd 
-        write(*,*) "dx: ", emb%grid%dx, minval(tmp8), maxval(tmp8)
-        call filter_gaussian(var=tmp8,sigma=emb%grid%dx*2d0,dx=real(emb%grid%dx,dp))
-        emb%tsl_bnd = tmp8 
-end if
-
         ! Initialize temperature to boundary field
         emb%tsl = emb%tsl_bnd 
 
@@ -337,33 +316,17 @@ end if
         ! tsl_fac = H_a[m] c_p[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
         tsl_fac = par%en_Ha *1000.0 *1.225 !* 1.225 ! = 8.6e6
         
-        ! ajr: calculated inside of `rembo_calc_iterinit`, not needed here
-        !! Boundary sea-level temperature, tsl
-        !call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(mv))
-        
+        ! Note: tsl_bnd has been updated in `rembo_calc_iterinit`
+
         ! Sea-level temperature, tsl
-!         call map_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="radius",fill=.TRUE.,missing_value=dble(mv))
-        !call map_field_conservative_map1(emb%map_toemb%map,"tsl",real(t2m+gamma*z_srf,dp),tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
-        !emb%tsl = real(tmp8,wp)
         call map_scrip_field(emb%map_toemb,"tsl",t2m+gamma*z_srf,emb%tsl,method="mean", &
                                                 missing_value=real(mv,wp),fill_method="weighted")
 
         ! Radiative forcing, tsl_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
-        !call map_field(emb%map_toemb,"tsl_F", (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac , &
-        !               emb%tsl_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
-!         tmp8hi = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac
-!         call map_field_conservative_map1(emb%map_toemb%map,"tsl_F",tmp8hi, &
-!                         tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
-!         emb%tsl_F = real(tmp8,wp)
         call map_scrip_field(emb%map_toemb,"tsl_F", (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac, &
                         emb%tsl_F,method="mean",missing_value=real(mv,wp),fill_method="weighted")
 
-
         ! Wind [m s-1] 
-        ! call map_field(emb%map_toemb,"ug",ug,emb%ug,method="radius", &
-        !                fill=.TRUE.,missing_value=dble(missing_value))
-        ! call map_field(emb%map_toemb,"vg",vg,emb%vg,method="radius", &
-        !                fill=.TRUE.,missing_value=dble(missing_value))
         call map_scrip_field(emb%map_toemb,"ug",ug,emb%ug,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
         call map_scrip_field(emb%map_toemb,"vg",vg,emb%vg,method="mean", &
@@ -371,26 +334,14 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            !where (emb%mask .eq. 1) emb%en = emb%en_bnd
-            call adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%tsl_F,relax=emb%mask, &
-                             dx=emb%grid%dx,dy=emb%grid%dy, &
-                             dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr, &
-                             v_x=emb%ug,v_y=emb%vg)
+            call adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%tsl_F,relax=emb%mask,dx=emb%grid%dx,dy=emb%grid%dy, &
+                                    dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr,v_x=emb%ug,v_y=emb%vg)
         end do 
 
-        !call map_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nng",fill=.TRUE.,missing_value=dble(mv),sigma=50.d0)
-!         call map_field_conservative_map1(emb%map_fromemb%map,"tsl",real(emb%tsl,dp),tmp8hi,method="mean",fill=.TRUE.,missing_value=dble(mv))
-!         t2m = real(tmp8hi,wp)
-        !call map_scrip_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="nng",missing_value=real(mv,wp),sigma=50.0_wp)
+        ! Sea-level temperature, tsl
         call map_scrip_field(emb%map_fromemb,"tsl",emb%tsl,t2m,method="mean",missing_value=real(mv,wp))
-
+        ! ajr: previous version used Gaussian smoothing at this step too: sigma=50.0_wp
         t2m = t2m - gamma*z_srf
-
-!         ! ajr: TO DO !!  (seems to go really slow, or smt is wrong)
-!         t2m =  interp_bilinear(x=emb%grid%x,y=emb%grid%y,z=dble(emb%tsl), &
-!                                xout=emb%map_fromemb%x,yout=emb%map_fromemb%y, &
-!                                missing_value=dble(mv))
-!         t2m = t2m - gamma*z_srf
 
         return 
 
@@ -414,19 +365,11 @@ end if
         integer   :: q  
         !real(wp)  :: dtsl_mean    ! Average temp anomaly away from boundary temps 
 
-        !emb%tcw     = calc_qs(emb%tsl_bnd+dtsl_mean-par%gamma*emb%z_srf,emb%z_srf,par%e0,par%c1) *emb%rho_a *par%H_e
-!         emb%tcw_bnd = calc_qs(emb%tsl_bnd-par%gamma*emb%z_srf,emb%z_srf,par%e0,par%c1) *emb%rho_a *par%H_e
-!         emb%tcw     = emb%tcw_bnd
-    
-        !emb%q_r = emb%tcw / (calc_qsat(emb%tsl_bnd+dtsl_mean-par%gamma*emb%z_srf,emb%z_srf) *emb%rho_a *par%H_e)
-
         ! == Total water content ==
-        !call map_field(emb%map_toemb,"tcw",tcw,emb%tcw,method="radius",fill=.TRUE.,missing_value=dble(mv))
         call map_scrip_field(emb%map_toemb,"tcw",tcw,emb%tcw,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
 
         ! == Relative humidity == 
-        !call map_field(emb%map_toemb,"q_r",q_r,emb%q_r,method="radius",fill=.TRUE.,missing_value=dble(mv))
         call map_scrip_field(emb%map_toemb,"q_r",q_r,emb%q_r,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
         
@@ -441,21 +384,12 @@ end if
 
 !         emb%kappaw = emb%kappaw* (1.d0 + par%en_kz*emb%z_srf)
     
-!         call map_field(emb%map_toemb,"en_F",swn + lwn + (shf+lhf) + lhp + rco2, &
-!                        emb%en_F,method="radius",fill=.TRUE.,missing_value=dble(missing_value))
-
+        
         ! Get vertical wind for precipitation
-        sigma = emb%grid%dx*2.0  
-        !call map_field(emb%map_toemb,"ww",ww,emb%ww,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-!         call map_field(emb%map_toemb,"ww",ww,emb%ccw_pr,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-!         emb%ww = (emb%ww+emb%ccw_pr)/2.d0 
         call map_scrip_field(emb%map_toemb,"ww",ww,emb%ww,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
 
-        ! ajr: not sure what the above average represented in rembo2-beta. For now just use ww directly...
-        
         ! Get current moisture content [kg m-2]
-        !call map_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
         call map_scrip_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
 
@@ -463,7 +397,6 @@ end if
         emb%ccw_bnd = emb%ccw 
 
         ! Calculate the initial lo-res precipitation rate [kg m-2 s-1]
-        !call map_field(emb%map_toemb,"pr", pr, emb%ccw_pr,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
         call map_scrip_field(emb%map_toemb,"pr",pr,emb%ccw_pr,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
 
@@ -479,17 +412,9 @@ end if
 
         ! Calculate moisture balance to equilibrium
         do q = 1, par%ccw_nstep
-            !where (emb%mask .eq. 1) emb%ccw = emb%ccw_bnd
-            call adv_diff_2D(emb%ccw,emb%ccw_bnd, & !*emb%tcw/emb%tcw_bnd, &
-                             emb%ccw_F,relax=emb%mask, &
-                             dx=emb%grid%dx,dy=emb%grid%dy, &
-                             dt=par%ccw_dt,kappa=emb%kappaw,k_relax=par%ccw_kr) !, &
-!                              v_x=emb%ug,v_y=emb%vg)
+            call adv_diff_2D(emb%ccw,emb%ccw_bnd,emb%ccw_F,relax=emb%mask,dx=emb%grid%dx,dy=emb%grid%dy, &
+                            dt=par%ccw_dt,kappa=emb%kappaw,k_relax=par%ccw_kr) !,v_x=emb%ug,v_y=emb%vg)
 
-!             call solve_diff_2D_adi(emb%ccw,emb%ccw_bnd*emb%tcw/emb%tcw_bnd, &
-!                                    emb%ccw_F,relax=emb%mask, &
-!                                    dx=emb%grid%dx,dy=emb%grid%dy, &
-!                                    dt=par%ccw_dt,kappa=emb%kappaw,k_relax=par%ccw_kr)
             where (emb%ccw .lt. 0.d0) emb%ccw = 0.d0
 
             ! Now calculate the precipitation rate on emb grid (kg m**-2 s**-1)
@@ -503,29 +428,11 @@ end if
         end do 
 
         ! Send cloud moisture content back to main domain pts
-        sigma = emb%grid%dx*2.0 
-        !call map_field(emb%map_fromemb,"ccw",emb%ccw,ccw,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-        !call map_field(emb%map_fromemb,"c_w",emb%ccw_cw,c_w,method="nng",sigma=dble(sigma),fill=.TRUE.,missing_value=dble(mv))
-        !call map_scrip_field(emb%map_fromemb,"ccw",emb%ccw,ccw,method="nng",sigma=sigma,missing_value=real(mv,wp))
-        !call map_scrip_field(emb%map_fromemb,"c_w",emb%ccw_cw,c_w,method="nng",sigma=sigma,missing_value=real(mv,wp))
-        call map_scrip_field(emb%map_fromemb,"ccw",emb%ccw,ccw,method="mean",missing_value=real(mv,wp))
-        call map_scrip_field(emb%map_fromemb,"c_w",emb%ccw_cw,c_w,method="mean",missing_value=real(mv,wp))
-
-        ! ajr: TO DO 
-!         ccw =  interp_bilinear(is_points=.TRUE.,x=emb%grid%x,y=emb%grid%y,z=emb%ccw, &
-!                                xout=emb%map_fromemb%x,yout=emb%map_fromemb%y, &
-!                                missing_value=missing_value)
-
-        ! ajr: TO DO 
-!         c_w = interp_bilinear(is_points=.TRUE.,x=emb%grid%x,y=emb%grid%y,z=emb%ccw_cw, &
-!                                xout=emb%map_fromemb%x,yout=emb%map_fromemb%y, &
-!                                missing_value=missing_value)
-         
-        ! ajr: TO DO 
-!         pr = interp_bilinear(is_points=.TRUE.,x=emb%grid%x,y=emb%grid%y,z=emb%ccw_pr, &
-!                                xout=emb%map_fromemb%x,yout=emb%map_fromemb%y, &
-!                                missing_value=missing_value)
-
+        call map_scrip_field(emb%map_fromemb,"ccw",emb%ccw,ccw,method="mean",missing_value=real(mv,wp), &
+                                            filt_method="gaussian",filt_par=[emb%grid%dx*2.0,emb%grid%dx])
+        call map_scrip_field(emb%map_fromemb,"c_w",emb%ccw_cw,c_w,method="mean",missing_value=real(mv,wp), &
+                                            filt_method="gaussian",filt_par=[emb%grid%dx*2.0,emb%grid%dx])
+        
         return 
 
     end subroutine rembo_calc_ccw

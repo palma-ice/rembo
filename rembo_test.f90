@@ -292,66 +292,52 @@ contains
         real(wp),                  intent(IN)    :: dx 
         
         ! Local variables  
-        real(wp), parameter :: T0 = 273.15d0 
-        real(wp), allocatable :: var3D(:,:,:)
-        real(dp), allocatable :: var2Ddp(:,:)
-        
         type(map_scrip_class) :: mps 
 
-        character(len=512) :: filename, filename_pres 
-        integer :: nx, ny, i0, i1, i2, m, nm  
+        character(len=512) :: filename 
+        integer  :: m, nm  
         real(wp) :: als_max, als_min, afac, tmid 
 
-        integer :: nlon, nlat 
-        real(wp), allocatable :: var2D_latlon(:,:) 
-
-        nx = size(forc%z_srf,1)
-        ny = size(forc%z_srf,2)
         nm = 12 
-
-        allocate(var3D(nx,ny,nm))
-        allocate(var2Ddp(nx,ny))
-        
-        nlon = 1440
-        nlat =  721
-
-        allocate(var2D_latlon(nlon,nlat))
 
         ! Intialize the map (ERA5 to grid_name)
         call map_scrip_init(mps,"ERA5",grid_name,method="con",fldr="maps",load=.TRUE.)
         
 
         ! ## Surface elevation ##
+
         filename = trim(path)//"/ERA5/era5_orography.nc"
         call nc_read_interp(filename,"z",forc%z_srf,mps=mps,method="mean")
-        forc%z_srf = forc%z_srf / 9.81
+        forc%z_srf = forc%z_srf / 9.80665_wp 
         where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
 
         ! ## Near-surface air temperature (monthly) ##
+
         filename = trim(path)//"/ERA5/clim/"&
                         //"era5_monthly-single-levels_2m_temperature_1961-1990.nc"
         call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean")
         
-        ! ## tsl and then correct temperature for model topography (instead of ERA topography)
+        ! Get tsl and then correct temperature for model topography (instead of ERA topography)
         do m = 1, nm 
             forc%tsl(:,:,m) = forc%t2m(:,:,m) + 0.0065*forc%z_srf
             forc%t2m(:,:,m) = forc%tsl(:,:,m) - 0.0065*z_srf  
         end do 
 
-        ! ## al_s ## 
+        ! # Calculate surface albedo too
         als_max =   0.80
         als_min =   0.69
         afac     =  -0.18
         tmid     = 275.35
         forc%al_s = calc_albedo_t2m(forc%t2m,als_min,als_max,afac,tmid)
         
-        ! ## zg (750Mb) ## 
         ! ## Geopotential height 750Mb (monthly) ##
+
         filename = trim(path)//"/ERA5/clim/"&
                         //"era5_monthly-single-levels_geopotential_750_1961-1990.nc"
         call nc_read_interp(filename,"z",forc%Z,mps=mps,method="mean", &
                         filt_method="gaussian",filt_par=[32e3_wp,dx])
-        
+        forc%Z = forc%Z / 9.80665_wp
+
         write(*,*) "z_srf:  ", minval(forc%z_srf), maxval(forc%z_srf)
         write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),   maxval(forc%t2m(:,:,1))
         write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),   maxval(forc%t2m(:,:,7))
