@@ -140,12 +140,8 @@ contains
         ! Load the rembo parameters
         call rembo_par_load(dom%par,trim(path_par),domain)
 
-        write(*,*) "Here 1."
-
         ! Define rembo grid based on input filename
         call rembo_grid_define(dom%grid,dom%par%grid_name,dom%par%grid_path,grid_in=grid)
-
-        write(*,*) "Here X."
         
         ! Initialize grid size variables
         dom%par%npts   = dom%grid%npts 

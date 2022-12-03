@@ -3,7 +3,7 @@
 # Define user options
 
 domain=Antarctica
-grid_name_src=ERA5
+grid_name_src=ANT-128KM
 grid_name_tgt=ANT-32KM
 
 # Determine input grid file using options

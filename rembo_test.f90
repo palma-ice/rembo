@@ -156,7 +156,7 @@ contains
         if (trim(domain) .eq. "Greenland") then 
             region_number = 1.3 
         else if (trim(domain) .eq. "Antarctica") then  
-            region_number = 2.2 
+            region_number = 2.11
         else 
             write(*,*) "Domain not recognized: "//trim(domain)
             stop 
