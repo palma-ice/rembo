@@ -1,6 +1,6 @@
 &rembo_params
     domain        = "Antarctica"
-    grid_name     = "ANT-40KM"
+    grid_name     = "ANT-32KM"
     grid_name_emb = "ANT-128KM"
     grid_path     = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
     grid_path_emb = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"

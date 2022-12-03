@@ -2,8 +2,8 @@
 
 # Define user options
 
-domain=Greenland
-grid_name_src=GRL-64KM
+domain=Antarctica
+grid_name_src=ANT-128KM
 
 # Determine input grid file using options
 

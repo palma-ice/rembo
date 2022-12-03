@@ -339,13 +339,13 @@ contains
                         filt_method="gaussian",filt_par=[32e3_wp,dx])
         forc%Z = forc%Z / 9.80665_wp
 
-        write(*,*) "z_srf:  ", minval(forc%z_srf), maxval(forc%z_srf)
-        write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),   maxval(forc%t2m(:,:,1))
-        write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),   maxval(forc%t2m(:,:,7))
-        write(*,*) "al_s 1: ", minval(forc%al_s(:,:,1)),   maxval(forc%al_s(:,:,1))
-        write(*,*) "al_s 7: ", minval(forc%al_s(:,:,7)),   maxval(forc%al_s(:,:,7))
-        write(*,*) "Z 1:    ", minval(forc%Z(:,:,1)),   maxval(forc%Z(:,:,1))
-        write(*,*) "Z 7:    ", minval(forc%Z(:,:,7)),   maxval(forc%Z(:,:,7))
+        write(*,*) "z_srf:  ", minval(forc%z_srf),       maxval(forc%z_srf)
+        write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),  maxval(forc%t2m(:,:,1))
+        write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),  maxval(forc%t2m(:,:,7))
+        write(*,*) "al_s 1: ", minval(forc%al_s(:,:,1)), maxval(forc%al_s(:,:,1))
+        write(*,*) "al_s 7: ", minval(forc%al_s(:,:,7)), maxval(forc%al_s(:,:,7))
+        write(*,*) "Z 1:    ", minval(forc%Z(:,:,1)),    maxval(forc%Z(:,:,1))
+        write(*,*) "Z 7:    ", minval(forc%Z(:,:,7)),    maxval(forc%Z(:,:,7))
         
         write(*,*) "Loaded ERA5 boundary climate dataset."
         
