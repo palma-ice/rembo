@@ -87,32 +87,32 @@ contains
             now%v_s  = now%vg 
             now%uv_s = calc_magnitude_from_staggered(now%u_s,now%v_s)
 
-!             ! Calculate the surface albedo (ice surfaces)
-!             als_min  =   0.24
-!             als_max  =   0.81
-!             afac     =  -0.21
-!             tmid     = 274.16
-!             where (bnd%f_ice .ge. 0.5) &
-!                 now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
-
-!             ! Calculate the surface albedo (non-ice surfaces)
-!             als_min  =   0.13
-!             als_max  =   1.22
-!             afac     =  -0.10
-!             tmid     = 270.23
-!             where (bnd%f_ice .lt. 0.5) &
-!                 now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
-        
-            als_min  =   0.10
-            als_max  =   2.53
-            afac     =  -0.021
-            tmid     = 278.86
+            ! Calculate the surface albedo (ice surfaces)
+            als_min  =   0.24
+            als_max  =   0.81
+            afac     =  -0.21
+            tmid     = 274.16
             where (bnd%f_ice .ge. 0.5) &
                 now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
 
-            als_min  =   0.10 
+            ! Calculate the surface albedo (non-ice surfaces)
+            als_min  =   0.13
+            als_max  =   1.22
+            afac     =  -0.10
+            tmid     = 270.23
             where (bnd%f_ice .lt. 0.5) &
                 now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
+        
+            ! als_min  =   0.10
+            ! als_max  =   2.53
+            ! afac     =  -0.021
+            ! tmid     = 278.86
+            ! where (bnd%f_ice .ge. 0.5) &
+            !     now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
+
+            ! als_min  =   0.10 
+            ! where (bnd%f_ice .lt. 0.5) &
+            !     now%al_s = calc_albedo_t2m(now%t2m,als_min,als_max,afac,tmid)
            
             ! Make sure no strange limits are broken
             where(now%al_s .gt. 0.81) now%al_s = 0.81 
@@ -207,7 +207,7 @@ end if
 
 if (.TRUE.) then
             ! Calculate the current cloud water content  (kg m**-2)
-            call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww)   
+            call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww,grid%dx)   
 end if 
 
             ! Now calculate the high resolution precipitation rate (kg m**-2 s**-1)
@@ -349,7 +349,7 @@ end if
 
     end subroutine rembo_calc_en
 
-    subroutine rembo_calc_ccw(pr,ccw,c_w,emb,par,tcw,q_r,ww)
+    subroutine rembo_calc_ccw(pr,ccw,c_w,emb,par,tcw,q_r,ww,dx)
 
         implicit none 
 
@@ -361,7 +361,8 @@ end if
         real(wp),                intent(IN)    :: tcw(:,:)
         real(wp),                intent(IN)    :: q_r(:,:)
         real(wp),                intent(IN)    :: ww(:,:)
-
+        real(wp),                intent(IN)    :: dx
+        
         ! Local variables
         real(wp)  :: dtsl_mean, lat0, lat1, sigma 
         integer   :: q  
@@ -435,9 +436,9 @@ end if
 
         ! Send cloud moisture content back to main domain pts
         call map_scrip_field(emb%map_fromemb,"ccw",emb%ccw,ccw,method="mean",missing_value=real(mv,wp), &
-                                            filt_method="gaussian",filt_par=[emb%grid%dx*2.0,emb%grid%dx])
+                                                    filt_method="gaussian",filt_par=[emb%grid%dx/2_wp,dx])
         call map_scrip_field(emb%map_fromemb,"c_w",emb%ccw_cw,c_w,method="mean",missing_value=real(mv,wp), &
-                                            filt_method="gaussian",filt_par=[emb%grid%dx*2.0,emb%grid%dx])
+                                                    filt_method="gaussian",filt_par=[emb%grid%dx/2_wp,dx])
 
         return 
 
