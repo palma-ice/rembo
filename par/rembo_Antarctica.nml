@@ -1,48 +1,48 @@
 &rembo_params
-    domain     = "Antarctica"
-    grid_name  = "ANT-40KM"
-    restart    = "no"            ! "no" for no restart, or else the filename to restart from
+    domain        = "Antarctica"
+    grid_name     = "ANT-40KM"
+    grid_name_emb = "ANT-128KM"
+    grid_path     = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
+    grid_path_emb = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
+    restart    = "no"               ! "no" for no restart, or else the filename to restart from
     
-    H_e        = 2500.0           ! [m] Vapor scale height
+    H_e        = 2500.0             ! [m] Vapor scale height
     rembo1     = .FALSE.
 
     ! Diffusion parameters
-    emb_dx     = 120.0            ! [km] Energy-moisture balance grid resolution
-    dist_rel   = 10.0             ! [km] Relaxation mask buffer (distance from coast)
-    
-    en_dt      = 100             ! Diffusion time step, sec
-    en_D       = 1.0e6            ! [m-2 s-1] Diffusion constant, energy
-    en_D_win   = 1.0e7            ! [m-2 s-1] Diffusion constant, energy
-    en_D_sum   = 1.0e6            ! [m-2 s-1] Diffusion constant, energy
-    en_kr      = 0.95             ! [1] Relaxation coefficient, energy (~95% of difference)
+    en_dt      = 100                ! Diffusion time step, sec
+    en_D       = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
+    en_D_win   = 1.0e7              ! [m-2 s-1] Diffusion constant, energy
+    en_D_sum   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
+    en_kr      = 0.95               ! [1] Relaxation coefficient, energy (~95% of difference)
 !     en_kz      = 0.00017          ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
 !     en_kl      = 0.33             ! [degrees-1] Kappa scalar with latitude (kl*lat) **REMBOv1=0.33 
-    en_kz      = 0.0          ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
-    en_kl      = 0.0            ! [degrees-1] Kappa scalar with latitude (kl*lat) **REMBOv1=0.33 
-    en_kdT     = 0.0              ! [K] Atmospheric transport warming
-    en_Ha      = 50000             ! [m] Atmospheric scale height 4600 **REMBOv1=8600
-    ccw_dt     = 1000             ! Diffusion time step, sec
-    ccw_D      = 1.0e6            ! [m-2 s-1] Diffusion constant, moisture
-    ccw_kr     = 0.95             ! [1] Relaxation coefficient, moisture (~95% of difference)           
+    en_kz      = 0.0                ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
+    en_kl      = 0.0                ! [degrees-1] Kappa scalar with latitude (kl*lat) **REMBOv1=0.33 
+    en_kdT     = 0.0                ! [K] Atmospheric transport warming
+    en_Ha      = 50000              ! [m] Atmospheric scale height 4600 **REMBOv1=8600
+    ccw_dt     = 1000               ! Diffusion time step, sec
+    ccw_D      = 1.0e6              ! [m-2 s-1] Diffusion constant, moisture
+    ccw_kr     = 0.95               ! [1] Relaxation coefficient, moisture (~95% of difference)           
     
     ! Condensation parameterization
-    k_c        = 80              ! [days] Condensation time constant
+    k_c        = 80                 ! [days] Condensation time constant
     k_x        = 0.0
     k_p        = 0.0
 
     ! Precipitation parameterization
-    k_w        = 500.0           ! [sec] Precipitation time constant
-    k_t        = 0.0034            ! Precipitation temperature scalar
-    k_z        = 10.0             ! Precipitation vertical wind scalar
-    ps_a       = 0.273            ! Snow fraction constant
-    ps_b       = 273.6            ! snow fraction constant 
+    k_w        = 500.0              ! [sec] Precipitation time constant
+    k_t        = 0.0034             ! Precipitation temperature scalar
+    k_z        = 10.0               ! Precipitation vertical wind scalar
+    ps_a       = 0.273              ! Snow fraction constant
+    ps_b       = 273.6              ! snow fraction constant 
 
     ! Katabatic parameterization 
     f_k        = 1e4 
 
     ! Total water content parameterization
-    e0         =  3.24            ! Q parameterization constant
-    c1         = 18.75            ! Q parameterization constant
+    e0         =  3.24              ! Q parameterization constant
+    c1         = 18.75              ! Q parameterization constant
     
     ! Cloud cover fraction parameterization
     nk1        = 3.54             ! Cloud cover constant 1
