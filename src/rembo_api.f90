@@ -142,7 +142,7 @@ contains
 
         ! Define rembo grid based on input filename
         call rembo_grid_define(dom%grid,dom%par%grid_name,dom%par%grid_path,grid_in=grid)
-        
+
         ! Initialize grid size variables
         dom%par%npts   = dom%grid%npts 
         dom%par%nx     = dom%grid%nx 
@@ -417,7 +417,6 @@ contains
         call nml_read(filename,group1,"en_kz",          par%en_kz)
         call nml_read(filename,group1,"en_kl",          par%en_kl)
         call nml_read(filename,group1,"en_kdT",         par%en_kdT)
-        call nml_read(filename,group1,"en_Ha",          par%en_Ha)
         call nml_read(filename,group1,"ccw_dt",         par%ccw_dt)
         call nml_read(filename,group1,"ccw_D",          par%ccw_D)
         call nml_read(filename,group1,"ccw_kr",         par%ccw_kr)

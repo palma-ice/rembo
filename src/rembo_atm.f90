@@ -315,9 +315,16 @@ end if
         allocate(tmp8hi(size(t2m,1),size(t2m,2))) 
 
         ! Get the tsl => column energy conversion
-        ! tsl_fac = H_a[m] c_p[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
-        tsl_fac = par%en_Ha *1000.0 *1.225 !* 1.225 ! = 8.6e6
+        ! tsl_fac = H_a[m] c_v[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
+        ! H_a = 8000 m
+        !tsl_fac = 8000.0 *715.0 *1.225 !* 1.225 ! =~ 8e6
         
+        ! climber-x formula to get tsl_fac
+        ! tsl_fac = slp / g * cv_atm 
+        ! slp = 101100.0 [kg m-1 s-2]; g = 9.81 [m s-2]; c_v_atm = 715.0 [J kg-1 K-1]
+        ! tsl_fac => [kg m-1 s-2] * [m-1 s2] * [J kg-1 K-1] = [J m-2 K-1]
+        tsl_fac = 101100.0 /g *715.0 
+
         ! Note: tsl_bnd has been updated in `rembo_calc_iterinit`
 
         ! Sea-level temperature, tsl
