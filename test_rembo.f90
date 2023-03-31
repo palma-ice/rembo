@@ -1,4 +1,4 @@
-program rembo_test
+program test_rembo
 
     use ncio
     use rembo 
@@ -492,6 +492,10 @@ contains
             call nc_write(filename,"pr",dom%mon(m)%pr,units="mm d**-1",long_name="Precipitation", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
+            ! Error compared to forcing, assuming boundary field is the target
+            call nc_write(filename,"t2m_err",dom%mon(m)%t2m-dom%mon(m)%t2m_bnd,units="K",long_name="Near-surface air temperature error", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+        
         end do 
         
 !         call nc_write(filename,"Ta_ann",dom%ann%t2m,units="K",long_name="Near-surface air temperature (ann)", &
@@ -533,5 +537,5 @@ contains
 
     end subroutine load_command_line_args
 
-end program rembo_test
+end program test_rembo
 

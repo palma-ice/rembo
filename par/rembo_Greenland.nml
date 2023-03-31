@@ -49,8 +49,8 @@
     nk3        = -1.21e-2         ! Cloud cover constant 3
 
     ! Physical constants
-    gamma      = 6.5e-3           ! [K m-1] Winter lapse rate
-    gamma2     = 6.5e-3           ! [K m-1] Summer lapse rate
+    gamma      = 0.0 !6.5e-3           ! [K m-1] Winter lapse rate
+    gamma2     = 0.0 !6.5e-3           ! [K m-1] Summer lapse rate
     S0         = 1365.0           ! [W m-2] Solar constant
     Lw         =  2.50e6          ! [J kg-1] Latent heat of evaporation
     Ls         =  2.84e6          ! [J kg-1] Latent heat of sublimation
@@ -82,8 +82,8 @@
 /
 
 &rembo1
-    ta  = 224.58   ! [J/s-m2]
-    tb  =   1.94   ! [J/K-s-m2]
+    ta  = 224.58    ! [J/s-m2]
+    tb  =   1.94    ! [J/K-s-m2]
 
 /
 

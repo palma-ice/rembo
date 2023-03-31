@@ -12,8 +12,8 @@
     },
 
     "exe_aliases" :
-        {   "test"       : "librembo/bin/rembo_test.x",
-            "rembo"      : "librembo/bin/rembo_test.x"
+        {   "test"       : "librembo/bin/test_rembo.x",
+            "rembo"      : "librembo/bin/test_rembo.x"
         },
 
     "grp_aliases" : {},
@@ -26,12 +26,6 @@
 
     "links" : 
         ["input","ice_data","maps"],
-
-    "const_paths" :
-        {   "None"  : "None"
-        },
-
-    "const_path_default" : "par/rembo_const_Earth.nml",
 
     "job_queues" :
         {   "priority" :

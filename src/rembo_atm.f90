@@ -175,7 +175,7 @@ contains
 
             end do 
 
-if (.TRUE.) then
+if (.FALSE.) then
             ! Calculate energy balance on low-resolution grid
             ! ajr: need to test whether it's better just to use slightly lower
             ! resolution for the whole atmosphere, but one grid. (High resolution
@@ -187,11 +187,17 @@ if (.TRUE.) then
                               lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
                               rco2=par%en_kdT + now%rco2_a, &
                               ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
+
+            
+else 
+            ! Impose boundary temperature field for now
+            now%t2m = now%t2m_bnd 
+
 end if 
 
             ! Calculate inversion correction for moisture balance
             now%ct2m = calc_ttcorr1(now%t2m,bnd%z_srf,-2.4e-3,-3.7e-1,106.0)
-
+            
             ! Get saturated specific humidity and sat. total water content
             now%q_sat   = calc_qsat(now%t2m+now%ct2m,bnd%z_srf,par%c%g,par%c%T0) 
             now%tcw_sat = now%q_sat * now%rho_a * par%H_e
@@ -256,9 +262,8 @@ end if
         emb%mask(:,emb%grid%ny) = 1 
         call remove_islands(emb%mask)
 
-        !call map_field(emb%map_toemb,"z_srf",z_srf,emb%z_srf,method="radius",fill=.TRUE.,missing_value=dble(mv))
-        !call map_field_conservative_map1(emb%map_toemb%map,"z_srf",real(z_srf,dp),tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
-        !emb%z_srf = real(tmp8,wp)
+        ! Surface elevation, z_srf
+        ! Interpolate to low resolution emb domain
         call map_scrip_field(emb%map_toemb,"z_srf",z_srf,emb%z_srf,method="mean", &
                                         missing_value=real(mv,wp),fill_method="weighted")
 
@@ -267,10 +272,8 @@ end if
         emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
         
         ! Boundary sea-level temperature, tsl
+        ! Interpolate to low resolution emb domain
         emb%tsl_bnd = mv 
-        !call map_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="radius",fill=.TRUE.,missing_value=dble(mv))
-        !call map_field_conservative_map1(emb%map_toemb%map,"tsl_bnd",real(t2m_bnd+gamma*z_srf,dp),tmp8,method="mean",fill=.TRUE.,missing_value=dble(mv))
-        !emb%tsl_bnd = real(tmp8,wp)
         call map_scrip_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="mean", &
                                                         missing_value=real(mv,wp),fill_method="weighted")
 
