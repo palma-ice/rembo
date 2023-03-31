@@ -489,7 +489,24 @@ contains
             call nc_write(filename,"uvg",dom%mon(m)%uvg,units="m s**-1",long_name="Geostrophic horizontal velocity, magnitude", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
-            call nc_write(filename,"pr",dom%mon(m)%pr,units="mm d**-1",long_name="Precipitation", &
+            call nc_write(filename,"q_sat",dom%mon(m)%q_sat,units="kg/kg",long_name="Saturated specific humidity", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"tcw_sat",dom%mon(m)%tcw_sat,units="kg m^-2",long_name="Saturated total column water content", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            
+            call nc_write(filename,"q_s",dom%mon(m)%q_s,units="kg/kg",long_name="Specific humidity", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"q_r",dom%mon(m)%q_r,units="1",long_name="Relative humidity", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"tcw",dom%mon(m)%tcw,units="kg m^-2",long_name="Total column water content", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"ccw",dom%mon(m)%ccw,units="kg m^-2",long_name="Total column cloud water content", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            
+
+            call nc_write(filename,"pr",dom%mon(m)%pr*dom%par%c%sec_day,units="mm d**-1",long_name="Precipitation", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"sf",dom%mon(m)%sf*dom%par%c%sec_day,units="mm d**-1",long_name="Snowfall", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
             ! Error compared to forcing, assuming boundary field is the target
