@@ -42,15 +42,15 @@ contains
 
         ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
         now%gamma = par%gamma  &
-           + (0.5*cos((day-15)*2.0*pi/day_year)-0.5)*(par%gamma-par%gamma2)
+           + (0.5*cos((day-15)*2.0*pi/par%c%day_year)-0.5)*(par%gamma-par%gamma2)
         !write(*,*) "gamma: ", day, minval(gamma), maxval(gamma)
         
         ! Get the surface pressure 
-        now%sp = calc_sp(bnd%z_srf)
+        now%sp = calc_sp(bnd%z_srf,par%c%g)
 
         ! Get geostrophic components and magnitude of velocity
-        now%ug  = calc_u_geo(now%dZdy,bnd%f)
-        now%vg  = calc_v_geo(now%dZdx,bnd%f)
+        now%ug  = calc_u_geo(now%dZdy,bnd%f,par%c%g)
+        now%vg  = calc_v_geo(now%dZdx,bnd%f,par%c%g)
         now%uvg = calc_magnitude(now%ug,now%vg)
 
         ! Initialize t2m solution with boundary solution 
@@ -161,7 +161,7 @@ contains
                 ! To do: calculate from energy balance equation (roughly)
 
                 now%tsurf = now%t2m 
-                where (bnd%f_ice .gt. 0.0 .and. now%tsurf .gt. T0) now%tsurf = T0 
+                where (bnd%f_ice .gt. 0.0 .and. now%tsurf .gt. par%c%T0) now%tsurf = par%c%T0 
 
                 ! Calculate sensible heat flux at the surface
 !                 now%shf_s  = 0.0
@@ -186,18 +186,18 @@ if (.TRUE.) then
                               shf=now%shf_s,lhf=now%lhf_s, &
                               lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
                               rco2=par%en_kdT + now%rco2_a, &
-                              ug=now%ug,vg=now%vg,dx=grid%dx) 
+                              ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
 end if 
 
             ! Calculate inversion correction for moisture balance
             now%ct2m = calc_ttcorr1(now%t2m,bnd%z_srf,-2.4e-3,-3.7e-1,106.0)
 
             ! Get saturated specific humidity and sat. total water content
-            now%q_sat   = calc_qsat(now%t2m+now%ct2m,bnd%z_srf) 
+            now%q_sat   = calc_qsat(now%t2m+now%ct2m,bnd%z_srf,par%c%g,par%c%T0) 
             now%tcw_sat = now%q_sat * now%rho_a * par%H_e
 
             ! Calculate the current total water content
-            now%q_s = calc_qs(now%t2m+now%ct2m,bnd%z_srf,par%e0,par%c1) 
+            now%q_s = calc_qs(now%t2m+now%ct2m,bnd%z_srf,par%e0,par%c1,par%c%g,par%c%T0) 
             now%tcw = now%q_s * now%rho_a * par%H_e
             now%q_r = now%tcw / now%tcw_sat 
 
@@ -233,7 +233,7 @@ end if
         real(wp),                intent(IN)    :: gamma(:,:)
         type(rembo_param_class), intent(IN)    :: par 
         integer,                 intent(IN)    :: day 
-        
+
         ! Local variables  
         real(wp) :: tsl_fac 
         integer :: q, nx, ny 
@@ -264,7 +264,7 @@ end if
 
         ! Get the 2D energy diffusion coefficient
         ! emb%kappa = par%en_D 
-        emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/day_year))
+        emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
         
         ! Boundary sea-level temperature, tsl
         emb%tsl_bnd = mv 
@@ -281,7 +281,7 @@ end if
 
     end subroutine rembo_calc_iterinit
 
-    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,dx)
+    subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,dx,g)
 
         implicit none 
 
@@ -301,7 +301,8 @@ end if
         real(wp),                intent(IN)    :: ug(:,:)
         real(wp),                intent(IN)    :: vg(:,:)
         real(wp),                intent(IN)    :: dx
-        
+        real(wp),                intent(IN)    :: g 
+
         ! Local variables  
         real(wp) :: tsl_fac 
         integer :: q, nx, ny 
@@ -418,7 +419,7 @@ end if
 
 
         ! Now calculate the condensation rate [kg m-2 s-1]
-        emb%ccw_cw = calc_condensation(emb%tcw,emb%q_r,emb%ww,par%k_c,par%k_x)
+        emb%ccw_cw = calc_condensation(emb%tcw,emb%q_r,emb%ww,par%k_c,par%k_x,par%c%sec_day)
 
         ! Get moisture balance forcing [kg m-2 s-1]
         emb%ccw_F = emb%ccw_cw - emb%ccw_pr 

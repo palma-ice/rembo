@@ -29,7 +29,7 @@ module rembo_defs
     
     ! Error distance (very large), error index, and smallest number epsilon 
     real(wp), parameter :: ERR_DIST = real(1E8,wp) 
-    integer,    parameter :: ERR_IND  = -1 
+    integer,  parameter :: ERR_IND  = -1 
     real(wp), parameter :: eps      = real(1E-8,wp) 
     
     ! Mathematical constants
@@ -39,36 +39,41 @@ module rembo_defs
     
     logical :: rembo_use_omp 
 
-    integer,  parameter :: nd  = 360
-    integer,  parameter :: nm  = 12
-    integer,  parameter :: ndm = 30
-
     ! The constants below should be loaded using the global subroutine
     ! defined below `rembo_constants_load`.
     ! Note: The key limitation imposed by defining the parameters defined 
     ! globally is that these constants must be the same for all domains 
     ! being run in the same program. 
 
-    ! Physical constants
-    real(wp) :: sec_year       ! [s] seconds per year 
-    real(wp) :: g              ! Gravitational accel.  [m s-2]
-    real(wp) :: omega          ! Coriolis constant [omega = 7.2921d-5]
-    real(wp) :: T0             ! Reference freezing temperature [K] 
-    real(wp) :: rho_ice        ! Density ice           [kg m-3] 
-    real(wp) :: rho_w          ! Density water         [kg m-3] 
+    type rembo_phys_const_class
 
-    real(wp), parameter :: sec_day0 = 8.64e4_wp 
-    real(wp) :: sec_day 
-    real(wp) :: sec_frac 
+        ! Physical constants
+        integer  :: nm              ! [--] Number of months in a year
+        integer  :: ndm             ! [--] Number of days in a month
+        real(wp) :: sec_year        ! [s] seconds per year
+        real(wp) :: sec_day_ref     ! [s] seconds per day, normally 
+        real(wp) :: g               ! Gravitational accel.  [m s-2]
+        real(wp) :: omega           ! Coriolis constant [omega = 7.2921d-5]
+        real(wp) :: T0              ! Reference freezing temperature [K] 
+        real(wp) :: rho_ice         ! Density ice           [kg m-3] 
+        real(wp) :: rho_w           ! Density water         [kg m-3] 
 
-    ! Time conversions
-    real(wp), parameter :: day_year   = real(nd,wp)
-    real(wp), parameter :: day_month  = real(ndm,wp)
-    real(wp), parameter :: month_year = real(nm,wp)
-    
+        
+        ! Internal parameters
+        integer  :: nd
+        real(wp) :: day_year
+        real(wp) :: day_month
+        real(wp) :: month_year
+        real(wp) :: sec_day 
+        real(wp) :: sec_frac 
+
+    end type
+
     ! First define all parameters needed to represent a given domain
     type rembo_param_class
 
+        type(rembo_phys_const_class) :: c           ! Physical constants
+        
         character(len=256)  :: domain
         character(len=256)  :: grid_name
         character(len=256)  :: grid_name_emb
@@ -218,8 +223,8 @@ module rembo_defs
 
     type rembo_class
 
-        type(rembo_param_class)   :: par        ! physical parameters
-        type(rgrid_class)         :: grid       ! Grid definition   (from coordinates module)
+        type(rembo_param_class)      :: par         ! Model parameters
+        type(rgrid_class)            :: grid        ! Grid definition   (from coordinates module)
         
         ! Boundary variables
         type(rembo_boundary_class) :: bnd 
@@ -240,9 +245,8 @@ module rembo_defs
 
     public :: dp, sp, wp, rembo_write_log, MISSING_VALUE_DEFAULT, MISSING_VALUE, MV
     public :: ERR_DIST, ERR_IND, eps, pi, degrees_to_radians, radians_to_degrees
-    public :: rembo_use_omp, nd, nm, ndm 
-    public :: sec_year, g, omega, T0, rho_ice, rho_w, sec_day0, sec_day, sec_frac 
-    public :: day_year, day_month, month_year 
+    public :: rembo_use_omp 
+    public :: rembo_phys_const_class
     public :: rembo_param_class, rembo_boundary_class
     public :: rgrid_class
     public :: rembo_state_class 
@@ -317,29 +321,6 @@ contains
             write(*,*) "rembo_global_init:: openmp is not active, rembo will run on 1 thread."
 
         end if 
-
-        ! Store parameter values in output object
-        call nml_read(filename,"rembo_constants","sec_year",    sec_year,   init=init_pars)
-        call nml_read(filename,"rembo_constants","g",           g,          init=init_pars)
-        call nml_read(filename,"rembo_constants","omega",       omega,      init=init_pars)
-        call nml_read(filename,"rembo_constants","T0",          T0,         init=init_pars)
-        
-        call nml_read(filename,"rembo_constants","rho_ice",     rho_ice,    init=init_pars)
-        call nml_read(filename,"rembo_constants","rho_w",       rho_w,      init=init_pars)
-
-        if (rembo_write_log) then 
-            write(*,*) "yelmo:: loaded global constants:"
-            write(*,*) "    sec_year = ", sec_year 
-            write(*,*) "    g        = ", g 
-            write(*,*) "    omega    = ", omega
-            write(*,*) "    T0       = ", T0 
-            write(*,*) "    rho_ice  = ", rho_ice 
-            write(*,*) "    rho_w    = ", rho_w 
-
-        end if 
-
-        sec_day    = sec_year / day_year   ! 8.765813e4
-        sec_frac   = sec_day / sec_day0
 
         return
 

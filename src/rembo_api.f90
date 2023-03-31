@@ -59,7 +59,7 @@ contains
         dom%now%rho_a = calc_airdens(dom%bnd%z_srf)
 
         ! Calculate the coriolis parameter for the current grid points
-        dom%bnd%f = calc_coriolis(real(dom%grid%lat,wp))
+        dom%bnd%f = calc_coriolis(real(dom%grid%lat,wp),dom%par%c%omega)
 
         ! Calculate surface gradients and total magnitude, staggered onto ac-nodes 
         call d_dx(dom%bnd%dzsdx,dom%bnd%z_srf,dx=dom%grid%dx)
@@ -372,8 +372,8 @@ contains
                 sum(dom%now%t2m,        mask=dom%bnd%mask>0)/npts, &     ! [K]
                 sum(dom%now%tcw,        mask=dom%bnd%mask>0)/npts, &     ! [mm]
                 sum(dom%now%ccw,        mask=dom%bnd%mask>0)/npts, &     ! [mm]
-                sum(dom%now%c_w*sec_day,mask=dom%bnd%mask>0)/npts, &     ! [mm/d]
-                sum(dom%now%pr*sec_day, mask=dom%bnd%mask>0)/npts        ! [mm/d]
+                sum(dom%now%c_w*dom%par%c%sec_day,mask=dom%bnd%mask>0)/npts, &     ! [mm/d]
+                sum(dom%now%pr*dom%par%c%sec_day, mask=dom%bnd%mask>0)/npts        ! [mm/d]
 
         else 
             ! Print empty table 
@@ -392,14 +392,27 @@ contains
         character(len=*),           intent(IN), optional :: domain 
 
         ! Local variables 
+        character(len=56) :: group0
         character(len=56) :: group1 
         character(len=56) :: group2 
         
         par%domain = trim(domain)
 
+        group0 = "rembo_phys_const"
         group1 = "rembo" 
         group2 = "rembo1" 
 
+        ! First load physical constants for this domain 
+        call nml_read(filename,group0,"nm",             par%c%nm)
+        call nml_read(filename,group0,"ndm",            par%c%ndm)
+        call nml_read(filename,group0,"sec_year",       par%c%sec_year)
+        call nml_read(filename,group0,"sec_day_ref",    par%c%sec_day_ref)
+        call nml_read(filename,group0,"g",              par%c%g)
+        call nml_read(filename,group0,"omega",          par%c%omega)
+        call nml_read(filename,group0,"T0",             par%c%T0)
+        call nml_read(filename,group0,"rho_ice",        par%c%rho_ice)
+        call nml_read(filename,group0,"rho_w",          par%c%rho_w)
+        
         call nml_read(filename,group1,"domain",         par%domain)
         call nml_read(filename,group1,"grid_name",      par%grid_name)
         call nml_read(filename,group1,"grid_name_emb",  par%grid_name_emb)
@@ -466,10 +479,20 @@ contains
         call nml_read(filename,group2,"ta",             par%r1_ta)
         call nml_read(filename,group2,"tb",             par%r1_tb)
         ! =========================
+
+        ! Get additional derived constants   
+        par%c%nd         = par%c%nm * par%c%ndm
+
+        par%c%day_year   = real(par%c%nd,wp)
+        par%c%day_month  = real(par%c%ndm,wp)
+        par%c%month_year = real(par%c%nm,wp)
+
+        par%c%sec_day    = par%c%sec_year / par%c%day_year   ! 8.765813e4
+        par%c%sec_frac   = par%c%sec_day  / par%c%sec_day_ref
         
         ! How many time steps in 1 day, aprx?
-        par%en_nstep  = floor(sec_day / par%en_dt)
-        par%ccw_nstep = floor(sec_day / par%ccw_dt)
+        par%en_nstep  = floor(par%c%sec_day / par%en_dt)
+        par%ccw_nstep = floor(par%c%sec_day / par%ccw_dt)
         
         ! Overwrite parameter values with argument definitions if available
         if (present(domain))     par%domain    = trim(domain)
@@ -478,6 +501,19 @@ contains
         call rembo_parse_path(par%grid_path,par%domain,par%grid_name)
         call rembo_parse_path(par%grid_path_emb,par%domain,par%grid_name_emb)
         
+        if (rembo_write_log) then 
+            write(*,*) "yelmo:: loaded global constants:"
+            write(*,*) "    nm       = ", par%c%nm 
+            write(*,*) "    ndm      = ", par%c%ndm 
+            write(*,*) "    sec_year = ", par%c%sec_year 
+            write(*,*) "    sec_day  = ", par%c%sec_day 
+            write(*,*) "    g        = ", par%c%g 
+            write(*,*) "    omega    = ", par%c%omega
+            write(*,*) "    T0       = ", par%c%T0 
+            write(*,*) "    rho_ice  = ", par%c%rho_ice 
+            write(*,*) "    rho_w    = ", par%c%rho_w 
+        end if 
+
         return
 
     end subroutine rembo_par_load

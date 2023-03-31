@@ -50,7 +50,7 @@ rembo-static: $(rembo_libs) $(rembo_base) $(rembo_tests)
 	@echo "    $(objdir)/librembo.a is ready."
 	@echo " "
 
-rembo_test : rembo-static
+test_rembo : rembo-static
 		$(FC) $(DLAGS) $(FFLAGS) -o $(bindir)/rembo_test.x rembo_test.f90 \
 			-L${CURDIR}/librembo/include -lrembo $(LFLAGS) $(objdir)/nml.o
 		@echo " "

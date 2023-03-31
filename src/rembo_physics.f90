@@ -61,12 +61,13 @@ contains
 
     end function calc_albedo_t2m
 
-    elemental function calc_condensation(tcw,qr,ww,k_c,k_x) result(c_w)
+    elemental function calc_condensation(tcw,qr,ww,k_c,k_x,sec_day) result(c_w)
 
         implicit none 
 
         real(wp), intent(IN) :: tcw, qr, ww
         real(wp), intent(IN) :: k_c, k_x
+        real(wp), intent(IN) :: sec_day
         real(wp) :: c_w 
 
         c_w = (tcw/(k_c*sec_day))*qr * (1.0 + k_x*ww)
@@ -116,11 +117,12 @@ contains
     end function calc_snowfrac 
 
     ! Get coriolis parameter (1/s)
-    elemental function calc_coriolis(lat) result(f)
+    elemental function calc_coriolis(lat,omega) result(f)
 
         implicit none
 
-        real(wp), intent(IN)  :: lat
+        real(wp), intent(IN) :: lat
+        real(wp), intent(IN) :: omega
         real(wp) :: f
 
         f = 2.0*omega*sin(lat*degrees_to_radians)
@@ -143,12 +145,14 @@ contains
 
     end function calc_geo_height
 
-    elemental function calc_u_geo(dZdy,f) result(ug)
+    elemental function calc_u_geo(dZdy,f,g) result(ug)
         ! Get horizontal geostrophic wind component, u
 
         implicit none 
 
-        real(wp), intent(IN)  :: dZdy, f
+        real(wp), intent(IN)  :: dZdy
+        real(wp), intent(IN)  :: f
+        real(wp), intent(IN)  :: g
         real(wp) :: ug
 
         ug = -(g / f) * dZdy
@@ -157,12 +161,14 @@ contains
 
     end function calc_u_geo
 
-    elemental function calc_v_geo(dZdx,f) result(vg)
+    elemental function calc_v_geo(dZdx,f,g) result(vg)
         ! Get horizontal geostrophic wind component, v
         
         implicit none 
         
-        real(wp), intent(IN)  :: dZdx, f
+        real(wp), intent(IN)  :: dZdx
+        real(wp), intent(IN)  :: f
+        real(wp), intent(IN)  :: g
         real(wp) :: vg
 
         vg = (g / f) * dZdx
@@ -210,18 +216,21 @@ contains
         return
     end subroutine calc_w
 
-    elemental function calc_w_omega(omega,T,p) result(w)
+    elemental function calc_w_omega(omega,T,p,g) result(w)
         ! Get vertical wind from omega (Pa/s)
         
         implicit none 
         
-        real(wp), intent(IN)  :: omega,T,p
+        real(wp), intent(IN) :: omega
+        real(wp), intent(IN) :: T
+        real(wp), intent(IN) :: p
+        real(wp), intent(IN) :: g
         real(wp) :: w
         real(wp) :: rho
         real(wp), parameter :: rgas = 287.058_wp
         
         rho  = p/(rgas*T)         ! density => kg/m3
-        w    = -1*omega/(rho*g) 
+        w    = -1.0*omega/(rho*g) 
         
         return
 
@@ -232,7 +241,9 @@ contains
         
         implicit none 
         
-        real(wp), intent(IN)  :: dTdx,dzsdx, f_k
+        real(wp), intent(IN) :: dTdx
+        real(wp), intent(IN) :: dzsdx
+        real(wp), intent(IN) :: f_k
         real(wp) :: uk
         
         uk = f_k* min(0.0,dTdx*dzsdx)
@@ -247,7 +258,9 @@ contains
         
         implicit none 
         
-        real(wp), intent(IN)  :: dTdy,dzsdy, f_k
+        real(wp), intent(IN) :: dTdy
+        real(wp), intent(IN) :: dzsdy
+        real(wp), intent(IN) :: f_k
         real(wp) :: vk
         
         vk = f_k* min(0.0,dTdy*dzsdy)
@@ -273,13 +286,15 @@ contains
 
     end function calc_ttcorr1 
 
-    elemental function calc_sp(zs) result(sp)
+    elemental function calc_sp(zs,g) result(sp)
         ! Surface pressure ( Pa=> kg/(m s2) )
         
         implicit none 
 
-        real(wp), intent(IN)  :: zs
+        real(wp), intent(IN) :: zs
+        real(wp), intent(IN) :: g
         real(wp) :: sp
+
         real(wp), parameter :: p0 = 101325_wp
         real(wp), parameter :: M  = 0.0289644_wp
         real(wp), parameter :: R  = 8.31447_wp
@@ -291,16 +306,16 @@ contains
 
     end function calc_sp
 
-    elemental function calc_esat(Ts) result(esat)
+    elemental function calc_esat(Ts,T0) result(esat)
 
         implicit none 
         
-        real(wp), intent(IN)  :: Ts
+        real(wp), intent(IN) :: Ts
+        real(wp), intent(IN) :: T0
         real(wp) :: esat
         real(wp), parameter :: e0 = 6.112_wp
         real(wp), parameter :: c1 = 17.67_wp
         real(wp), parameter :: c2 = 243.5_wp
-        real(wp), parameter :: T0 = 273.15_wp 
 
         esat = e0*exp((c1*(Ts-T0))/(c2+(Ts-T0)))*100_wp
 
@@ -313,7 +328,7 @@ contains
     
         implicit none 
 
-        real(wp), intent(IN)  :: zs
+        real(wp), intent(IN) :: zs
         real(wp) :: rho_a 
 
         rho_a = 1.3_wp * exp(-zs/8.6d3)
@@ -322,17 +337,20 @@ contains
 
     end function calc_airdens
 
-    elemental function calc_elevation(p) result(zs)
+    elemental function calc_elevation(p,g) result(zs)
         ! Elevation corresponding to a given air pressure (m)
     
         implicit none 
 
         real(wp), intent(IN) :: p 
-        real(wp) :: zs 
+        real(wp), intent(IN) :: g
+        real(wp) :: zs
+
         real(wp), parameter :: p0 = 1013.25_wp
-        real(wp), parameter ::  g = 9.80665_wp
         real(wp), parameter ::  M = 0.0289644_wp
         real(wp), parameter ::  R = 8.31447_wp
+        
+        !real(wp), parameter ::  g = 9.80665_wp
         real(wp), parameter :: T0 = 288.15_wp 
 
         zs = -log(p/p0)*R*T0/(g*M)
@@ -341,25 +359,30 @@ contains
 
     end function calc_elevation
 
-    elemental function calc_qs(Ts,zs,e0,c1) result(qs)
+    elemental function calc_qs(Ts,zs,e0,c1,g,T0) result(qs)
         ! Specific water content parameterization(kg/kg)
         ! Ts [K], zs [m] 
         
         implicit none
 
-        real(wp), intent(IN)  :: Ts, zs
-        real(wp), intent(IN) :: e0, c1 
-        real(wp) :: qs, esat, p
+        real(wp), intent(IN) :: Ts
+        real(wp), intent(IN) :: zs
+        real(wp), intent(IN) :: e0
+        real(wp), intent(IN) :: c1 
+        real(wp), intent(IN) :: g
+        real(wp), intent(IN) :: T0
+        real(wp) :: qs
+        
+        real(wp) :: esat, p
         real(wp), parameter :: ebs = 0.62198_wp
         real(wp), parameter :: c2  = 243.5_wp
-        real(wp), parameter :: T0  = 273.15_wp 
-
+        
         ! First, calculate the saturation vapor pressure
         ! ( hPa *100 => Pa => kg/(m s2) )
         esat = e0*exp((c1*(Ts-T0))/(c2+(Ts-T0)))*100_wp
 
         ! and the surface pressure
-        p    = calc_sp(zs)
+        p    = calc_sp(zs,g)
 
         ! Then calculate the specific humidity
         qs = ebs * esat / (p-(1.0-ebs)*esat)
@@ -368,20 +391,24 @@ contains
 
     end function calc_qs
 
-    elemental function calc_qsat(Ts,zs) result(qsat)
+    elemental function calc_qsat(Ts,zs,g,T0) result(qsat)
         ! Saturation specific water content (kg/kg)
         ! Ts [K], zs [m] 
         
         implicit none 
         
-        real(wp), intent(IN)  :: Ts, zs
-        real(wp) :: qsat 
+        real(wp), intent(IN) :: Ts
+        real(wp), intent(IN) :: zs
+        real(wp), intent(IN) :: g
+        real(wp), intent(IN) :: T0
+        real(wp) :: qsat
+        
         real(wp), parameter :: e0  = 6.112_wp
         real(wp), parameter :: c1  = 17.67_wp
  
         ! Calculate the specific humidity with 
         ! the correct saturation parameters
-        qsat = calc_qs(Ts,zs,e0,c1)
+        qsat = calc_qs(Ts,zs,e0,c1,g,T0)
 
         return
 
