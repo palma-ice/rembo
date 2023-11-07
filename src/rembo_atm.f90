@@ -129,8 +129,9 @@ contains
             now%lwu = par%lwu_a + par%lwu_b*now%t2m
             
             ! Calculate the incoming short-wave radiation at toa
-            now%swd = (1.0-now%al_p)*now%S 
-        
+            !now%swd = (1.0-now%al_p)*now%S 
+            now%swd = now%S 
+
             ! Calculate radiative forcing of CO2
             now%rco2_a  = calc_rad_co2(now%co2_a)
 
@@ -175,7 +176,7 @@ contains
 
             end do 
 
-if (.FALSE.) then
+if (.TRUE.) then
             ! Calculate energy balance on low-resolution grid
             ! ajr: need to test whether it's better just to use slightly lower
             ! resolution for the whole atmosphere, but one grid. (High resolution
@@ -187,6 +188,14 @@ if (.FALSE.) then
                               lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
                               rco2=par%en_kdT + now%rco2_a, &
                               ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
+
+            ! call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf,now%t2m_bnd,now%gamma, &
+            !                   swn=now%swd*(1.0-now%al_p), &
+            !                   lwn=-now%lwu, &
+            !                   shf=now%shf_s*0.0_wp,lhf=now%lhf_s*0.0_wp, &
+            !                   lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0_wp, &
+            !                   rco2=par%en_kdT + now%rco2_a, &
+            !                   ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
 
             
 else 
