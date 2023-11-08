@@ -51,7 +51,7 @@ contains
         ! Calc gradient of Z: dZdx, dZdy 
         call d_dx(now%dZdx,now%Z,dx=grid%dx)
         call d_dy(now%dZdy,now%Z,dx=grid%dy)
-        
+
         ! Get geostrophic components and magnitude of velocity
         now%ug  = calc_u_geo(now%dZdy,bnd%f,par%c%g)
         now%vg  = calc_v_geo(now%dZdx,bnd%f,par%c%g)
@@ -255,13 +255,10 @@ end if
 
         ! Local variables  
         real(wp) :: tsl_fac 
-        integer :: q, nx, ny 
-        real(dp), allocatable :: tmp8(:,:) 
+        integer :: q, nx, ny
 
         nx = emb%grid%nx 
         ny = emb%grid%ny 
-
-        allocate(tmp8(nx,ny)) 
 
         ! == emb relaxation mask (used for rembo_calc_en and rembo_calc_ccw)
 
@@ -322,15 +319,10 @@ end if
         ! Local variables  
         real(wp) :: tsl_fac 
         integer :: q, nx, ny 
-        real(dp), allocatable :: tmp8(:,:) 
-        real(dp), allocatable :: tmp8hi(:,:) 
 
         nx = emb%grid%nx 
         ny = emb%grid%ny 
-
-        allocate(tmp8(nx,ny)) 
-        allocate(tmp8hi(size(t2m,1),size(t2m,2))) 
-
+        
         ! Get the tsl => column energy conversion
         ! tsl_fac = H_a[m] c_v[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
         ! H_a = 8000 m
