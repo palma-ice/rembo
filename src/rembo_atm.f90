@@ -47,7 +47,11 @@ contains
         
         ! Get the surface pressure 
         now%sp = calc_sp(bnd%z_srf,par%c%g)
-
+        
+        ! Calc gradient of Z: dZdx, dZdy 
+        call d_dx(now%dZdx,now%Z,dx=grid%dx)
+        call d_dy(now%dZdy,now%Z,dx=grid%dy)
+        
         ! Get geostrophic components and magnitude of velocity
         now%ug  = calc_u_geo(now%dZdy,bnd%f,par%c%g)
         now%vg  = calc_v_geo(now%dZdx,bnd%f,par%c%g)
