@@ -8,19 +8,7 @@ program test_rembo
                                             gen_map_filename, nc_read_interp
 
     implicit none 
-
-    type rembo_forcing_class
-        ! Climatology and forcing data for a whole year 
-
-        real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
-        real(wp), allocatable :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
-        real(wp), allocatable :: tsl(:,:,:)      ! [K]     Sea-level temperature (used for boundary)
-        real(wp), allocatable :: al_s(:,:,:)     ! [--]    Surface albedo 
-        real(wp), allocatable :: co2_a           ! [ppm]   Atmospheric CO2 concentration
-        real(wp), allocatable :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
     
-    end type 
-
     type(rembo_class)           :: rembo1 
     type(rembo_forcing_class)   :: forc 
     

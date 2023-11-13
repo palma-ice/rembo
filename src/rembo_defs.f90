@@ -237,6 +237,20 @@ module rembo_defs
 
     end type
 
+    type rembo_forcing_class
+        ! Climatology and forcing data for a whole year 
+        ! This is just a convenient data holding class, which can be useful for
+        ! holding boundary forcing data. But it is not necessary
+        ! to use it in a program, as the fields are passed individually to rembo_update.
+
+        real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
+        real(wp), allocatable :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
+        real(wp), allocatable :: tsl(:,:,:)      ! [K]     Sea-level temperature (used for boundary)
+        real(wp), allocatable :: al_s(:,:,:)     ! [--]    Surface albedo 
+        real(wp), allocatable :: co2_a           ! [ppm]   Atmospheric CO2 concentration
+        real(wp), allocatable :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
+    
+    end type 
 
     !public   ! All rembo defs are public
     
