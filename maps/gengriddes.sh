@@ -2,8 +2,10 @@
 
 # Define user options
 
-domain=Antarctica
-grid_name_src=ANT-128KM
+#domain=Antarctica
+#grid_name_src=ANT-128KM
+domain=latlon
+grid_name_src=ERA40
 
 # Determine input grid file using options
 
@@ -12,6 +14,10 @@ nc_src=../ice_data/${domain}/${grid_name_src}/${grid_name_src}_REGIONS.nc
 if [ $grid_name_src = ERA5 ]
 then
   nc_src=../ice_data/ERA5/era5_orography.nc 
+fi
+if [ $grid_name_src = ERA40 ]
+then
+  nc_src=../ice_data/ERA40/era40-invariant.nc
 fi
 
 # Call cdo command to generate grid description file for the source grid

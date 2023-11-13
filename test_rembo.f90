@@ -8,7 +8,7 @@ program test_rembo
                                             gen_map_filename, nc_read_interp
 
     implicit none 
-    
+
     type(rembo_class)           :: rembo1 
     type(rembo_forcing_class)   :: forc 
     
@@ -73,6 +73,12 @@ program test_rembo
     infldr    = "ice_data/"
     call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name, &
                                                             z_srf=z_srf,dx=rembo1%grid%dx)
+
+    ! Loading ERA40 instead...
+    call load_clim_monthly_era40_latlon(forc,path=trim(infldr),grid_name=grid_name, &
+                                                            z_srf=z_srf,dx=rembo1%grid%dx)
+    
+    stop
 
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]
@@ -340,6 +346,76 @@ contains
         return 
 
     end subroutine load_clim_monthly_era_latlon
+
+    subroutine load_clim_monthly_era40_latlon(forc,path,grid_name,z_srf,dx)
+        ! Load the monthly data from ERA-40 on global latlon grid,
+        ! interpolate online to current grid using maps.
+
+        implicit none 
+
+        type(rembo_forcing_class), intent(INOUT) :: forc  
+        character(len=*),          intent(IN)    :: path 
+        character(len=*),          intent(IN)    :: grid_name 
+        real(wp),                  intent(IN)    :: z_srf(:,:)   ! Topography to be used in model 
+        real(wp),                  intent(IN)    :: dx 
+        
+        ! Local variables  
+        type(map_scrip_class) :: mps 
+
+        character(len=512) :: filename 
+        integer  :: m, nm  
+        real(wp) :: als_max, als_min, afac, tmid 
+
+        nm = 12 
+
+        ! Intialize the map (ERA5 to grid_name)
+        call map_scrip_init(mps,"ERA40",grid_name,method="con",fldr="maps",load=.TRUE.)
+        
+
+        ! ## Surface elevation ##
+
+        filename = trim(path)//"/ERA40/era40-invariant.nc"
+        call nc_read_interp(filename,"z",forc%z_srf,mps=mps,method="mean")
+        forc%z_srf = forc%z_srf / 9.80665_wp 
+        where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
+
+        ! ## Near-surface air temperature (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era40-monthly-surface_1958-2001.nc"
+        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean", &
+                                filt_method="gaussian",filt_par=[32e3_wp,dx])
+        
+        ! Get tsl and then correct temperature for model topography (instead of ERA topography)
+        do m = 1, nm 
+            forc%tsl(:,:,m) = forc%t2m(:,:,m) + 0.0065*forc%z_srf
+            forc%t2m(:,:,m) = forc%tsl(:,:,m) - 0.0065*z_srf  
+        end do 
+
+        ! # Calculate surface albedo too
+        als_max =   0.80
+        als_min =   0.69
+        afac     =  -0.18
+        tmid     = 275.35
+        forc%al_s = calc_albedo_t2m(forc%t2m,als_min,als_max,afac,tmid)
+        
+        ! ## Geopotential height 750Mb (monthly) ##
+        
+        forc%Z = 0.0_wp         ! Variable not available/needed for ERA40 boundary forcing (ie, REMBO1 configuration)
+
+        write(*,*) "z_srf:  ", minval(forc%z_srf),       maxval(forc%z_srf)
+        write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),  maxval(forc%t2m(:,:,1))
+        write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),  maxval(forc%t2m(:,:,7))
+        write(*,*) "al_s 1: ", minval(forc%al_s(:,:,1)), maxval(forc%al_s(:,:,1))
+        write(*,*) "al_s 7: ", minval(forc%al_s(:,:,7)), maxval(forc%al_s(:,:,7))
+        !write(*,*) "Z 1:    ", minval(forc%Z(:,:,1)),    maxval(forc%Z(:,:,1))
+        !write(*,*) "Z 7:    ", minval(forc%Z(:,:,7)),    maxval(forc%Z(:,:,7))
+        
+        write(*,*) "Loaded ERA-40 boundary climate dataset."
+        
+        return 
+
+    end subroutine load_clim_monthly_era40_latlon
 
     subroutine rembo_forc_alloc(forc,nx,ny)
 

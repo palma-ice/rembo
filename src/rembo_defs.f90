@@ -266,6 +266,7 @@ module rembo_defs
     public :: rembo_state_class 
     public :: diffusion_class 
     public :: rembo_class 
+    public :: rembo_forcing_class
     
     public :: rembo_get_working_precision
     public :: rembo_parse_path

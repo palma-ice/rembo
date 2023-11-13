@@ -2,9 +2,9 @@
 
 # Define user options
 
-domain=Antarctica
-grid_name_src=ANT-128KM
-grid_name_tgt=ANT-32KM
+domain=Greenland
+grid_name_src=ERA40
+grid_name_tgt=GRL-16KM
 
 # Determine input grid file using options
 
@@ -13,6 +13,10 @@ nc_src=../ice_data/${domain}/${grid_name_src}/${grid_name_src}_REGIONS.nc
 if [ $grid_name_src = ERA5 ]
 then
   nc_src=../ice_data/ERA5/era5_orography.nc 
+fi
+if [ $grid_name_src = ERA40 ]
+then
+  nc_src=../ice_data/ERA40/era40-invariant.nc 
 fi
 
 # Call cdo command to generate map weights between source grid and target grid:
