@@ -381,7 +381,7 @@ contains
 
         ! ## Near-surface air temperature (monthly) ##
 
-        filename = trim(path)//"/ERA5/clim/"&
+        filename = trim(path)//"/ERA40/clim/"&
                         //"era40-monthly-surface_1958-2001.nc"
         call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean", &
                                 filt_method="gaussian",filt_par=[32e3_wp,dx])
