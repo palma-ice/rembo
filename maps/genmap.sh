@@ -3,7 +3,7 @@
 # Define user options
 
 domain=Greenland
-grid_name_src=ERA40
+grid_name_src=ERA5
 grid_name_tgt=GRL-16KM
 
 # Determine input grid file using options
@@ -12,7 +12,7 @@ nc_src=../ice_data/${domain}/${grid_name_src}/${grid_name_src}_REGIONS.nc
 
 if [ $grid_name_src = ERA5 ]
 then
-  nc_src=../ice_data/ERA5/era5_orography.nc 
+  nc_src=../ice_data/ERA5/era5_geopotential.nc 
 fi
 if [ $grid_name_src = ERA40 ]
 then
