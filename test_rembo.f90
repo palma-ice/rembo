@@ -67,19 +67,19 @@ program test_rembo
     ! Load forcing
     call rembo_forc_alloc(forc,nx,ny)
 
+    ! Load ERA5 data already interpolated onto Greenland grid
     !infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
     !call load_clim_monthly_era(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
 
+    ! Load ERA5 data from global latlon grid (best)
     infldr    = "ice_data/"
     call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name, &
                                                             z_srf=z_srf,dx=rembo1%grid%dx)
 
     ! Loading ERA40 instead...
-    call load_clim_monthly_era40_latlon(forc,path=trim(infldr),grid_name=grid_name, &
-                                                            z_srf=z_srf,dx=rembo1%grid%dx)
+    !call load_clim_monthly_era40_latlon(forc,path=trim(infldr),grid_name=grid_name, &
+    !                                                        z_srf=z_srf,dx=rembo1%grid%dx)
     
-    stop
-
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]
 
@@ -92,6 +92,13 @@ program test_rembo
     call rembo_write_init(rembo1,file_out,time,units="kyr ago")
     call rembo_write_step(rembo1,forc,file_out,time)
 
+
+    ! Write lots of reanalysis data for offline analysis...
+    infldr    = "ice_data/"
+    call write_clim_monthly_era_latlon(rembo1,path=trim(infldr),grid_name=grid_name, &
+                                                            z_srf=z_srf,dx=rembo1%grid%dx)
+
+    
     call rembo_end(rembo1)
 
     ! Stop timing 
@@ -533,7 +540,11 @@ contains
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"at",dom%mon(m)%at,units="1",long_name="Atmospheric transmissivity", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
-
+            call nc_write(filename,"lwu",dom%mon(m)%lwu,units="W m**-2",long_name="Longwave radiation up (toa)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"rco2",dom%mon(m)%rco2_a,units="W m**-2",long_name="Radiative forcing, CO2", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            
 
             call nc_write(filename,"swd_s",dom%mon(m)%swd_s,units="W m**-2",long_name="Shortwave radiation down (surface)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
@@ -617,6 +628,160 @@ contains
         return 
 
     end subroutine load_command_line_args
+
+
+
+
+    subroutine write_clim_monthly_era_latlon(dom,path,grid_name,z_srf,dx)
+        ! Load the monthly data from ERA5 on global latlon grid,
+        ! interpolate online to current grid using maps.
+
+        implicit none 
+
+        type(rembo_class),          intent(IN)  :: dom
+        character(len=*),           intent(IN)  :: path 
+        character(len=*),           intent(IN)  :: grid_name 
+        real(wp),                   intent(IN)  :: z_srf(:,:)   ! Topography to be used in model 
+        real(wp),                   intent(IN)  :: dx 
+        
+        ! Local variables  
+        type(map_scrip_class) :: mps 
+        type(rembo_forcing_class) :: forc 
+
+        character(len=512) :: filename   
+        real(wp) :: als_max, als_min, afac, tmid 
+
+        integer    :: ncid, n, nx, ny, m, nm
+
+        real(wp), allocatable :: z_srf_orig(:,:)
+        real(wp), allocatable :: tmp2D(:,:)
+        real(wp), allocatable :: tmp3D(:,:,:)
+
+        nx = size(z_srf,1)
+        ny = size(z_srf,2)
+        nm = 12 
+
+        allocate(tmp2D(nx,ny))
+        allocate(tmp3D(nx,ny,nm))
+
+        call rembo_forc_alloc(forc,nx,ny)
+
+        ! Intialize the map (ERA5 to grid_name)
+        call map_scrip_init(mps,"ERA5",grid_name,method="con",fldr="maps",load=.TRUE.)
+        
+
+        ! ## Surface elevation ##
+
+        filename = trim(path)//"/ERA5/era5_orography.nc"
+        call nc_read_interp(filename,"z",forc%z_srf,mps=mps,method="mean")
+        forc%z_srf = forc%z_srf / 9.80665_wp 
+        where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
+
+        ! ## Near-surface air temperature (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_2m_temperature_1961-1990.nc"
+        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean", &
+                                filt_method="gaussian",filt_par=[32e3_wp,dx])
+        
+        ! Get tsl and then correct temperature for model topography (instead of ERA topography)
+        do m = 1, nm 
+            forc%tsl(:,:,m) = forc%t2m(:,:,m) + 0.0065*forc%z_srf
+            forc%t2m(:,:,m) = forc%tsl(:,:,m) - 0.0065*z_srf  
+        end do 
+
+        ! # Calculate surface albedo too
+        als_max =   0.80
+        als_min =   0.69
+        afac     =  -0.18
+        tmid     = 275.35
+        forc%al_s = calc_albedo_t2m(forc%t2m,als_min,als_max,afac,tmid)
+        
+        ! ## Geopotential height 750Mb (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_geopotential_750_1961-1990.nc"
+        call nc_read_interp(filename,"z",forc%Z,mps=mps,method="mean", &
+                        filt_method="gaussian",filt_par=[32e3_wp,dx])
+        forc%Z = forc%Z / 9.80665_wp
+
+        write(*,*) "z_srf:  ", minval(forc%z_srf),       maxval(forc%z_srf)
+        write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),  maxval(forc%t2m(:,:,1))
+        write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),  maxval(forc%t2m(:,:,7))
+        write(*,*) "al_s 1: ", minval(forc%al_s(:,:,1)), maxval(forc%al_s(:,:,1))
+        write(*,*) "al_s 7: ", minval(forc%al_s(:,:,7)), maxval(forc%al_s(:,:,7))
+        write(*,*) "Z 1:    ", minval(forc%Z(:,:,1)),    maxval(forc%Z(:,:,1))
+        write(*,*) "Z 7:    ", minval(forc%Z(:,:,7)),    maxval(forc%Z(:,:,7))
+        
+        write(*,*) "Loaded ERA5 boundary climate dataset."
+        
+
+        ! === WRITE DATA TO NETCDF OUTPUT ===
+
+        filename = trim(path)//"/ERA5/"//trim(grid_name)//"_era5.nc"
+
+        ! Initialize netcdf file and dimensions
+        call nc_create(filename)
+        call nc_write_dim(filename,"xc",    x=dom%grid%xc,  units="kilometers")
+        call nc_write_dim(filename,"yc",    x=dom%grid%yc,  units="kilometers")
+        call nc_write_dim(filename,"month", x=1,dx=1,nx=12, units="month")
+
+        ! Write grid information
+        call rembo_grid_write(dom%grid,filename,dom%par%domain,dom%par%grid_name,create=.FALSE.)
+
+
+        ! Open the file for writing actual data
+        call nc_open(filename,ncid,writable=.TRUE.)
+
+        
+        ! == 2D fields ==
+
+        call nc_write(filename,"z_srf",dom%bnd%z_srf,units="m",long_name="Surface elevation", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"f_ice",dom%bnd%f_ice,units="1",long_name="Ice fraction (grounded)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"f_shlf",dom%bnd%f_shlf,units="1",long_name="Ice fraction (floating)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"mask",dom%bnd%mask,units="1",long_name="Mask (solve REMBO or boundary)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
+        call nc_write(filename,"dzsdx",dom%bnd%dzsdx,units="m/m",long_name="Surface elevation gradient (x-dir)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"dzsdy",dom%bnd%dzsdy,units="m/m",long_name="Surface elevation gradient (y-dir)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"dzsdxy",dom%bnd%dzsdxy,units="m/m",long_name="Surface elevation gradient (magnitude)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
+        call nc_write(filename,"f",dom%bnd%f,units="m/m",long_name="Coriolis parameter", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
+
+        call nc_write(filename,"z_srf_orig",forc%z_srf,units="m",long_name="Surface elevation (input dataset)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        
+        ! Monthly fields
+        do m = 1, nm 
+            call nc_write(filename,"S",dom%mon(m)%S,units="W m**-2",long_name="Insolation TOA (boundary)", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+        end do
+
+        call nc_write(filename,"tsl",forc%tsl,units="K",long_name="Sea-level temperature", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+        call nc_write(filename,"t2m",forc%t2m,units="K",long_name="2m temperature", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        call nc_write(filename,"Z750",forc%Z,units="m",long_name="Geopotential height (750 Mb)", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! Close the netcdf file
+        call nc_close(ncid)
+
+        write(*,*) "write_clim_monthly_era_latlon:: done."
+
+        return 
+
+    end subroutine write_clim_monthly_era_latlon
+
 
 end program test_rembo
 

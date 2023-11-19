@@ -127,10 +127,10 @@ contains
             now%al_p = par%alp_a + par%alp_b*now%al_s - par%alp_c*now%tcw 
             where(now%al_p .lt. 0.0) now%al_p = 0.0
             where(now%al_p .gt. 1.0) now%al_p = 1.0  
-        
+            
             ! Calculate the outgoing long-wave radiation at toa
-            !now%lwu = par%lwu_a + par%lwu_b*(now%t2m-273.15) + par%lwu_c*now%S
-            now%lwu = par%lwu_a + par%lwu_b*now%t2m
+            !now%lwu = par%lwu_a + par%lwu_b*(now%t2m-par%c%T0) + par%lwu_c*now%S
+            now%lwu = par%lwu_a + par%lwu_b*(now%t2m-par%c%T0)
             
             ! Calculate the incoming short-wave radiation at toa
             !now%swd = (1.0-now%al_p)*now%S 
@@ -185,13 +185,13 @@ if (.TRUE.) then
             ! ajr: need to test whether it's better just to use slightly lower
             ! resolution for the whole atmosphere, but one grid. (High resolution
             ! can happen externally for smb model, where it is needed).
-            call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf,now%t2m_bnd,now%gamma, &
-                              swn=(now%swd - now%swd_s*(1.0-now%al_s)), &
-                              lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
-                              shf=now%shf_s,lhf=now%lhf_s, &
-                              lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
-                              rco2=par%en_kdT + now%rco2_a, &
-                              ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
+            ! call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf,now%t2m_bnd,now%gamma, &
+            !                   swn=(now%swd - now%swd_s*(1.0-now%al_s)), &
+            !                   lwn=(- now%lwu + now%lwu_s - now%lwd_s), &
+            !                   shf=now%shf_s,lhf=now%lhf_s, &
+            !                   lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0, &
+            !                   rco2=par%en_kdT + now%rco2_a, &
+            !                   ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
 
             ! call rembo_calc_en(now%t2m,emb,par,day,bnd%z_srf,now%t2m_bnd,now%gamma, &
             !                   swn=now%swd*(1.0-now%al_p), &
@@ -200,6 +200,16 @@ if (.TRUE.) then
             !                   lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0_wp, &
             !                   rco2=par%en_kdT + now%rco2_a, &
             !                   ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
+
+            call rembo_calc_en_simple(now%t2m,par,day,bnd%z_srf,now%t2m_bnd,now%gamma, &
+                              swn=now%swd*(1.0-now%al_p), &
+                              lwn=-now%lwu, &
+                              shf=now%shf_s*0.0_wp,lhf=now%lhf_s*0.0_wp, &
+                              lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0_wp, &
+                              rco2=par%en_kdT + now%rco2_a, &
+                              ug=now%ug,vg=now%vg, &
+                              mask=bnd%mask, &
+                              dx=grid%dx,g=par%c%g)
 
             
 else 
@@ -294,6 +304,81 @@ end if
 
     end subroutine rembo_calc_iterinit
 
+    subroutine rembo_calc_en_simple(t2m,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,mask,dx,g)
+
+        implicit none 
+
+        real(wp),                intent(INOUT) :: t2m(:,:)  
+        type(rembo_param_class), intent(IN)    :: par 
+        integer,                 intent(IN)    :: day 
+        real(wp),                intent(IN)    :: z_srf(:,:)
+        real(wp),                intent(IN)    :: t2m_bnd(:,:)
+        real(wp),                intent(IN)    :: gamma(:,:)
+        real(wp),                intent(IN)    :: swn(:,:)
+        real(wp),                intent(IN)    :: lwn(:,:)
+        real(wp),                intent(IN)    :: shf(:,:)
+        real(wp),                intent(IN)    :: lhf(:,:)
+        real(wp),                intent(IN)    :: lhp(:,:)
+        real(wp),                intent(IN)    :: rco2(:,:)
+        real(wp),                intent(IN)    :: ug(:,:)
+        real(wp),                intent(IN)    :: vg(:,:)
+        integer,                 intent(IN)    :: mask(:,:)
+        real(wp),                intent(IN)    :: dx
+        real(wp),                intent(IN)    :: g 
+
+        ! Local variables  
+        real(wp) :: tsl_fac 
+        integer :: q, nx, ny
+
+        real(wp), allocatable :: tsl(:,:)
+        real(wp), allocatable :: tsl_F(:,:)
+        real(wp), allocatable :: tsl_bnd(:,:)
+        real(wp), allocatable :: kappa(:,:)
+
+        nx = size(t2m,1)
+        ny = size(t2m,2)
+
+        allocate(tsl(nx,ny))
+        allocate(tsl_F(nx,ny))
+        allocate(tsl_bnd(nx,ny))
+        allocate(kappa(nx,ny))
+
+        ! Get the tsl => column energy conversion
+        ! tsl_fac = H_a[m] c_v[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
+        ! H_a = 8000 m
+        !tsl_fac = 8000.0 *715.0 *1.225 !* 1.225 ! =~ 8e6
+        
+        ! climber-x formula to get tsl_fac
+        ! tsl_fac = slp / g * cv_atm 
+        ! slp = 101100.0 [kg m-1 s-2]; g = 9.81 [m s-2]; c_v_atm = 715.0 [J kg-1 K-1]
+        ! tsl_fac => [kg m-1 s-2] * [m-1 s2] * [J kg-1 K-1] = [J m-2 K-1]
+        tsl_fac = 101100.0 /g *715.0 
+
+        ! Sea-level temperature, tsl
+        tsl = t2m+gamma*z_srf
+
+        ! Sea-level boundary temperature, tsl_bnd
+        tsl_bnd = t2m_bnd+gamma*z_srf
+
+        ! Radiative forcing, tsl_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
+        tsl_F = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac
+
+        ! Energy diffusion coefficient
+        kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
+
+        ! Calculate radiative balance over the day
+        do q = 1, par%en_nstep * 5
+            call adv_diff_2D(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
+                                    dt=par%en_dt,kappa=kappa,k_relax=par%en_kr,v_x=ug,v_y=vg)
+        end do 
+
+        ! 2m temperature
+        t2m = tsl - gamma*z_srf
+
+        return 
+
+    end subroutine rembo_calc_en_simple
+    
     subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,dx,g)
 
         implicit none 

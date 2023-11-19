@@ -117,10 +117,45 @@ contains
 
         end do 
 
+        ! Write energy balance terms for given month
+        call check_balance_point(dom,1,25,50)
+        call check_balance_point(dom,7,25,50)
+        
         return 
 
     end subroutine rembo_update
     
+    subroutine check_balance_point(dom,m,i,j)
+
+        implicit none
+
+        type(rembo_class), intent(IN) :: dom
+        integer, intent(IN) :: m 
+        integer, intent(IN) :: i 
+        integer, intent(IN) :: j 
+
+        ! Local variables
+        type(rembo_state_class) :: now
+        real(wp) :: F 
+
+        ! Get current month
+        now = dom%mon(m)
+
+        F = now%swd(i,j)*(1.0-now%al_p(i,j)) - now%lwu(i,j) + now%rco2_a(i,j)
+
+        write(*,*)
+        write(*,*) "(i,j), Month: ", i, j, m 
+        write(*,"(a10,f12.3)") "F    = ", F  
+        write(*,"(a10,f12.3)") "swn  = ", now%swd(i,j)*(1.0-now%al_p(i,j))
+        write(*,"(a10,f12.3)") "lwn  = ", -now%lwu(i,j)
+        write(*,"(a10,f12.3)") "rco2 = ", now%rco2_a(i,j)
+        write(*,"(a10,f12.3)") "t2m  = ", now%t2m(i,j)  
+        write(*,"(a10,f12.3)") "swd  = ", now%swd(i,j)
+
+        return
+
+    end subroutine check_balance_point
+
     subroutine rembo_init(dom,path_par,domain,grid)
 
         use solvers

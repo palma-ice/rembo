@@ -1,6 +1,6 @@
 &rembo
     domain        = "Greenland"
-    grid_name     = "GRL-16KM"
+    grid_name     = "GRL-32KM"
     grid_name_emb = "GRL-128KM"
     grid_path     = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
     grid_path_emb = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
@@ -10,7 +10,7 @@
     rembo1     = .FALSE.
 
     ! Diffusion parameters
-    en_dt      = 1000               ! Diffusion time step, sec
+    en_dt      = 100                ! Diffusion time step, sec
     en_D       = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
     en_D_sum   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
@@ -60,14 +60,14 @@
 
     ! Surface temperature and radiation parameterizations 
     ci         = 2e6
-    alp_a      = 0.58      ! Planetary albedo   0.67 
-    alp_b      = 0.20      ! Planetary albedo   0.1 
-    alp_c      = 0.024     ! Planetary albedo   0.026 
+    alp_a      = 0.35      ! Planetary albedo   0.67 
+    alp_b      = 0.39      ! Planetary albedo   0.1 
+    alp_c      = 0.0       ! Planetary albedo   0.026 
     !lwu_a      = 198       ! Outgoing longwave radiation, toa: a
     !lwu_b      = 1.11      ! Outgoing longwave radiation, toa: b*t2m
     !lwu_c      = 0.061     ! Outgoing longwave radiation, toa: c*S
-    lwu_a      = 195 
-    lwu_b      = 1.25 
+    lwu_a      = 224.43 
+    lwu_b      = 1.94
     lwu_c      = 0.0
     swds_a     = 0.77      ! Incoming shortwave radiation, surface: a
     swds_b     = 0.31      ! Incoming shortwave radiation, surface: -b*cc
