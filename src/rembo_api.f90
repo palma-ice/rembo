@@ -655,43 +655,7 @@ contains
         return
 
     end subroutine rembo_par_load
-
-    ! type rembo_state_class
-
-    !     ! Monthly forcing variables 
-    !     real(wp), allocatable :: S(:,:)        ! [W m-2] Insolation top-of-atmosphere
-    !     real(wp), allocatable :: t2m_bnd(:,:)  ! [K]     Near-surface temperature (used for boundary)
-    !     real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
-    !     real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
-    !     real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
-    !     real(wp), allocatable :: dZdx(:,:)
-    !     real(wp), allocatable :: dZdy(:,:)
-        
-    !     ! Annual variables 
-    !     real(wp), allocatable :: rco2_a(:,:)
-    !     real(wp), allocatable :: rho_a(:,:)
-    !     real(wp), allocatable :: sp(:,:)
-        
-    !     ! Seasonal variables
-    !     real(wp), allocatable :: gamma(:,:)
-    !     real(wp), allocatable :: t2m(:,:)   
-    !     real(wp), allocatable :: ct2m(:,:)
-    !     real(wp), allocatable :: tsurf(:,:)   
-    !     real(wp), allocatable :: pr(:,:)
-    !     real(wp), allocatable :: sf(:,:)
-    !     real(wp), allocatable :: q_s(:,:)
-    !     real(wp), allocatable :: q_sat(:,:)
-    !     real(wp), allocatable :: q_r(:,:)
-    !     real(wp), allocatable :: tcw(:,:), tcw_sat(:,:)
-    !     real(wp), allocatable :: ccw(:,:), c_w(:,:), ccw_prev(:,:) 
-    !     real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), cc(:,:)
-    !     real(wp), allocatable :: swd(:,:), lwu(:,:), al_p(:,:), at(:,:)
-    !     real(wp), allocatable :: swd_s(:,:), lwd_s(:,:), shf_s(:,:), lhf_s(:,:), lwu_s(:,:)
-    !     real(wp), allocatable :: u_s(:,:), v_s(:,:), uv_s(:,:)  
-        
-    !     real(wp), allocatable :: u_k(:,:), v_k(:,:), uv_k(:,:), dtsldx(:,:), dtsldy(:,:), dtsldxy(:,:)
-    ! end type 
-
+    
     subroutine rembo_average(ave,step,now,nt)
         implicit none 
 
