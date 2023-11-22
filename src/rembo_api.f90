@@ -22,11 +22,119 @@ module rembo_api
     public :: rembo_update
     public :: rembo_init 
     public :: rembo_end 
+
+    public :: rembo1_update
+
     public :: rembo_write_init 
     public :: rembo_grid_write 
 
 contains 
 
+    subroutine rembo1_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,co2_a,year)
+        ! Calculate atmosphere for each month of the year 
+
+        implicit none 
+
+        type(rembo_class), intent(INOUT) :: dom 
+
+        real(wp), intent(IN) :: z_srf(:,:)      ! [m]     Surface elevation
+        real(wp), intent(IN) :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
+        real(wp), intent(IN) :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
+        real(wp), intent(IN) :: reg_mask(:,:)   ! [--]    Maximum region of interest to model 
+        real(wp), intent(IN) :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
+        real(wp), intent(IN) :: co2_a           ! [ppm]   Atmospheric CO2 concentration
+        integer,  intent(IN) :: year            ! [yrs ago (since 1950)]
+
+        ! Local variables 
+        integer  :: day, d, m, nm, nd, ndm
+        integer, parameter :: day_step = 3      ! Only calculate atmosphere every three days
+
+        nm  = dom%par%c%nm
+        ndm = dom%par%c%ndm
+        nd  = nm*ndm
+
+        ! == Store annual boundary variables =====
+        dom%bnd%z_srf  = z_srf 
+        dom%bnd%f_ice  = f_ice 
+        dom%bnd%f_shlf = f_shlf 
+
+        ! == Calculate annual derived boundary variables =====
+
+        ! Calculate atmospheric density from surface elevation
+        dom%now%rho_a = calc_airdens(dom%bnd%z_srf)
+
+        ! Calculate the coriolis parameter for the current grid points
+        dom%bnd%f = calc_coriolis(real(dom%grid%lat,wp),dom%par%c%omega)
+
+        ! Calculate surface gradients and total magnitude, staggered onto ac-nodes 
+        call d_dx(dom%bnd%dzsdx,dom%bnd%z_srf,dx=dom%grid%dx)
+        call d_dy(dom%bnd%dzsdy,dom%bnd%z_srf,dx=dom%grid%dy)
+        dom%bnd%dzsdxy = calc_magnitude_from_staggered(dom%bnd%dzsdx,dom%bnd%dzsdy)
+
+!         ! Test calculating gradient as distance to sea level 
+!         call calc_gradient_to_sealevel(dom%bnd%dzsdxy,dom%bnd%z_srf,dom%bnd%z_srf*0.0, &
+!                     dom%grid%x,dom%grid%y)
+
+        ! Calculate the rembo relaxation mask
+        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,radius=16.0)  
+        where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
+
+        ! EMB OUTPUT FOR TESTING 
+        !call rembo_emb_write_init(dom%emb,"test.nc",dom%par%domain,dom%par%grid_name, &
+        !                                            time_init=real(year,wp),units="kyr ago")
+
+        
+        ! === Calculate rembo atmosphere over the whole year ===
+        
+        day = 0
+
+        ! Loop over each month of the yera
+        do m = 1, nm
+
+            ! Loop over days in the month 
+            do d = 1, ndm
+
+                ! Get the current day of the year
+                day = day + 1
+
+                ! == Get monthly boundary variables for current day =====
+
+                ! CO2 is always equal to the annual value (for now)
+                dom%now%co2_a   = co2_a 
+
+                ! Interpolate monthly temperatures to the current day
+                !dom%now%t2m_bnd = t2m(:,:,m) 
+                ! ***** TO DO ***** 
+                
+                ! Calculate insolation for current day
+                dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
+
+                
+                ! == Calculate rembo atmosphere =====
+                
+                call rembo1_calc_atmosphere(dom%now,dom%emb,dom%bnd,dom%grid,dom%par,day,year)
+
+
+            end do
+
+            ! Month completed, get the monthly average
+            ! Store data in monthly object 
+            !dom%mon(m) = dom%now
+            ! *** TO DO ***
+
+            ! Print summary for this month
+            call rembo_print(dom,m,day,year)
+
+            
+            ! EMB OUTPUT FOR TESTING 
+            !call rembo_emb_write_step_grid(dom%emb,"test.nc",m)
+
+        end do 
+
+        return 
+
+    end subroutine rembo1_update
+    
     subroutine rembo_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,co2_a,year)
         ! Calculate atmosphere for each month of the year 
 
@@ -86,21 +194,15 @@ contains
 
             ! == Store monthly boundary variables =====
 
-            ! Calculate representative insolation for the month
-            dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
-
-            ! Save all other boundary variables 
+            ! Save boundary variables 
             dom%now%t2m_bnd = t2m(:,:,m) 
             dom%now%co2_a   = co2_a 
             dom%now%Z       = Z(:,:,m)
-
-            ! == Calculate monthly derived boundary variables =====
-
-            ! Calc gradient of Z: dZdx, dZdy 
-            call d_dx(dom%now%dZdx,dom%now%Z,dx=dom%grid%dx)
-            call d_dy(dom%now%dZdy,dom%now%Z,dx=dom%grid%dy)
-            ! ajr: to do: move this inside of rembo_calc_atmosphere using local variables
             
+            ! Calculate representative insolation for the month
+            dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
+
+
             ! == Calculate rembo atmosphere =====
             
             call rembo_calc_atmosphere(dom%now,dom%emb,dom%bnd,dom%grid,dom%par,day,year)
@@ -554,6 +656,228 @@ contains
 
     end subroutine rembo_par_load
 
+    ! type rembo_state_class
+
+    !     ! Monthly forcing variables 
+    !     real(wp), allocatable :: S(:,:)        ! [W m-2] Insolation top-of-atmosphere
+    !     real(wp), allocatable :: t2m_bnd(:,:)  ! [K]     Near-surface temperature (used for boundary)
+    !     real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
+    !     real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
+    !     real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
+    !     real(wp), allocatable :: dZdx(:,:)
+    !     real(wp), allocatable :: dZdy(:,:)
+        
+    !     ! Annual variables 
+    !     real(wp), allocatable :: rco2_a(:,:)
+    !     real(wp), allocatable :: rho_a(:,:)
+    !     real(wp), allocatable :: sp(:,:)
+        
+    !     ! Seasonal variables
+    !     real(wp), allocatable :: gamma(:,:)
+    !     real(wp), allocatable :: t2m(:,:)   
+    !     real(wp), allocatable :: ct2m(:,:)
+    !     real(wp), allocatable :: tsurf(:,:)   
+    !     real(wp), allocatable :: pr(:,:)
+    !     real(wp), allocatable :: sf(:,:)
+    !     real(wp), allocatable :: q_s(:,:)
+    !     real(wp), allocatable :: q_sat(:,:)
+    !     real(wp), allocatable :: q_r(:,:)
+    !     real(wp), allocatable :: tcw(:,:), tcw_sat(:,:)
+    !     real(wp), allocatable :: ccw(:,:), c_w(:,:), ccw_prev(:,:) 
+    !     real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), cc(:,:)
+    !     real(wp), allocatable :: swd(:,:), lwu(:,:), al_p(:,:), at(:,:)
+    !     real(wp), allocatable :: swd_s(:,:), lwd_s(:,:), shf_s(:,:), lhf_s(:,:), lwu_s(:,:)
+    !     real(wp), allocatable :: u_s(:,:), v_s(:,:), uv_s(:,:)  
+        
+    !     real(wp), allocatable :: u_k(:,:), v_k(:,:), uv_k(:,:), dtsldx(:,:), dtsldy(:,:), dtsldxy(:,:)
+    ! end type 
+
+    subroutine rembo_average(ave,step,now,nt)
+        implicit none 
+
+        type(rembo_state_class), intent(INOUT) :: ave
+        character(len=*), intent(IN) :: step 
+        type(rembo_state_class), intent(IN), optional :: now 
+        integer, intent(IN), optional :: nt 
+        
+        ! Local variables
+        real(dp) :: nt_dble 
+
+        nt_dble = real(nt,dp)
+
+        if (trim(step) .eq. "init") then 
+
+            ! Initialize values to zeros
+
+            ave%S           = 0.0 
+            ave%t2m_bnd     = 0.0 
+            ave%al_s        = 0.0 
+            ave%co2_a       = 0.0 
+            ave%Z           = 0.0 
+            ave%dZdx        = 0.0   
+            ave%dZdy        = 0.0  
+
+            ave%rco2_a      = 0.0 
+            ave%rho_a       = 0.0 
+            ave%sp          = 0.0 
+
+            ave%gamma       = 0.0
+            ave%t2m         = 0.0
+            ave%ct2m        = 0.0
+            ave%tsurf       = 0.0
+            ave%pr          = 0.0        
+            ave%sf          = 0.0
+            ave%q_s         = 0.0 
+            ave%q_sat       = 0.0 
+            ave%q_r         = 0.0 
+            ave%tcw         = 0.0 
+            ave%tcw_sat     = 0.0 
+            ave%ccw_prev    = 0.0
+            ave%ccw         = 0.0 
+            ave%c_w         = 0.0  
+            ave%ug          = 0.0 
+            ave%vg          = 0.0   
+            ave%uvg         = 0.0
+            ave%ww          = 0.0 
+            ave%cc          = 0.0           
+            ave%swd         = 0.0    
+            ave%lwu         = 0.0 
+            ave%al_p        = 0.0  
+            ave%at          = 0.0  
+            
+            ave%u_k         = 0.0    
+            ave%v_k         = 0.0 
+            ave%uv_k        = 0.0   
+            
+            ave%dtsldx      = 0.0  
+            ave%dtsldy      = 0.0 
+            ave%dtsldxy     = 0.0  
+            
+            ave%swd_s       = 0.0  
+            ave%lwd_s       = 0.0  
+            ave%lwu_s       = 0.0  
+            ave%shf_s       = 0.0  
+            ave%lhf_s       = 0.0 
+            ave%u_s         = 0.0  
+            ave%v_s         = 0.0 
+            ave%uv_s        = 0.0 
+
+        else if (trim(step) .eq. "step" .and. present(now)) then 
+
+            ! Add current values to the running averaging sum
+            ave%S           = ave%S        + now%S       
+            ave%t2m_bnd     = ave%t2m_bnd  + now%t2m_bnd 
+            ave%al_s        = ave%al_s     + now%al_s    
+            ave%co2_a       = ave%co2_a    + now%co2_a   
+            ave%Z           = ave%Z        + now%Z       
+            ave%dZdx        = ave%dZdx     + now%dZdx      
+            ave%dZdy        = ave%dZdy     + now%dZdy     
+
+            ave%rco2_a      = ave%rco2_a   + now%rco2_a  
+            ave%rho_a       = ave%rho_a    + now%rho_a   
+            ave%sp          = ave%sp       + now%sp      
+
+            ave%gamma       = ave%gamma    + now%gamma  
+            ave%t2m         = ave%t2m      + now%t2m    
+            ave%ct2m        = ave%ct2m     + now%ct2m   
+            ave%tsurf       = ave%tsurf    + now%tsurf  
+            ave%pr          = ave%pr       + now%pr             
+            ave%sf          = ave%sf       + now%sf     
+            ave%q_s         = ave%q_s      + now%q_s     
+            ave%q_sat       = ave%q_sat    + now%q_sat   
+            ave%q_r         = ave%q_r      + now%q_r     
+            ave%tcw         = ave%tcw      + now%tcw     
+            ave%tcw_sat     = ave%tcw_sat  + now%tcw_sat 
+            ave%ccw_prev    = ave%ccw_prev + now%ccw_prev
+            ave%ccw         = ave%ccw      + now%ccw     
+            ave%c_w         = ave%c_w      + now%c_w      
+            ave%ug          = ave%ug       + now%ug      
+            ave%vg          = ave%vg       + now%vg        
+            ave%uvg         = ave%uvg      + now%uvg    
+            ave%ww          = ave%ww       + now%ww      
+            ave%cc          = ave%cc       + now%cc                
+            ave%swd         = ave%swd      + now%swd        
+            ave%lwu         = ave%lwu      + now%lwu     
+            ave%al_p        = ave%al_p     + now%al_p     
+            ave%at          = ave%at       + now%at       
+            
+            ave%u_k         = ave%u_k      + now%u_k        
+            ave%v_k         = ave%v_k      + now%v_k     
+            ave%uv_k        = ave%uv_k     + now%uv_k      
+            
+            ave%dtsldx      = ave%dtsldx   + now%dtsldx   
+            ave%dtsldy      = ave%dtsldy   + now%dtsldy  
+            ave%dtsldxy     = ave%dtsldxy  + now%dtsldxy  
+            
+            ave%swd_s       = ave%swd_s    + now%swd_s    
+            ave%lwd_s       = ave%lwd_s    + now%lwd_s    
+            ave%lwu_s       = ave%lwu_s    + now%lwu_s    
+            ave%shf_s       = ave%shf_s    + now%shf_s    
+            ave%lhf_s       = ave%lhf_s    + now%lhf_s   
+            ave%u_s         = ave%u_s      + now%u_s      
+            ave%v_s         = ave%v_s      + now%v_s     
+            ave%uv_s        = ave%uv_s     + now%uv_s    
+
+        else if (trim(step) .eq. "end" .and. present(nt)) then 
+
+            ave%S           = ave%S        / nt_dble 
+            ave%t2m_bnd     = ave%t2m_bnd  / nt_dble 
+            ave%al_s        = ave%al_s     / nt_dble 
+            ave%co2_a       = ave%co2_a    / nt_dble 
+            ave%Z           = ave%Z        / nt_dble 
+            ave%dZdx        = ave%dZdx     / nt_dble   
+            ave%dZdy        = ave%dZdy     / nt_dble  
+
+            ave%rco2_a      = ave%rco2_a   / nt_dble 
+            ave%rho_a       = ave%rho_a    / nt_dble 
+            ave%sp          = ave%sp       / nt_dble 
+
+            ave%gamma       = ave%gamma    / nt_dble
+            ave%t2m         = ave%t2m      / nt_dble
+            ave%ct2m        = ave%ct2m     / nt_dble
+            ave%tsurf       = ave%tsurf    / nt_dble
+            ave%pr          = ave%pr       / nt_dble        
+            ave%sf          = ave%sf       / nt_dble
+            ave%q_s         = ave%q_s      / nt_dble 
+            ave%q_sat       = ave%q_sat    / nt_dble 
+            ave%q_r         = ave%q_r      / nt_dble 
+            ave%tcw         = ave%tcw      / nt_dble 
+            ave%tcw_sat     = ave%tcw_sat  / nt_dble 
+            ave%ccw_prev    = ave%ccw_prev / nt_dble
+            ave%ccw         = ave%ccw      / nt_dble 
+            ave%c_w         = ave%c_w      / nt_dble  
+            ave%ug          = ave%ug       / nt_dble 
+            ave%vg          = ave%vg       / nt_dble   
+            ave%uvg         = ave%uvg      / nt_dble
+            ave%ww          = ave%ww       / nt_dble 
+            ave%cc          = ave%cc       / nt_dble           
+            ave%swd         = ave%swd      / nt_dble    
+            ave%lwu         = ave%lwu      / nt_dble 
+            ave%al_p        = ave%al_p     / nt_dble  
+            ave%at          = ave%at       / nt_dble  
+            
+            ave%u_k         = ave%u_k      / nt_dble    
+            ave%v_k         = ave%v_k      / nt_dble 
+            ave%uv_k        = ave%uv_k     / nt_dble   
+            
+            ave%dtsldx      = ave%dtsldx   / nt_dble  
+            ave%dtsldy      = ave%dtsldy   / nt_dble 
+            ave%dtsldxy     = ave%dtsldxy  / nt_dble  
+            
+            ave%swd_s       = ave%swd_s    / nt_dble  
+            ave%lwd_s       = ave%lwd_s    / nt_dble  
+            ave%lwu_s       = ave%lwu_s    / nt_dble  
+            ave%shf_s       = ave%shf_s    / nt_dble  
+            ave%lhf_s       = ave%lhf_s    / nt_dble 
+            ave%u_s         = ave%u_s      / nt_dble  
+            ave%v_s         = ave%v_s      / nt_dble 
+            ave%uv_s        = ave%uv_s     / nt_dble 
+
+        end if
+
+        return
+
+    end subroutine rembo_average
 
     subroutine rembo_alloc(now,nx,ny)
 
@@ -833,9 +1157,10 @@ contains
 
         ! Initialize netcdf file and dimensions
         call nc_create(filename)
-        call nc_write_dim(filename,"xc",    x=emb%grid%xc,  units="kilometers")
-        call nc_write_dim(filename,"yc",    x=emb%grid%yc,  units="kilometers")
-        call nc_write_dim(filename,"month", x=1,dx=1,nx=12, units="month")
+        call nc_write_dim(filename,"xc",    x=emb%grid%xc,   units="kilometers")
+        call nc_write_dim(filename,"yc",    x=emb%grid%yc,   units="kilometers")
+        call nc_write_dim(filename,"month", x=1,dx=1,nx=12,  units="month")
+        call nc_write_dim(filename,"day",   x=1,dx=1,nx=360, units="day")
         call nc_write_dim(filename,"time",  x=time_init,dx=1.0_wp,nx=1,units=trim(units),unlimited=.TRUE.)
 
         ! Write grid information

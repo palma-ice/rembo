@@ -66,8 +66,8 @@
     !lwu_a      = 198       ! Outgoing longwave radiation, toa: a
     !lwu_b      = 1.11      ! Outgoing longwave radiation, toa: b*t2m
     !lwu_c      = 0.061     ! Outgoing longwave radiation, toa: c*S
-    lwu_a      = 224.43 
-    lwu_b      = 1.94
+    lwu_a      = -123.4
+    lwu_b      = 1.26
     lwu_c      = 0.0
     swds_a     = 0.77      ! Incoming shortwave radiation, surface: a
     swds_b     = 0.31      ! Incoming shortwave radiation, surface: -b*cc

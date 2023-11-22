@@ -93,11 +93,12 @@ program test_rembo
     call rembo_write_step(rembo1,forc,file_out,time)
 
 
+if (.FALSE.) then
     ! Write lots of reanalysis data for offline analysis...
     infldr    = "ice_data/"
     call write_clim_monthly_era_latlon(rembo1,path=trim(infldr),grid_name=grid_name, &
                                                             z_srf=z_srf,dx=rembo1%grid%dx)
-
+end if
     
     call rembo_end(rembo1)
 
@@ -681,8 +682,8 @@ contains
 
         filename = trim(path)//"/ERA5/clim/"&
                         //"era5_monthly-single-levels_2m_temperature_1961-1990.nc"
-        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean", &
-                                filt_method="gaussian",filt_par=[32e3_wp,dx])
+        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])
         
         ! Get tsl and then correct temperature for model topography (instead of ERA topography)
         do m = 1, nm 
@@ -701,8 +702,8 @@ contains
 
         filename = trim(path)//"/ERA5/clim/"&
                         //"era5_monthly-single-levels_geopotential_750_1961-1990.nc"
-        call nc_read_interp(filename,"z",forc%Z,mps=mps,method="mean", &
-                        filt_method="gaussian",filt_par=[32e3_wp,dx])
+        call nc_read_interp(filename,"z",forc%Z,mps=mps,method="mean") !, &
+                        !filt_method="gaussian",filt_par=[32e3_wp,dx])
         forc%Z = forc%Z / 9.80665_wp
 
         write(*,*) "z_srf:  ", minval(forc%z_srf),       maxval(forc%z_srf)
@@ -769,10 +770,124 @@ contains
                         dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
         call nc_write(filename,"t2m",forc%t2m,units="K",long_name="2m temperature", &
                         dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
-
-        call nc_write(filename,"Z750",forc%Z,units="m",long_name="Geopotential height (750 Mb)", &
+        call nc_write(filename,"al_s",forc%al_s,units="K",long_name="Surface albedo", &
                         dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
 
+        call nc_write(filename,"z750",forc%Z,units="m",long_name="Geopotential height (750 Mb)", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+
+        ! Load and write data simultaneously...
+
+        ! ## TOA net long-wave radiation (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_mean_top_net_long_wave_radiation_flux_1961-1990.nc"
+        call nc_read_interp(filename,"mtnlwrf",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"mtnlwrf",tmp3D,units="W m**-2",long_name="Mean top net long-wave radiation flux", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## TOA net short-wave radiation (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_mean_top_net_short_wave_radiation_flux_1961-1990.nc"
+        call nc_read_interp(filename,"mtnswrf",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"mtnswrf",tmp3D,units="W m**-2",long_name="Mean top net short-wave radiation flux", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## TOA incident short-wave radiation (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_toa_incident_solar_radiation_1961-1990.nc"
+        call nc_read_interp(filename,"tisr",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])    
+        tmp3D = tmp3D / 86400.0_wp    
+        call nc_write(filename,"tisr",tmp3D,units="W m**-2",long_name="Incident top net short-wave radiation flux", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+        
+        ! ## Surface sensible heat flux (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_mean_surface_sensible_heat_flux_1961-1990.nc"
+        call nc_read_interp(filename,"msshf",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"msshf",tmp3D,units="W m**-2",long_name="Mean surface sensible heat flux", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## Surface latent heat flux (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_mean_surface_latent_heat_flux_1961-1990.nc"
+        call nc_read_interp(filename,"mslhf",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"mslhf",tmp3D,units="W m**-2",long_name="Mean surface latent heat flux", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## Surface net long-wave radiation flux (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_mean_surface_net_long_wave_radiation_flux_1961-1990.nc"
+        call nc_read_interp(filename,"msnlwrf",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"msnlwrf",tmp3D,units="W m**-2",long_name="Mean surface net long-wave radiation flux", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## Surface net short-wave radiation flux (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_mean_surface_net_short_wave_radiation_flux_1961-1990.nc"
+        call nc_read_interp(filename,"msnswrf",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"msnswrf",tmp3D,units="W m**-2",long_name="Mean surface net short-wave radiation flux", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## Surface pressure (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_surface_pressure_1961-1990.nc"
+        call nc_read_interp(filename,"sp",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"sp",tmp3D,units="Pa",long_name="Surface pressure", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## Total column water vapour (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_total_column_water_vapour_1961-1990.nc"
+        call nc_read_interp(filename,"tcwv",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"tcwv",tmp3D,units="kg m**-2",long_name="Total column water vapour", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## Total cloud cover (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_total_cloud_cover_1961-1990.nc"
+        call nc_read_interp(filename,"tcc",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"tcc",tmp3D,units="(0 - 1)",long_name="Total cloud cover", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+        
+        ! ## Sea surface temperature (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_sea_surface_temperature_1961-1990.nc"
+        call nc_read_interp(filename,"sst",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"sst",tmp3D,units="K",long_name="Sea surface temperature", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+        
+        ! ## Sea ice cover (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_sea_ice_cover_1961-1990.nc"
+        call nc_read_interp(filename,"siconc",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"siconc",tmp3D,units="(0 - 1)",long_name="Sea ice area fraction", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+        
         ! Close the netcdf file
         call nc_close(ncid)
 
