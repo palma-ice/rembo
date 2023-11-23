@@ -83,7 +83,6 @@ contains
         !call rembo_emb_write_init(dom%emb,"test.nc",dom%par%domain,dom%par%grid_name, &
         !                                            time_init=real(year,wp),units="kyr ago")
 
-        
         ! === Calculate rembo atmosphere over the whole year ===
         
         day = 0
@@ -323,6 +322,9 @@ contains
 
         call rembo_emb_init(dom%emb)
         
+        ! Initialize high-resolution grid too
+        call rembo_grid_define(dom%gridhi,dom%par%grid_name_hi,dom%par%grid_path_hi)
+
         write(*,*) "rembo_init :: allocated rembo variables."
 
         ! Perform mapping between emb and rembo grids
@@ -574,8 +576,10 @@ contains
         call nml_read(filename,group1,"domain",         par%domain)
         call nml_read(filename,group1,"grid_name",      par%grid_name)
         call nml_read(filename,group1,"grid_name_emb",  par%grid_name_emb)
+        call nml_read(filename,group1,"grid_name_hi",   par%grid_name_hi)
         call nml_read(filename,group1,"grid_path",      par%grid_path)
         call nml_read(filename,group1,"grid_path_emb",  par%grid_path_emb)
+        call nml_read(filename,group1,"grid_path_hi",   par%grid_path_hi)
         call nml_read(filename,group1,"restart",        par%restart)
 
         call nml_read(filename,group1,"H_e",            par%H_e)
@@ -658,6 +662,7 @@ contains
         ! Make sure to parse grid_path and grid_path_emb
         call rembo_parse_path(par%grid_path,par%domain,par%grid_name)
         call rembo_parse_path(par%grid_path_emb,par%domain,par%grid_name_emb)
+        call rembo_parse_path(par%grid_path_hi,par%domain,par%grid_name_hi)
         
         if (rembo_write_log) then 
             write(*,*) "yelmo:: loaded global constants:"

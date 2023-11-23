@@ -77,8 +77,10 @@ module rembo_defs
         character(len=256)  :: domain
         character(len=256)  :: grid_name
         character(len=256)  :: grid_name_emb
+        character(len=256)  :: grid_name_hi
         character(len=256)  :: grid_path
         character(len=256)  :: grid_path_emb
+        character(len=256)  :: grid_path_hi
         character(len=256)  :: restart 
         integer             :: npts, nx, ny
         real(wp)            :: dx 
@@ -225,6 +227,7 @@ module rembo_defs
 
         type(rembo_param_class)      :: par         ! Model parameters
         type(rgrid_class)            :: grid        ! Grid definition   (from coordinates module)
+        type(rgrid_class)            :: gridhi      ! High-resolution grid definition   (from coordinates module)
         
         ! Boundary variables
         type(rembo_boundary_class) :: bnd 
@@ -307,7 +310,7 @@ contains
         ! The routine should be called internally via rembo_init(), which means it will
         ! be called multiple times if multiple domains are intialized. But this shouldn't
         ! be a problem. However, rembo_use_omp will have the same value for all domains. 
-        
+
         !$ use omp_lib 
 
         ! Local variables

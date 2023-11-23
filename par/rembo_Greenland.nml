@@ -2,8 +2,10 @@
     domain        = "Greenland"
     grid_name     = "GRL-32KM"
     grid_name_emb = "GRL-128KM"
+    grid_name_hi  = "GRL-16KM"
     grid_path     = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
     grid_path_emb = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
+    grid_path_hi  = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
     restart    = "no"               ! "no" for no restart, or else the filename to restart from
     
     H_e        = 2500.0             ! [m] Vapor scale height
