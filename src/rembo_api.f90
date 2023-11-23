@@ -101,7 +101,8 @@ contains
                 ! Get the current day of the year
                 day = day + 1
 
-                if (mod(day,day_step) .eq. 0) then
+                !if (mod(d,day_step) .eq. 0) then
+                if (d .eq. 15) then
                     ! Update calculations for this day
 
                     ! == Get monthly boundary variables for current day =====
