@@ -27,7 +27,7 @@ module rembo_api
 
     public :: rembo_write_init 
     public :: rembo_grid_write 
-
+    public :: rembo_write_state
 contains 
 
     subroutine rembo1_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,co2_a,year)
@@ -1179,5 +1179,149 @@ contains
         return 
 
     end subroutine rembo_emb_write_step_grid
+
+    subroutine rembo_write_state(dom,filename,time,units,init)
+
+        implicit none 
+
+        type(rembo_class),  intent(IN) :: dom
+        character(len=*),   intent(IN) :: filename
+        real(wp),           intent(IN) :: time 
+        character(len=*),   intent(IN) :: units 
+        logical,            intent(IN) :: init 
+
+        ! Local variables
+        integer :: nx, ny, n, nm, ncid
+        character(len=8) :: dim3 
+        type(rembo_state_class) :: now 
+
+
+        dim3 = "time" 
+        n    = 1 
+        nx = dom%grid%nx 
+        ny = dom%grid%ny 
+        nm = size(dom%mon)
+        now = dom%now 
+
+        ! Initialize the file if desired
+        if (init) then
+            call rembo_write_init(dom,filename,time,units)
+        end if 
+
+        ! Open the file for writing
+        call nc_open(filename,ncid,writable=.TRUE.)
+
+        ! Update the time step
+        call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
+
+        ! Write the state variables
+
+        ! Boundary fields
+
+        call nc_write(filename,"z_srf",dom%bnd%z_srf,units="m",long_name="Surface elevation", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"f_ice",dom%bnd%f_ice,units="1",long_name="Ice fraction (grounded)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"f_shlf",dom%bnd%f_shlf,units="1",long_name="Ice fraction (floating)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"mask",dom%bnd%mask,units="1",long_name="Mask (solve REMBO or boundary)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
+        call nc_write(filename,"dzsdx",dom%bnd%dzsdx,units="m/m",long_name="Surface elevation gradient (x-dir)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"dzsdy",dom%bnd%dzsdy,units="m/m",long_name="Surface elevation gradient (y-dir)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        call nc_write(filename,"dzsdxy",dom%bnd%dzsdxy,units="m/m",long_name="Surface elevation gradient (magnitude)", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
+        call nc_write(filename,"f",dom%bnd%f,units="m/m",long_name="Coriolis parameter", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+
+        ! State fields
+        call nc_write(filename,"S",now%S,units="W m**-2",long_name="Insolation TOA (boundary)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"t2m_bnd",now%t2m_bnd,units="K",long_name="Near-surface temperature (boundary)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"al_s",now%al_s,units="K",long_name="Surface albedo (boundary)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"Z",now%Z,units="m",long_name="Geopotential height 750 Mb layer (boundary)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"co2_a",now%co2_a,units="ppm",long_name="Atmospheric CO2 (boundary)", &
+                dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+        ! Intermediate fields
+        call nc_write(filename,"dZdx",now%dZdx,units="m",long_name="Gradient Geopotential height 750 Mb layer (boundary)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"dZdy",now%dZdy,units="m",long_name="Gradient Geopotential height 750 Mb layer (boundary)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"gamma",now%gamma,units="K m**-1",long_name="Atmospheric lapse rate", &
+                dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+        ! Climate fields
+        call nc_write(filename,"t2m",now%t2m,units="K",long_name="Near-surface air temperature", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"tsurf",now%tsurf,units="K",long_name="Surface temperature", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"uv_s",now%uv_s,units="m s**-1",long_name="Near-surface wind (magnitude)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+        call nc_write(filename,"swd",now%swd,units="W m**-2",long_name="Shortwave radiation down (toa)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"al_p",now%al_p,units="1",long_name="Planetary albedo", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"at",now%at,units="1",long_name="Atmospheric transmissivity", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"lwu",now%lwu,units="W m**-2",long_name="Longwave radiation up (toa)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"rco2",now%rco2_a,units="W m**-2",long_name="Radiative forcing, CO2", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+
+        call nc_write(filename,"swd_s",now%swd_s,units="W m**-2",long_name="Shortwave radiation down (surface)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"lwd_s",now%lwd_s,units="W m**-2",long_name="Longwave radiation down (surface)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"shf_s",now%shf_s,units="W m**-2",long_name="Sensible heat flux (surface)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"lhf_s",now%lhf_s,units="W m**-2",long_name="Latent heat flux (surface)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"lwu_s",now%lwu_s,units="W m**-2",long_name="Longwave radiation up (surface)", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+        call nc_write(filename,"ug",now%ug,units="m s**-1",long_name="Geostrophic horizontal velocity, x-direction", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"vg",now%vg,units="m s**-1",long_name="Geostrophic horizontal velocity, y-direction", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"uvg",now%uvg,units="m s**-1",long_name="Geostrophic horizontal velocity, magnitude", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+        call nc_write(filename,"q_sat",now%q_sat,units="kg/kg",long_name="Saturated specific humidity", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"tcw_sat",now%tcw_sat,units="kg m^-2",long_name="Saturated total column water content", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+        call nc_write(filename,"q_s",now%q_s,units="kg/kg",long_name="Specific humidity", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"q_r",now%q_r,units="1",long_name="Relative humidity", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"tcw",now%tcw,units="kg m^-2",long_name="Total column water content", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"ccw",now%ccw,units="kg m^-2",long_name="Total column cloud water content", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+
+        call nc_write(filename,"pr",now%pr*dom%par%c%sec_day,units="mm d**-1",long_name="Precipitation", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"sf",now%sf*dom%par%c%sec_day,units="mm d**-1",long_name="Snowfall", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+        ! Error compared to forcing, assuming boundary field is the target
+        call nc_write(filename,"t2m_err",now%t2m-now%t2m_bnd,units="K",long_name="Near-surface air temperature error", &
+                    dim1="xc",dim2="yc",dim3=dim3,start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+
+        return
+
+    end subroutine rembo_write_state
+
 
 end module rembo_api

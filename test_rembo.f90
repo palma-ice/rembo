@@ -92,6 +92,9 @@ program test_rembo
     call rembo_write_init(rembo1,file_out,time,units="kyr ago")
     call rembo_write_step(rembo1,forc,file_out,time)
 
+    ! Write a restart file too
+    call rembo_write_state(rembo1,"rembo_restart.nc",time,units="kyr ago",init=.TRUE.)
+
 
 if (.FALSE.) then
     ! Write lots of reanalysis data for offline analysis...
