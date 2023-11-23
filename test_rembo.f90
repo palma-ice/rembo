@@ -81,7 +81,13 @@ program test_rembo
     ! Define current year and update rembo (including insolation)
     time       = 0.0      ! [kyr ago]   
 
+if (.TRUE.) then
+    ! REMBO1
+    call rembo1_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%co2_a,int(time))
+else
+    ! REMBO2
     call rembo_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%co2_a,int(time))
+end if 
 
     ! Write final result 
     call rembo_write_init(rembo1,file_out,time,units="kyr ago")

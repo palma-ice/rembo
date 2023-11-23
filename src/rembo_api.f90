@@ -46,7 +46,7 @@ contains
         integer,  intent(IN) :: year            ! [yrs ago (since 1950)]
 
         ! Local variables 
-        integer  :: day, d, m, nm, nd, ndm
+        integer  :: day, d, m, nm, nd, ndm, nt
         integer, parameter :: day_step = 3      ! Only calculate atmosphere every three days
 
         nm  = dom%par%c%nm
@@ -87,9 +87,13 @@ contains
         ! === Calculate rembo atmosphere over the whole year ===
         
         day = 0
-
-        ! Loop over each month of the yera
+        
+        ! Loop over each month of the year
         do m = 1, nm
+            
+            ! Reset the averaging scheme for current month
+            call rembo_average(dom%mon(m),"init")
+            nt = 0 
 
             ! Loop over days in the month 
             do d = 1, ndm
@@ -97,30 +101,38 @@ contains
                 ! Get the current day of the year
                 day = day + 1
 
-                ! == Get monthly boundary variables for current day =====
+                if (mod(day,day_step) .eq. 0) then
+                    ! Update calculations for this day
 
-                ! CO2 is always equal to the annual value (for now)
-                dom%now%co2_a   = co2_a 
+                    ! == Get monthly boundary variables for current day =====
 
-                ! Interpolate monthly temperatures to the current day
-                !dom%now%t2m_bnd = t2m(:,:,m) 
-                ! ***** TO DO ***** 
-                
-                ! Calculate insolation for current day
-                dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
+                    ! CO2 is always equal to the annual value (for now)
+                    dom%now%co2_a   = co2_a 
 
-                
-                ! == Calculate rembo atmosphere =====
-                
-                call rembo1_calc_atmosphere(dom%now,dom%emb,dom%bnd,dom%grid,dom%par,day,year)
+                    ! Interpolate monthly temperatures to the current day
+                    !dom%now%t2m_bnd = t2m(:,:,m) 
+                    ! ***** TO DO ***** 
+                    
+                    ! Calculate insolation for current day
+                    dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
 
+                    
+                    ! == Calculate rembo atmosphere =====
+                    
+                    call rembo1_calc_atmosphere(dom%now,dom%emb,dom%bnd,dom%grid,dom%par,day,year)
+
+                    ! Add to averaging for the month
+                    call rembo_average(dom%mon(m),"step",dom%now)
+                    nt = nt + 1
+
+                    write(*,*) "rembo time = ", year, day
+
+                end if 
 
             end do
 
             ! Month completed, get the monthly average
-            ! Store data in monthly object 
-            !dom%mon(m) = dom%now
-            ! *** TO DO ***
+            call rembo_average(dom%mon(m),"end",nt=nt)
 
             ! Print summary for this month
             call rembo_print(dom,m,day,year)
@@ -666,15 +678,13 @@ contains
     subroutine rembo_average(ave,step,now,nt)
         implicit none 
 
-        type(rembo_state_class), intent(INOUT) :: ave
-        character(len=*), intent(IN) :: step 
-        type(rembo_state_class), intent(IN), optional :: now 
-        integer, intent(IN), optional :: nt 
+        type(rembo_state_class),    intent(INOUT) :: ave
+        character(len=*),           intent(IN)    :: step 
+        type(rembo_state_class),    intent(IN), optional :: now 
+        integer,                    intent(IN), optional :: nt 
         
         ! Local variables
         real(dp) :: nt_dble 
-
-        nt_dble = real(nt,dp)
 
         if (trim(step) .eq. "init") then 
 
@@ -791,6 +801,8 @@ contains
 
         else if (trim(step) .eq. "end" .and. present(nt)) then 
 
+            nt_dble = real(nt,dp)
+            
             ave%S           = ave%S        / nt_dble 
             ave%t2m_bnd     = ave%t2m_bnd  / nt_dble 
             ave%al_s        = ave%al_s     / nt_dble 
