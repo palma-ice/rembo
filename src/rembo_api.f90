@@ -275,6 +275,13 @@ contains
         real(wp)           :: dt_check(2) 
         character(len=64)  :: fmt1 
 
+        ! ==== GLOBAL INIT CHECKS (openmp threads) ===============================
+        
+        call rembo_global_init()
+
+        ! ==== END GLOBAL INIT CHECKS ============================================
+
+
         ! Load the rembo parameters
         call rembo_par_load(dom%par,trim(path_par),domain)
 

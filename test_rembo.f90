@@ -21,7 +21,6 @@ program test_rembo
     character(len=56)  :: grid_name 
     character(len=512) :: infldr
     character(len=512) :: path_par
-    character(len=512) :: path_const
     character(len=512) :: outfldr 
     character(len=512) :: file_out 
     real(wp)           :: time 
@@ -39,11 +38,7 @@ program test_rembo
     ! Assume program is running from the output folder
     outfldr = "./"
 
-    ! Define input and output locations 
-    path_const = trim(outfldr)//"rembo_const_Earth.nml"
-    
     ! Initialize rembo
-    call rembo_global_init(trim(path_const))
     call rembo_init(rembo1,path_par=trim(path_par))
     
     domain    = trim(rembo1%par%domain)

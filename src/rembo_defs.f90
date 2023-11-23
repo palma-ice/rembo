@@ -302,18 +302,13 @@ contains
 
     end subroutine rembo_parse_path
 
-    subroutine rembo_global_init(filename)
+    subroutine rembo_global_init()
 
         !$ use omp_lib 
 
-        character(len=*), intent(IN)  :: filename
-        
         ! Local variables
-        logical :: init_pars 
         integer :: n_threads 
         character(len=10) :: n_threads_str 
-
-        init_pars = .TRUE. 
         
         ! Check openmp status - set global variable to use as a switch 
         rembo_use_omp = .FALSE. 
