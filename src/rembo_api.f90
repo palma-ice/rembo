@@ -110,7 +110,7 @@ contains
                     dom%now%co2_a   = co2_a 
 
                     ! Interpolate monthly temperatures to the current day
-                    !dom%now%t2m_bnd = t2m(:,:,m) 
+                    dom%now%t2m_bnd = t2m(:,:,m) 
                     ! ***** TO DO ***** 
                     
                     ! Calculate insolation for current day
@@ -802,7 +802,7 @@ contains
         else if (trim(step) .eq. "end" .and. present(nt)) then 
 
             nt_dble = real(nt,dp)
-            
+
             ave%S           = ave%S        / nt_dble 
             ave%t2m_bnd     = ave%t2m_bnd  / nt_dble 
             ave%al_s        = ave%al_s     / nt_dble 
