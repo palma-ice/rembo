@@ -303,13 +303,17 @@ contains
     end subroutine rembo_parse_path
 
     subroutine rembo_global_init()
-
+        ! This routine will ensure that the rembo global variable rembo_use_omp is initialized.
+        ! The routine should be called internally via rembo_init(), which means it will
+        ! be called multiple times if multiple domains are intialized. But this shouldn't
+        ! be a problem. However, rembo_use_omp will have the same value for all domains. 
+        
         !$ use omp_lib 
 
         ! Local variables
         integer :: n_threads 
         character(len=10) :: n_threads_str 
-        
+
         ! Check openmp status - set global variable to use as a switch 
         rembo_use_omp = .FALSE. 
         !$ rembo_use_omp = .TRUE.
