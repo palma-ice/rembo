@@ -1,5 +1,6 @@
 module rembo_defs 
 
+    use precision
     use nml
     
     use coordinates_mapping_scrip, only : map_scrip_class
@@ -11,14 +12,7 @@ module rembo_defs
     ! CONSTANTS (program precision, global constants)
     !
     ! =========================================================================
-
-    ! Internal constants
-    integer,  parameter :: dp  = kind(1.d0)
-    integer,  parameter :: sp  = kind(1.0)
-
-    ! Choose the precision of the library (sp,dp)
-    integer,  parameter :: wp = sp 
-
+    
     ! Write flags 
     logical, parameter :: rembo_write_log = .TRUE. 
 

@@ -57,6 +57,13 @@ test_rembo : rembo-static
 		@echo "    $(bindir)/test_rembo.x is ready."
 		@echo " "
 
+test_monthlydaily : $(objdir)/monthlydaily.o $(objdir)/precision.o 
+		$(FC) $(DLAGS) $(FFLAGS) -o $(bindir)/test_monthlydaily.x tests/test_monthlydaily.f90 \
+				$^	$(LFLAGS)
+		@echo " "
+		@echo "    $(bindir)/test_monthlydaily.x is ready."
+		@echo " "
+
 check: $(rembo_libs) $(rembo_tests)
 	@echo $(rembo_libs)
 	@echo $(rembo_tests)

@@ -1,9 +1,9 @@
 module solvers
+
+    use precision, only : wp
     
     implicit none
     
-    integer,  parameter :: wp  = kind(1.0)
-
     private
     public :: solve2D
     public :: solve_diff_2D_adi, diff2Dadi_timestep

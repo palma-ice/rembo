@@ -1,5 +1,7 @@
 program test_rembo
 
+    use precision, only : sp, dp, wp
+    
     use ncio
     use rembo 
     use insolation 
