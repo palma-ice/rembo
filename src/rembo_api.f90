@@ -10,6 +10,7 @@ module rembo_api
     use ncio  
     use solvers 
     use insolation 
+    use monthlydaily
 
     use coordinates_mapping_scrip, only : map_scrip_init
 
@@ -111,7 +112,7 @@ contains
 
                     ! Interpolate monthly temperatures to the current day
                     dom%now%t2m_bnd = t2m(:,:,m) 
-                    ! ***** TO DO ***** 
+                    call interp_monthly_to_day_2D(dom%now%t2m_bnd,t2m,day,dom%mm)
                     
                     ! Calculate insolation for current day
                     dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
@@ -324,6 +325,9 @@ contains
         
         ! Initialize high-resolution grid too
         call rembo_grid_define(dom%gridhi,dom%par%grid_name_hi,dom%par%grid_path_hi)
+
+        ! Define monthlydaily interpolation weights
+        call monthlydaily_init(dom%mm,nmon_year=dom%par%c%nm,nday_month=dom%par%c%ndm)
 
         write(*,*) "rembo_init :: allocated rembo variables."
 

@@ -19,10 +19,20 @@ module monthlydaily
 
     end type
 
+    interface interp_monthly_to_day
+        module procedure interp_monthly_to_day_pt
+        module procedure interp_monthly_to_day_1D
+        module procedure interp_monthly_to_day_2D        
+    end interface
+
     private
     public :: monthlydaily_class
     public :: monthlydaily_init 
-    
+    public :: interp_monthly_to_day
+    public :: interp_monthly_to_day_pt
+    public :: interp_monthly_to_day_1D
+    public :: interp_monthly_to_day_2D
+
 contains
 
     subroutine monthlydaily_init(mm,nmon_year,nday_month)
@@ -41,11 +51,72 @@ contains
         call monthlydaily_alloc(mm)
 
         ! Calculate interpolation weights
-        call interp_weights_monthly_to_daily(mm%m0,mm%m1,mm%wt0,mm%wt1,mm%nday_month,mm%nmon_year,verbose=.TRUE.)
+        call interp_weights_monthly_to_daily(mm%m0,mm%m1,mm%wt0,mm%wt1, &
+                                                mm%nday_month,mm%nmon_year,verbose=.FALSE.)
 
         return
 
     end subroutine monthlydaily_init
+
+    subroutine interp_monthly_to_day_pt(var_day,var_mon,day_of_year,mm)
+
+        implicit none
+
+        real(wp), intent(OUT) :: var_day
+        real(wp), intent(IN)  :: var_mon(:)
+        integer,  intent(IN)  :: day_of_year
+        type(monthlydaily_class), intent(IN) :: mm
+
+        ! Local variables
+        integer :: k 
+
+        k = day_of_year 
+
+        var_day = var_mon(mm%m0(k))*mm%wt0(k) + var_mon(mm%m1(k))*mm%wt1(k)
+
+        return
+
+    end subroutine interp_monthly_to_day_pt
+
+    subroutine interp_monthly_to_day_1D(var_day,var_mon,day_of_year,mm)
+
+        implicit none
+
+        real(wp), intent(OUT) :: var_day(:)
+        real(wp), intent(IN)  :: var_mon(:,:)
+        integer,  intent(IN)  :: day_of_year
+        type(monthlydaily_class), intent(IN) :: mm
+
+        ! Local variables
+        integer :: k 
+        
+        k = day_of_year 
+
+        var_day = var_mon(:,mm%m0(k))*mm%wt0(k) + var_mon(:,mm%m1(k))*mm%wt1(k)
+
+        return
+
+    end subroutine interp_monthly_to_day_1D
+
+    subroutine interp_monthly_to_day_2D(var_day,var_mon,day_of_year,mm)
+
+        implicit none
+
+        real(wp), intent(OUT) :: var_day(:,:)
+        real(wp), intent(IN)  :: var_mon(:,:,:)
+        integer,  intent(IN)  :: day_of_year
+        type(monthlydaily_class), intent(IN) :: mm
+
+        ! Local variables
+        integer :: k 
+        
+        k = day_of_year 
+
+        var_day = var_mon(:,:,mm%m0(k))*mm%wt0(k) + var_mon(:,:,mm%m1(k))*mm%wt1(k)
+
+        return
+
+    end subroutine interp_monthly_to_day_2D
 
     subroutine interp_weights_monthly_to_daily(m0,m1,wt0,wt1,nday_month,nmon_year,verbose)
 

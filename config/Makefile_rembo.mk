@@ -61,7 +61,7 @@ $(objdir)/rembo_atm.o: $(srcdir)/rembo_atm.f90 $(objdir)/rembo_defs.o $(objdir)/
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/rembo_api.o: $(srcdir)/rembo_api.f90 $(objdir)/rembo_defs.o $(objdir)/rembo_grid.o \
-					$(objdir)/rembo_atm.o  $(objdir)/insolation.o
+					$(objdir)/rembo_atm.o  $(objdir)/insolation.o $(objdir)/monthlydaily.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/rembo.o: $(srcdir)/rembo.f90 $(objdir)/rembo_defs.o $(objdir)/rembo_physics.o $(objdir)/rembo_api.o

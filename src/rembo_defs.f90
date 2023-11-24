@@ -2,6 +2,7 @@ module rembo_defs
 
     use precision
     use nml
+    use monthlydaily, only : monthlydaily_class
     
     use coordinates_mapping_scrip, only : map_scrip_class
 
@@ -12,7 +13,7 @@ module rembo_defs
     ! CONSTANTS (program precision, global constants)
     !
     ! =========================================================================
-    
+
     ! Write flags 
     logical, parameter :: rembo_write_log = .TRUE. 
 
@@ -222,7 +223,8 @@ module rembo_defs
         type(rembo_param_class)      :: par         ! Model parameters
         type(rgrid_class)            :: grid        ! Grid definition   (from coordinates module)
         type(rgrid_class)            :: gridhi      ! High-resolution grid definition   (from coordinates module)
-        
+        type(monthlydaily_class)     :: mm          ! Monthly to daily interpolation weights
+
         ! Boundary variables
         type(rembo_boundary_class) :: bnd 
 
