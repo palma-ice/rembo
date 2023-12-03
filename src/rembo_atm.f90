@@ -631,8 +631,8 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call solve_adv_diff_2D(tsl,tsl_bnd,tsl_F,kappa,relax=mask,dx=dx,dy=dx, &
-                                   dt=par%en_dt,k_relax=par%en_kr,v_x=ug,v_y=vg)
+            call solve_adv_diff_2D_rk4_expl(tsl,tsl_F,kappa,tsl_bnd,mask,dx,dx, &
+                                            dt=par%en_dt,k_rel=par%en_kr,v_x=ug,v_y=vg)
             ! call solve_diff_2D_adi(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
             !                        dt=par%en_dt,kappa=kappa,k_relax=par%en_kr)
         end do 
@@ -702,8 +702,8 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call solve_adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%tsl_F,emb%kappa,relax=emb%mask,dx=emb%grid%dx, &
-                                    dy=emb%grid%dy,dt=par%en_dt,k_relax=par%en_kr,v_x=emb%ug,v_y=emb%vg)
+            call solve_adv_diff_2D_rk4_expl(emb%tsl,emb%tsl_F,emb%kappa,emb%tsl_bnd,emb%mask,emb%grid%dx, &
+                                            emb%grid%dy,dt=par%en_dt,k_rel=par%en_kr,v_x=emb%ug,v_y=emb%vg)
         end do 
 
         ! Sea-level temperature, tsl
@@ -785,8 +785,8 @@ end if
 
         ! Calculate moisture balance to equilibrium
         do q = 1, par%ccw_nstep
-            call solve_adv_diff_2D(emb%ccw,emb%ccw_bnd,emb%ccw_F,emb%kappaw,relax=emb%mask,dx=emb%grid%dx, &
-                                        dy=emb%grid%dy,dt=par%ccw_dt,k_relax=par%ccw_kr,v_x=emb%ug,v_y=emb%vg)
+            call solve_adv_diff_2D_rk4_expl(emb%ccw,emb%ccw_F,emb%kappaw,emb%ccw_bnd,emb%mask,emb%grid%dx, &
+                                            emb%grid%dy,dt=par%ccw_dt,k_rel=par%ccw_kr,v_x=emb%ug,v_y=emb%vg)
 
             where (emb%ccw .lt. 0.d0) emb%ccw = 0.d0
 

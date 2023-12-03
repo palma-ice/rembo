@@ -5,7 +5,8 @@ module solvers
     implicit none
     
     private
-    public :: solve_adv_diff_2D
+    public :: solve_adv_diff_2D_fe_expl
+    public :: solve_adv_diff_2D_rk4_expl
     public :: solve2D
     public :: solve_diff_2D_adi, diff2Dadi_timestep
     public :: adv2D_timestep, diff2D_timestep
@@ -13,53 +14,173 @@ module solvers
 
 contains
 
-    subroutine solve_adv_diff_2D(uu,u0,F,kappa,relax,dx,dy,dt,k_relax,v_x,v_y)
+    subroutine solve_adv_diff_2D_fe_expl(uu,F,kappa,ubnd,mask,dx,dy,dt,k_rel,v_x,v_y)
 
         implicit none 
 
         real(wp), intent(INOUT) :: uu(:,:)
-        real(wp), intent(IN)    :: u0(:,:)
         real(wp), intent(IN)    :: F(:,:)
         real(wp), intent(IN)    :: kappa(:,:)
-        integer,  intent(IN)    :: relax(:,:)
+        real(wp), intent(IN)    :: ubnd(:,:)
+        integer,  intent(IN)    :: mask(:,:)
         real(wp), intent(IN)    :: dx
         real(wp), intent(IN)    :: dy
         real(wp), intent(IN)    :: dt
-        real(wp), intent(IN)    :: k_relax 
+        real(wp), intent(IN)    :: k_rel
         real(wp), intent(IN), optional :: v_x(:,:)
         real(wp), intent(IN), optional :: v_y(:,:)
 
         ! Local variables
         integer :: nx, ny 
-        real(wp), allocatable :: utmp(:,:)
-        real(wp), allocatable :: uadv(:,:)
-        real(wp), allocatable :: udiff(:,:)
-        
+        real(wp), allocatable :: dudt(:,:)
+
         nx = size(uu,1)
-        ny = size(uu,2) 
+        ny = size(uu,2)
+
+        allocate(dudt(nx,ny))
+
+        ! Calculate derivative
+        call calc_tendency_expl(dudt,uu,ubnd,F,kappa,mask,dx,dy,k_rel,v_x,v_y)
+
+        ! Update uu
+        uu = uu + dt*dudt
+
+        return
+
+    end subroutine solve_adv_diff_2D_fe_expl
+
+    subroutine solve_adv_diff_2D_rk4_expl(uu,F,kappa,ubnd,mask,dx,dy,dt,k_rel,v_x,v_y)
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: uu(:,:)
+        real(wp), intent(IN)    :: F(:,:)
+        real(wp), intent(IN)    :: kappa(:,:)
+        real(wp), intent(IN)    :: ubnd(:,:)
+        integer,  intent(IN)    :: mask(:,:)
+        real(wp), intent(IN)    :: dx
+        real(wp), intent(IN)    :: dy
+        real(wp), intent(IN)    :: dt
+        real(wp), intent(IN)    :: k_rel 
+        real(wp), intent(IN), optional :: v_x(:,:)
+        real(wp), intent(IN), optional :: v_y(:,:)
+
+        ! Local variables
+        integer :: nx, ny 
+        real(wp), allocatable :: f0(:,:)
+        real(wp), allocatable :: f1(:,:)
+        real(wp), allocatable :: f2(:,:)
+        real(wp), allocatable :: f3(:,:)
+        real(wp), allocatable :: u0(:,:)
+        real(wp), allocatable :: u1(:,:)
+        real(wp), allocatable :: u2(:,:)
+        real(wp), allocatable :: u3(:,:)
+
+        nx = size(uu,1)
+        ny = size(uu,2)
+
+        allocate(f0(nx,ny))
+        allocate(f1(nx,ny))
+        allocate(f2(nx,ny))
+        allocate(f3(nx,ny))
         
-        allocate(utmp(nx,ny))
-        allocate(udiff(nx,ny))
-        allocate(uadv(nx,ny))
+        allocate(u0(nx,ny))
+        allocate(u1(nx,ny))
+        allocate(u2(nx,ny))
+        allocate(u3(nx,ny))
+
+        u0 = uu 
+        
+        ! Get four values of the derivative between t0 and t0+dt
+        
+        ! call f ( t0, u0, f0 )
+
+        ! t1 = t0 + dt / 2.0
+        ! u1 = u0 + dt * f0 / 2.0
+        ! call f ( t1, u1, f1 )
+
+        ! t2 = t0 + dt / 2.0
+        ! u2 = u0 + dt * f1 / 2.0
+        ! call f ( t2, u2, f2 )
+
+        ! t3 = t0 + dt
+        ! u3 = u0 + dt * f2
+        ! call f ( t3, u3, f3 )
+
+        ! Combine them to estimate the solution U at time T1
+        ! u = u0 + dt * ( f0 + 2.0*f1 + 2.0*f2 + f3 ) / 6.0
+
+        call calc_tendency_expl(f0,u0,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
+
+        u1 = u0 + (dt/2.0)*f0
+
+        call calc_tendency_expl(f1,u1,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
+
+        u2 = u0 + (dt/2.0)*f1
+        
+        call calc_tendency_expl(f2,u2,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
+
+        u3 = u0 + dt*f2
+
+        call calc_tendency_expl(f3,u3,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
+
+        ! Combine them to estimate the solution U at time t+dt
+        uu = u0 + dt * ( f0 + 2.0*f1 + 2.0*f2 + f3 ) / 6.0
+
+        return
+
+    end subroutine solve_adv_diff_2D_rk4_expl
+
+    subroutine calc_tendency_expl(dudt,uu,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
+        ! Calculate advection diffusion equation tendency
+        ! du/dt = kappa * grad^2 T - u<dot>T + F + F_relax
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: dudt(:,:)
+        real(wp), intent(IN)    :: uu(:,:)
+        real(wp), intent(IN)    :: F(:,:)
+        real(wp), intent(IN)    :: kappa(:,:)
+        real(wp), intent(IN)    :: ubnd(:,:)
+        integer,  intent(IN)    :: mask(:,:)
+        real(wp), intent(IN)    :: dx
+        real(wp), intent(IN)    :: dy
+        real(wp), intent(IN)    :: k_rel
+        real(wp), intent(IN), optional :: v_x(:,:)
+        real(wp), intent(IN), optional :: v_y(:,:)
+
+        ! Local variables
+        integer :: nx, ny 
+        real(wp), allocatable :: dudt_adv(:,:)
+        real(wp), allocatable :: dudt_diff(:,:)
+        real(wp), allocatable :: dudt_relax(:,:)
+        
+        nx = size(dudt,1)
+        ny = size(dudt,2) 
+        
+        allocate(dudt_diff(nx,ny))
+        allocate(dudt_adv(nx,ny))
+        allocate(dudt_relax(nx,ny))
 
         ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
-        call calc_tendency_diffuse2D(udiff,uu,kappa,dx,dy)
+        call calc_tendency_diffuse2D(dudt_diff,uu,kappa,dx,dy)
 
         ! Get advective tendency if needed (du/dt)
         if (present(v_x) .and. present(v_y)) then
-            call calc_tendency_advec2D_upwind(uadv,uu,v_x,v_y,dx,dy)
+            call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy)
         else
-            uadv = 0.d0 
+            dudt_adv = 0.d0 
         end if 
 
-        ! Update uu
-        utmp  = uu 
-        uu = utmp + dt*(udiff - uadv + F) - k_relax*relax*(utmp-u0)
-
+        ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
+        dudt_relax = k_rel*mask*(ubnd-uu)
         
+        ! Get total tendency for this timestep
+        dudt = dudt_diff - dudt_adv + F + dudt_relax
+
         return
 
-    end subroutine solve_adv_diff_2D 
+    end subroutine calc_tendency_expl 
 
     subroutine calc_tendency_diffuse2D(dudt,uu,kappa,dx,dy)
         ! Explicit calculation of kappa * 2D Laplace: kappa*d2u/dxdy
@@ -68,7 +189,7 @@ contains
         implicit none 
 
         real(wp), intent(OUT) :: dudt(:,:)
-        real(wp), intent(OUT) :: uu(:,:)
+        real(wp), intent(IN)  :: uu(:,:)
         real(wp), intent(IN)  :: kappa(:,:)
         real(wp), intent(IN)  :: dx
         real(wp), intent(IN)  :: dy

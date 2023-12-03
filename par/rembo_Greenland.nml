@@ -12,11 +12,11 @@
     rembo1     = .FALSE.
 
     ! Diffusion parameters
-    en_dt      = 100                ! Diffusion time step, sec
+    en_dt      = 500                ! Diffusion time step, sec
     en_D       = 1.0e3              ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
     en_D_sum   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
-    en_kr      = 0.95               ! [1] Relaxation coefficient, energy (~95% of difference)
+    en_kr      = 1e-3               ! [1/sec] Relaxation coefficient, energy
 !     en_kz      = 0.00017          ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
 !     en_kl      = 0.33             ! [degrees-1] Kappa scalar with latitude (kl*lat) **REMBOv1=0.33 
     en_kz      = 0.0                ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
@@ -24,7 +24,7 @@
     en_kdT     = 0.0                ! [K] Atmospheric transport warming
     ccw_dt     = 1000               ! Diffusion time step, sec
     ccw_D      = 1.0e6              ! [m-2 s-1] Diffusion constant, moisture
-    ccw_kr     = 0.95               ! [1] Relaxation coefficient, moisture (~95% of difference)           
+    ccw_kr     = 1e-3               ! [1/sec] Relaxation coefficient, moisture         
     
     ! Condensation parameterization
     k_c        = 80                 ! [days] Condensation time constant
