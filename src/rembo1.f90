@@ -576,11 +576,7 @@ contains
             ax(2:nx-1) = -alph(2:nx-1,j)
             bx(2:nx-1) = 1 + 2.d0 * alph(2:nx-1,j) + gam*bet0
             cx(2:nx-1) = -alph(2:nx-1,j) 
-
-
-        ! HERE
-
-
+            
             do i = 2, nx
 
                 cprimex(i) = cx(i) / (bx(i) - ax(i) * cprimex(i-1))

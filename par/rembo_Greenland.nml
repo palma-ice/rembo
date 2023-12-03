@@ -13,7 +13,7 @@
 
     ! Diffusion parameters
     en_dt      = 500                ! Diffusion time step, sec
-    en_D       = 1.0e3              ! [m-2 s-1] Diffusion constant, energy
+    en_D       = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
     en_D_sum   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
     en_kr      = 1e-3               ! [1/sec] Relaxation coefficient, energy

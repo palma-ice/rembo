@@ -631,10 +631,10 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call solve_adv_diff_2D_rk4_expl(tsl,tsl_F,kappa,tsl_bnd,mask,dx,dx, &
-                                            dt=par%en_dt,k_rel=par%en_kr,v_x=ug,v_y=vg)
-            ! call solve_diff_2D_adi(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
-            !                        dt=par%en_dt,kappa=kappa,k_relax=par%en_kr)
+            ! call solve_adv_diff_2D_rk4_expl(tsl,tsl_F,kappa,tsl_bnd,mask,dx,dx, &
+            !                                 dt=par%en_dt,k_rel=par%en_kr,v_x=ug,v_y=vg)
+            call solve_diff_2D_adi(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
+                                   dt=par%en_dt,kappa=kappa,k_relax=par%en_kr)
         end do 
 
         ! 2m temperature

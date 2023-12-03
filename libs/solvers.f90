@@ -527,7 +527,7 @@ contains
 !         uu = udiff 
         
         call solve_adi2D(udiff,u0,F,0.0*relax,alpha,gamma,beta)
-        uu = udiff - k_relax*relax*(udiff-u0)
+        uu = udiff - dt*k_relax*relax*(udiff-u0)
 
         return
 
