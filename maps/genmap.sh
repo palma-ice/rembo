@@ -3,8 +3,8 @@
 # Define user options
 
 domain=Greenland
-grid_name_src=ERA5
-grid_name_tgt=GRL-16KM
+grid_name_src=GRL-128KM
+grid_name_tgt=GRL-64KM
 
 # Determine input grid file using options
 

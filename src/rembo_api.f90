@@ -4,6 +4,7 @@ module rembo_api
     use rembo_defs 
     use rembo_grid
     use rembo_atm 
+    use rembo1
     use rembo_physics 
 
     use nml 
@@ -111,7 +112,6 @@ contains
                     dom%now%co2_a   = co2_a 
 
                     ! Interpolate monthly temperatures to the current day
-                    dom%now%t2m_bnd = t2m(:,:,m) 
                     call interp_monthly_to_day_2D(dom%now%t2m_bnd,t2m,day,dom%mm)
                     
                     ! Calculate insolation for current day

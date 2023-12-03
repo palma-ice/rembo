@@ -57,11 +57,16 @@ $(objdir)/rembo_physics.o : $(srcdir)/rembo_physics.f90 $(objdir)/rembo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/rembo_atm.o: $(srcdir)/rembo_atm.f90 $(objdir)/rembo_defs.o $(objdir)/rembo_grid.o \
+					$(objdir)/rembo1.o $(objdir)/solvers.o
+	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
+
+$(objdir)/rembo1.o: $(srcdir)/rembo1.f90 $(objdir)/precision.o $(objdir)/rembo_defs.o $(objdir)/rembo_grid.o \
 					$(objdir)/solvers.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/rembo_api.o: $(srcdir)/rembo_api.f90 $(objdir)/rembo_defs.o $(objdir)/rembo_grid.o \
-					$(objdir)/rembo_atm.o  $(objdir)/insolation.o $(objdir)/monthlydaily.o
+					$(objdir)/rembo_atm.o  $(objdir)/insolation.o \
+					$(objdir)/monthlydaily.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/rembo.o: $(srcdir)/rembo.f90 $(objdir)/rembo_defs.o $(objdir)/rembo_physics.o $(objdir)/rembo_api.o
@@ -94,6 +99,7 @@ rembo_base = 		   $(objdir)/rembo_defs.o \
 					   $(objdir)/rembo_grid.o \
 					   $(objdir)/rembo_physics.o \
 					   $(objdir)/rembo_atm.o \
+					   $(objdir)/rembo1.o \
 					   $(objdir)/rembo_api.o \
 	         		   $(objdir)/rembo.o
 

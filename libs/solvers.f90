@@ -1,17 +1,173 @@
 module solvers
 
     use precision, only : wp
-    
+
     implicit none
     
     private
+    public :: solve_adv_diff_2D
     public :: solve2D
     public :: solve_diff_2D_adi, diff2Dadi_timestep
-    public :: adv_diff_2D, advec2D_upwind, diffuse2D
     public :: adv2D_timestep, diff2D_timestep
     public :: set_border
 
 contains
+
+    subroutine solve_adv_diff_2D(uu,u0,F,kappa,relax,dx,dy,dt,k_relax,v_x,v_y)
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: uu(:,:)
+        real(wp), intent(IN)    :: u0(:,:)
+        real(wp), intent(IN)    :: F(:,:)
+        real(wp), intent(IN)    :: kappa(:,:)
+        integer,  intent(IN)    :: relax(:,:)
+        real(wp), intent(IN)    :: dx
+        real(wp), intent(IN)    :: dy
+        real(wp), intent(IN)    :: dt
+        real(wp), intent(IN)    :: k_relax 
+        real(wp), intent(IN), optional :: v_x(:,:)
+        real(wp), intent(IN), optional :: v_y(:,:)
+
+        ! Local variables
+        integer :: nx, ny 
+        real(wp), allocatable :: utmp(:,:)
+        real(wp), allocatable :: uadv(:,:)
+        real(wp), allocatable :: udiff(:,:)
+        
+        nx = size(uu,1)
+        ny = size(uu,2) 
+        
+        allocate(utmp(nx,ny))
+        allocate(udiff(nx,ny))
+        allocate(uadv(nx,ny))
+
+        ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
+        call calc_tendency_diffuse2D(udiff,uu,kappa,dx,dy)
+
+        ! Get advective tendency if needed (du/dt)
+        if (present(v_x) .and. present(v_y)) then
+            call calc_tendency_advec2D_upwind(uadv,uu,v_x,v_y,dx,dy)
+        else
+            uadv = 0.d0 
+        end if 
+
+        ! Update uu
+        utmp  = uu 
+        uu = utmp + dt*(udiff - uadv + F) - k_relax*relax*(utmp-u0)
+
+        
+        return
+
+    end subroutine solve_adv_diff_2D 
+
+    subroutine calc_tendency_diffuse2D(dudt,uu,kappa,dx,dy)
+        ! Explicit calculation of kappa * 2D Laplace: kappa*d2u/dxdy
+        ! If input units are [u], returns [u/m2]
+    
+        implicit none 
+
+        real(wp), intent(OUT) :: dudt(:,:)
+        real(wp), intent(OUT) :: uu(:,:)
+        real(wp), intent(IN)  :: kappa(:,:)
+        real(wp), intent(IN)  :: dx
+        real(wp), intent(IN)  :: dy
+
+        ! Local variables 
+        integer :: i, j, nx, ny 
+        real(wp) :: inv_dx2, inv_dy2
+        real(wp) :: du
+
+        nx = size(dudt,1)
+        ny = size(dudt,2) 
+
+        inv_dx2 = 1.d0 / (dx*dx)
+        inv_dy2 = 1.d0 / (dy*dy)
+
+        dudt = 0.d0 
+
+        do j = 2,ny-1
+        do i = 2,nx-1
+        
+            ! Laplacian, five-point stencil finite difference method (du/(dx*dy))
+            du =  inv_dx2*(uu(i-1,j)-2.d0*uu(i,j)+uu(i+1,j)) &
+                + inv_dy2*(uu(i,j-1)-2.d0*uu(i,j)+uu(i,j+1))
+            
+            ! Get tendency (du/dt)
+            dudt(i,j) = kappa(i,j)*du
+
+        end do 
+        end do
+
+        return
+
+    end subroutine calc_tendency_diffuse2D 
+
+    
+    subroutine calc_tendency_advec2D_upwind(dudt,uu,vx,vy,dx,dy)
+        ! Second-order upwind advection scheme
+        ! If input units are [u], returns [u/s]
+        
+        implicit none 
+
+        real(wp), intent(OUT) :: dudt(:,:)
+        real(wp), intent(IN)  :: uu(:,:)
+        real(wp), intent(IN)  :: vx(:,:)
+        real(wp), intent(IN)  :: vy(:,:)
+        real(wp), intent(IN)  :: dx
+        real(wp), intent(IN)  :: dy 
+
+        ! Local variables
+        integer :: i, j, nx, ny 
+        real(wp) :: inv_2dx, inv_2dy
+        real(wp), allocatable :: utmp(:,:)
+        real(wp), allocatable :: du_x_neg(:,:)
+        real(wp), allocatable :: du_x_pos(:,:)
+        real(wp), allocatable :: du_y_neg(:,:)
+        real(wp), allocatable :: du_y_pos(:,:) 
+        
+        nx = size(dudt,1)
+        ny = size(dudt,2) 
+
+        allocate(du_x_neg(nx,ny))
+        allocate(du_x_pos(nx,ny))
+        allocate(du_y_neg(nx,ny))
+        allocate(du_y_pos(nx,ny))
+
+        inv_2dx = 1.d0 / (2.d0*dx)
+        inv_2dy = 1.d0 / (2.d0*dy)
+
+        du_x_neg = 0.d0  
+        du_x_pos = 0.d0 
+        du_y_neg = 0.d0  
+        du_y_pos = 0.d0 
+        
+        do i = 3,nx-2
+            do j = 3,ny-2
+                du_x_neg(i,j) = inv_2dx* ( 3.d0*uu(i,j)  -4.d0*uu(i-1,j)+1.d0*uu(i-2,j) )
+                du_x_pos(i,j) = inv_2dx* (-1.d0*uu(i+2,j)+4.d0*uu(i+1,j)-3.d0*uu(i,j) )
+
+                du_y_neg(i,j) = inv_2dy* ( 3.d0*uu(i,j)  -4.d0*uu(i,j-1)+1.d0*uu(i,j-2) )
+                du_y_pos(i,j) = inv_2dy* (-1.d0*uu(i,j+2)+4.d0*uu(i,j+1)-3.d0*uu(i,j) )
+            end do 
+        end do
+
+        where(vx .le. 0.d0) du_x_neg = 0.d0 
+        where(vx .gt. 0.d0) du_x_pos = 0.d0 
+        where(vy .le. 0.d0) du_y_neg = 0.d0 
+        where(vy .gt. 0.d0) du_y_pos = 0.d0 
+            
+        dudt =  (vx*du_x_neg + vx*du_x_pos) &
+              + (vy*du_y_neg + vy*du_y_pos)
+
+        return
+
+    end subroutine calc_tendency_advec2D_upwind
+
+
+
+
+
 
     subroutine solve2D(uu,u0,F,relax,alpha,gamma,beta,solver)
 
@@ -332,129 +488,4 @@ contains
 
     end function diff2Dadi_timestep 
     
-    subroutine adv_diff_2D(uu,u0,F,relax,dx,dy,dt,kappa,k_relax,v_x,v_y)
-
-        implicit none 
-
-        real(wp), dimension(:,:) :: uu, u0, F, kappa
-        real(wp), dimension(:,:), optional :: v_x, v_y 
-        integer,          dimension(:,:) :: relax 
-        real(wp) :: dx, dy, dt, k_relax 
-        real(wp), dimension(:,:), allocatable :: utmp, uadv, udiff
-        integer :: nx, ny 
-
-        nx = size(uu,1)
-        ny = size(uu,2) 
-        
-        allocate(utmp(nx,ny),udiff(nx,ny),uadv(nx,ny))
-
-        utmp  = uu 
-
-        udiff = uu 
-        call diffuse2D(udiff,dx,dy)
-
-        if (present(v_x) .and. present(v_y)) then
-            uadv = uu 
-            call advec2D_upwind(uadv,v_x,v_y,dx,dy)
-        else
-            uadv = 0.d0 
-        end if 
-
-        ! Update uu
-        uu = utmp + dt*(kappa*udiff - uadv + F) - k_relax*relax*(utmp-u0)
-
-        
-        return
-
-    end subroutine adv_diff_2D 
-
-    ! Explicit calculation of 2D Laplace: d2u/dxdy
-    ! If input units are [u], returns [u/m2]
-    subroutine diffuse2D(uu,dx,dy)
-
-        implicit none 
-
-        real(wp), dimension(:,:) :: uu
-        real(wp) :: dx, dy 
-        real(wp) :: inv_dx2, inv_dy2
-        integer :: i, j, nx, ny 
-        real(wp), dimension(:,:), allocatable :: utmp 
-
-        nx = size(uu,1)
-        ny = size(uu,2) 
-
-        allocate(utmp(nx,ny))
-        utmp = uu 
-
-        inv_dx2 = 1.d0 / (dx*dx)
-        inv_dy2 = 1.d0 / (dy*dy)
-
-        uu = 0.d0 
-
-        do i = 2,nx-1
-            do j = 2,ny-1
-                           ! five-point stencil finite difference method
-                uu(i,j) =  inv_dx2*(utmp(i-1,j)-2.d0*utmp(i,j)+utmp(i+1,j)) &
-                         + inv_dy2*(utmp(i,j-1)-2.d0*utmp(i,j)+utmp(i,j+1))
-            end do 
-        end do
-
-        return
-
-    end subroutine diffuse2D 
-
-    ! Second-order upwind advection scheme
-    ! If input units are [u], returns [u/s]
-    subroutine advec2D_upwind(uu,vx,vy,dx,dy)
-
-        implicit none 
-
-        real(wp), dimension(:,:) :: uu, vx, vy
-        real(wp) :: dx, dy 
-        real(wp) :: inv_2dx, inv_2dy
-        integer :: i, j, nx, ny 
-        real(wp), dimension(:,:), allocatable :: utmp
-        real(wp), dimension(:,:), allocatable :: uu_x_neg, uu_x_pos 
-        real(wp), dimension(:,:), allocatable :: uu_y_neg, uu_y_pos 
-        
-        nx = size(uu,1)
-        ny = size(uu,2) 
-
-        allocate(utmp(nx,ny))
-        allocate(uu_x_neg(nx,ny),uu_x_pos(nx,ny))
-        allocate(uu_y_neg(nx,ny),uu_y_pos(nx,ny))
-
-        utmp     = uu 
-        
-        inv_2dx = 1.d0 / (2.d0*dx)
-        inv_2dy = 1.d0 / (2.d0*dy)
-
-        uu = 0.d0 
-        uu_x_neg = 0.d0  
-        uu_x_pos = 0.d0 
-        uu_y_neg = 0.d0  
-        uu_y_pos = 0.d0 
-        
-        do i = 3,nx-2
-            do j = 3,ny-2
-                uu_x_neg(i,j) = inv_2dx* ( 3.d0*utmp(i,j)  -4.d0*utmp(i-1,j)+1.d0*utmp(i-2,j) )
-                uu_x_pos(i,j) = inv_2dx* (-1.d0*utmp(i+2,j)+4.d0*utmp(i+1,j)-3.d0*utmp(i,j) )
-
-                uu_y_neg(i,j) = inv_2dy* ( 3.d0*utmp(i,j)  -4.d0*utmp(i,j-1)+1.d0*utmp(i,j-2) )
-                uu_y_pos(i,j) = inv_2dy* (-1.d0*utmp(i,j+2)+4.d0*utmp(i,j+1)-3.d0*utmp(i,j) )
-            end do 
-        end do
-
-        where(vx .le. 0.d0) uu_x_neg = 0.d0 
-        where(vx .gt. 0.d0) uu_x_pos = 0.d0 
-        where(vy .le. 0.d0) uu_y_neg = 0.d0 
-        where(vy .gt. 0.d0) uu_y_pos = 0.d0 
-            
-        uu =  (vx*uu_x_neg + vx*uu_x_pos) &
-            + (vy*uu_y_neg + vy*uu_y_pos)
-
-        return
-
-    end subroutine advec2D_upwind 
-
 end module solvers

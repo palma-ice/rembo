@@ -1,7 +1,7 @@
 program test_rembo
 
     use precision, only : sp, dp, wp
-    
+
     use ncio
     use rembo 
     use insolation 
@@ -69,13 +69,14 @@ program test_rembo
     !call load_clim_monthly_era(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
 
     ! Load ERA5 data from global latlon grid (best)
-    infldr    = "ice_data/"
-    call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name, &
-                                                            z_srf=z_srf,dx=rembo1%grid%dx)
+    !infldr    = "ice_data/"
+    !call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name, &
+    !                                                        z_srf=z_srf,dx=rembo1%grid%dx)
 
     ! Loading ERA40 instead...
-    !call load_clim_monthly_era40_latlon(forc,path=trim(infldr),grid_name=grid_name, &
-    !                                                        z_srf=z_srf,dx=rembo1%grid%dx)
+    infldr    = "ice_data/"
+    call load_clim_monthly_era40_latlon(forc,path=trim(infldr),grid_name=grid_name, &
+                                                            z_srf=z_srf,dx=rembo1%grid%dx)
     
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]

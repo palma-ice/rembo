@@ -5,6 +5,7 @@ module rembo_atm
 
     use rembo_defs 
     use rembo_physics 
+    use rembo1
 
     use coordinates_mapping_scrip, only : map_scrip_class, map_scrip_init, map_scrip_field, &
                                             gen_map_filename, nc_read_interp
@@ -40,6 +41,13 @@ contains
         real(wp) :: beta                            ! ajr: to do: move to parameters!!
         integer  :: iter, n_iter 
         integer  :: iter_surf, n_iter_surf 
+        integer  :: iter_rembo1, n_iter_rembo1
+
+        real(wp), allocatable :: dh_snow(:,:)
+        real(wp), allocatable :: dzs(:,:)
+
+        allocate(dh_snow(grid%nx,grid%ny))
+        allocate(dzs(grid%nx,grid%ny))
 
         ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
         now%gamma = par%gamma  &
@@ -215,9 +223,9 @@ if (.TRUE.) then
                               dx=grid%dx,g=par%c%g)
 
             
-else 
-            ! Impose boundary temperature field for now
-            now%t2m = now%t2m_bnd 
+!else 
+!            ! Impose boundary temperature field for now
+!            now%t2m = now%t2m_bnd 
 
 end if 
 
@@ -233,20 +241,39 @@ end if
             now%tcw = now%q_s * now%rho_a * par%H_e
             now%q_r = now%tcw / now%tcw_sat 
 
-!             ! Now calculate the condensation rate (kg m**-2 s**-1)
-!             now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
-!                                         par%k_c,par%k_x)
+            ! Now calculate the condensation rate (kg m**-2 s**-1)
+            now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
+                                        par%k_c,par%k_x)
 
 if (.TRUE.) then
             ! Calculate the current cloud water content  (kg m**-2)
-            call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww,grid%dx)   
-end if 
+            call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww,grid%dx) 
 
             ! Now calculate the high resolution precipitation rate (kg m**-2 s**-1)
-            now%pr = calc_precip(now%ccw,now%ww,now%t2m,bnd%z_srf,par%k_w,par%k_z,par%k_t)
+            now%pr = calc_precip(now%ccw,now%ww,now%t2m,bnd%z_srf,par%k_w,par%k_z,par%k_t)  
+end if 
 
             ! Calculate snowfall (kg m**-2 s**-1)
             now%sf = calc_snowfrac(now%t2m,par%sf_a,par%sf_b) * now%pr 
+
+if (.FALSE.) then
+    ! REMBO1 - old code!! Not working well yet....
+
+            n_iter_rembo1 = 20 
+
+            do iter_rembo1 = 1, n_iter_rembo1
+
+                ! Get rate of snowfall melt (currently zero)
+                dh_snow = 0.0
+
+                ! Call REMBO1 atmosphere
+                call rembo1_calc_atm(now%t2m,now%tcw,now%pr,now%pr-now%sf,now%sf, &
+                                        now%t2m_bnd,now%q_r,now%S,now%al_p,dh_snow, &
+                                        par%en_kdT+now%rco2_a,bnd%z_srf,bnd%dzsdxy, &
+                                        bnd%mask,grid%dx,par%en_dt,par%c%sec_day)
+
+            end do
+end if 
 
         end do 
 
@@ -604,8 +631,10 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call adv_diff_2D(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
-                                    dt=par%en_dt,kappa=kappa,k_relax=par%en_kr,v_x=ug,v_y=vg)
+            call solve_adv_diff_2D(tsl,tsl_bnd,tsl_F,kappa,relax=mask,dx=dx,dy=dx, &
+                                   dt=par%en_dt,k_relax=par%en_kr,v_x=ug,v_y=vg)
+            ! call solve_diff_2D_adi(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
+            !                        dt=par%en_dt,kappa=kappa,k_relax=par%en_kr)
         end do 
 
         ! 2m temperature
@@ -673,8 +702,8 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%tsl_F,relax=emb%mask,dx=emb%grid%dx,dy=emb%grid%dy, &
-                                    dt=par%en_dt,kappa=emb%kappa,k_relax=par%en_kr,v_x=emb%ug,v_y=emb%vg)
+            call solve_adv_diff_2D(emb%tsl,emb%tsl_bnd,emb%tsl_F,emb%kappa,relax=emb%mask,dx=emb%grid%dx, &
+                                    dy=emb%grid%dy,dt=par%en_dt,k_relax=par%en_kr,v_x=emb%ug,v_y=emb%vg)
         end do 
 
         ! Sea-level temperature, tsl
@@ -756,8 +785,8 @@ end if
 
         ! Calculate moisture balance to equilibrium
         do q = 1, par%ccw_nstep
-            call adv_diff_2D(emb%ccw,emb%ccw_bnd,emb%ccw_F,relax=emb%mask,dx=emb%grid%dx,dy=emb%grid%dy, &
-                            dt=par%ccw_dt,kappa=emb%kappaw,k_relax=par%ccw_kr,v_x=emb%ug,v_y=emb%vg)
+            call solve_adv_diff_2D(emb%ccw,emb%ccw_bnd,emb%ccw_F,emb%kappaw,relax=emb%mask,dx=emb%grid%dx, &
+                                        dy=emb%grid%dy,dt=par%ccw_dt,k_relax=par%ccw_kr,v_x=emb%ug,v_y=emb%vg)
 
             where (emb%ccw .lt. 0.d0) emb%ccw = 0.d0
 

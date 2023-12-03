@@ -1,6 +1,6 @@
 &rembo
     domain        = "Greenland"
-    grid_name     = "GRL-32KM"
+    grid_name     = "GRL-64KM"
     grid_name_emb = "GRL-128KM"
     grid_name_hi  = "GRL-16KM"
     grid_path     = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
@@ -13,7 +13,7 @@
 
     ! Diffusion parameters
     en_dt      = 100                ! Diffusion time step, sec
-    en_D       = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
+    en_D       = 1.0e3              ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
     en_D_sum   = 1.0e6              ! [m-2 s-1] Diffusion constant, energy
     en_kr      = 0.95               ! [1] Relaxation coefficient, energy (~95% of difference)
