@@ -10,35 +10,57 @@ program test_solvers
 
     integer,  parameter :: nx = 101
     integer,  parameter :: ny = 101
-    real(wp), parameter :: dx = 1.0
-    real(wp), parameter :: dy = 1.0
+    real(wp), parameter :: dx = 10e3
+    real(wp), parameter :: dy = 10e3
+    real(wp), parameter :: k_rel = 1e-1
 
     real(wp) :: uu(nx,ny)
+    real(wp) :: F(nx,ny)
+    real(wp) :: kappa(nx,ny)
+    real(wp) :: ubnd(nx,ny)
     integer  :: mask(nx,ny)
+    real(wp) :: v_x(nx,ny)
+    real(wp) :: v_y(nx,ny)
 
     integer  :: iter, n_iter
     real(wp) :: time_init, time_end, dt 
     real(wp) :: time 
+    real(wp) :: dt_out 
+
 
     ! Set relaxation mask
     mask = 0
-    mask(1,:)  = 1
-    mask(nx,:) = 1
-    mask(:,1)  = 1
-    mask(:,ny) = 1
-
-    time_init = 0.0
-    time_end  = 10.0 
-    dt        = 1.0
-    n_iter    = ceiling( (time_end-time_init)/dt ) + 1 
-
-    time = time_init 
+    mask(1:5,:)     = 1
+    mask(nx-5:nx,:) = 1
+    mask(:,1:5)     = 1
+    mask(:,ny-5:ny) = 1
 
     uu = 0.0
-    uu(1,:)  = 100.0
-    uu(nx,:) = 100.0
-    uu(:,1)  = 100.0
-    uu(:,ny) = 100.0
+    uu(1:5,:)       = 100.0
+    uu(nx-5:nx,:)   = 100.0
+    uu(:,1:5)       = 100.0
+    uu(:,ny-5:ny)   = 100.0
+
+    ubnd = 100.0
+
+    ! Define forcing field
+    F = 0.0
+
+    ! Define velocities
+    v_x = 0.0
+    v_y = 0.0 
+
+    ! Define kappa = D/ce
+    kappa = 1e6
+
+    time_init = 0.0
+    time_end  = 10000.0 
+    dt        = 10.0
+    n_iter    = ceiling( (time_end-time_init)/dt ) + 1 
+
+    dt_out    = 1000.0 
+
+    time = time_init 
 
     ! Initialize the output file
     call write_init(filename,nx,ny,dx,dy,time_init)
@@ -47,9 +69,9 @@ program test_solvers
 
         time = time_init + (iter-1)*dt
 
-        uu = real(iter,wp)
+        call solve_adv_diff_2D_fe_expl(uu,F,kappa,ubnd,mask,dx,dy,dt,k_rel)
 
-        call write_step(filename,uu,time)
+        call write_step(filename,uu,F,time)
 
         write(*,*) "time = ", time
 
@@ -72,20 +94,21 @@ contains
 
         ! Initialize netcdf file and dimensions
         call nc_create(filename)
-        call nc_write_dim(filename,"xc",    x=0.0_wp,dx=dx,nx=nx, units="meters")
-        call nc_write_dim(filename,"yc",    x=0.0_wp,dx=dy,nx=ny, units="meters")
+        call nc_write_dim(filename,"xc",    x=0.0_wp,dx=dx*1e-3,nx=nx, units="kilometers")
+        call nc_write_dim(filename,"yc",    x=0.0_wp,dx=dy*1e-3,nx=ny, units="kilometers")
         call nc_write_dim(filename,"time",  x=time_init,dx=1.0_wp,nx=1,units="seconds",unlimited=.TRUE.)
         
         return
 
     end subroutine write_init
 
-    subroutine write_step(filename,uu,time)
+    subroutine write_step(filename,uu,F,time)
 
         implicit none
 
         character(len=*),  intent(IN) :: filename 
         real(wp),          intent(IN) :: uu(:,:)
+        real(wp),          intent(IN) :: F(:,:)
         real(wp),          intent(IN) :: time
 
         ! Local variables
@@ -107,13 +130,15 @@ contains
         ! Update the time step
         call nc_write(filename,"time",time,dim1="time",start=[n],count=[1],ncid=ncid)
 
-        ! Update the variable
+        ! Update the variables
         call nc_write(filename,"uu",uu,units="m",long_name="Field variable", &
+                      dim1="xc",dim2="yc",dim3="time",start=[1,1,n],count=[nx,ny,1],ncid=ncid)
+        call nc_write(filename,"F",F,units="m",long_name="Field forcing", &
                       dim1="xc",dim2="yc",dim3="time",start=[1,1,n],count=[nx,ny,1],ncid=ncid)
 
         ! Close the netcdf file
         call nc_close(ncid)
-        
+
         return
 
     end subroutine write_step

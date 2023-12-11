@@ -40,8 +40,8 @@ contains
         allocate(dudt(nx,ny))
 
         ! Calculate derivative
-        call calc_tendency_expl(dudt,uu,ubnd,F,kappa,mask,dx,dy,k_rel,v_x,v_y)
-
+        call calc_tendency_expl(dudt,uu,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
+        
         ! Update uu
         uu = uu + dt*dudt
 
