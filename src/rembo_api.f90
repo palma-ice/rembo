@@ -20,6 +20,9 @@ module rembo_api
     ! Day count for the middle of each month of the year
     integer, parameter :: mdays(12) =[30,60,90,120,150,180,210,240,270,300,330,360]-15
 
+    real(wp), parameter :: zs_min = 1000.0_wp ! Minimum elevation of relaxation mask 
+    ! ajr: this is just for testing, later should be internalized, set to e.g. 10m.
+    
     private 
     public :: rembo_update
     public :: rembo_init 
@@ -78,9 +81,9 @@ contains
 !                     dom%grid%x,dom%grid%y)
 
         ! Calculate the rembo relaxation mask
-        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,radius=16.0)  
+        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,zs_min,radius=16.0)  
         where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
-
+        
         ! EMB OUTPUT FOR TESTING 
         !call rembo_emb_write_init(dom%emb,"test.nc",dom%par%domain,dom%par%grid_name, &
         !                                            time_init=real(year,wp),units="kyr ago")
@@ -192,7 +195,7 @@ contains
 !                     dom%grid%x,dom%grid%y)
 
         ! Calculate the rembo relaxation mask
-        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,radius=16.0)  
+        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,zs_min,radius=16.0)  
         where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
 
         ! EMB OUTPUT FOR TESTING 

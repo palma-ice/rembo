@@ -699,19 +699,22 @@ end if
 
     end subroutine calc_gradient_to_sealevel
 
-    function gen_relaxation(zs,xx,yy,radius) result(relax) 
+    function gen_relaxation(zs,xx,yy,zs_min,radius) result(relax) 
         
         implicit none 
         
         real(wp), intent(IN) :: zs(:,:) 
         real(wp), intent(IN) :: xx(:,:)
         real(wp), intent(IN) :: yy(:,:) 
+        real(wp), intent(IN) :: zs_min
+        real(wp), intent(IN) :: radius
         integer :: relax(size(zs,1),size(zs,2)) 
 
         ! Local variables
-        real(wp) :: radius, dist, mindist 
+        real(wp) :: dist, mindist 
         integer :: nx, ny, i, j, i1, j1 
-        real(wp), parameter :: zs_min = 10.0   ! [m]
+        !real(wp), parameter :: zs_min = 10.0   ! [m]
+        
         real(wp) :: tmp(size(zs,1),size(zs,2))
 
         nx = size(zs,1)

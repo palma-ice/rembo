@@ -14,8 +14,7 @@ module rembo_atm
 
     real(wp), parameter :: cap  = 1000.0_wp  !< specific heat capacitiy of air [J/(kg K)]
     ! ajr: move to rembo_defs later...
-
-
+    
     private
     public :: rembo1_calc_atmosphere
     public :: rembo_calc_atmosphere
