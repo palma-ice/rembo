@@ -20,7 +20,7 @@ module rembo_api
     ! Day count for the middle of each month of the year
     integer, parameter :: mdays(12) =[30,60,90,120,150,180,210,240,270,300,330,360]-15
 
-    real(wp), parameter :: zs_min = 1000.0_wp ! Minimum elevation of relaxation mask 
+    real(wp), parameter :: zs_min = 0.0_wp ! Minimum elevation of relaxation mask 
     ! ajr: this is just for testing, later should be internalized, set to e.g. 10m.
     
     private 
@@ -33,9 +33,13 @@ module rembo_api
     public :: rembo_write_init 
     public :: rembo_grid_write 
     public :: rembo_write_state
+
+    public :: rembo_forc_alloc
+    public :: rembo_forc_dealloc
+
 contains 
 
-    subroutine rembo1_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,co2_a,year)
+    subroutine rembo1_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,tcwv,co2_a,year)
         ! Calculate atmosphere for each month of the year 
 
         implicit none 
@@ -47,6 +51,7 @@ contains
         real(wp), intent(IN) :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
         real(wp), intent(IN) :: reg_mask(:,:)   ! [--]    Maximum region of interest to model 
         real(wp), intent(IN) :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
+        real(wp), intent(IN) :: tcwv(:,:,:)     ! [kg m-2]  Total column water vapor (used for boundary)
         real(wp), intent(IN) :: co2_a           ! [ppm]   Atmospheric CO2 concentration
         integer,  intent(IN) :: year            ! [yrs ago (since 1950)]
 
@@ -114,8 +119,9 @@ contains
                     ! CO2 is always equal to the annual value (for now)
                     dom%now%co2_a   = co2_a 
 
-                    ! Interpolate monthly temperatures to the current day
+                    ! Interpolate monthly boundary values to the current day
                     call interp_monthly_to_day_2D(dom%now%t2m_bnd,t2m,day,dom%mm)
+                    call interp_monthly_to_day_2D(dom%now%ccw_bnd,tcwv,day,dom%mm)
                     
                     ! Calculate insolation for current day
                     dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
@@ -151,7 +157,7 @@ contains
 
     end subroutine rembo1_update
     
-    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,co2_a,year)
+    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,tcwv,co2_a,year)
         ! Calculate atmosphere for each month of the year 
 
         implicit none 
@@ -164,6 +170,7 @@ contains
         real(wp), intent(IN) :: reg_mask(:,:)   ! [--]    Maximum region of interest to model 
         real(wp), intent(IN) :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
         real(wp), intent(IN) :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
+        real(wp), intent(IN) :: tcwv(:,:,:)     ! [kg m-2]  Total column water vapor (used for boundary)
         real(wp), intent(IN) :: co2_a           ! [ppm]   Atmospheric CO2 concentration
         integer,  intent(IN) :: year            ! [yrs ago (since 1950)]
 
@@ -403,7 +410,6 @@ contains
         allocate(emb%ccw_cw(nx,ny))
         allocate(emb%ccw_pr(nx,ny))
         allocate(emb%tcw(nx,ny))
-        allocate(emb%tcw_bnd(nx,ny))
 
         ! Energy and moisture balance
         allocate(emb%ug(nx,ny))
@@ -414,8 +420,8 @@ contains
         allocate(emb%q_r(nx,ny))
 
         ! Diffusion
-        allocate(emb%kappa(nx,ny))
-        allocate(emb%kappaw(nx,ny))
+        allocate(emb%kappa_t(nx,ny))
+        allocate(emb%kappa_w(nx,ny))
 
 
         ! Initialize all variables to zero 
@@ -440,7 +446,6 @@ contains
         emb%ccw_cw      = 0.0
         emb%ccw_pr      = 0.0
         emb%tcw         = 0.0
-        emb%tcw_bnd     = 0.0
 
         ! Energy and moisture balance
         emb%ug          = 0.0
@@ -451,8 +456,8 @@ contains
         emb%q_r         = 0.0
 
         ! Diffusion
-        emb%kappa       = 0.0
-        emb%kappaw      = 0.0 
+        emb%kappa_t     = 0.0
+        emb%kappa_w     = 0.0 
 
         return 
 
@@ -591,6 +596,8 @@ contains
 
         call nml_read(filename,group1,"H_e",            par%H_e)
         call nml_read(filename,group1,"rembo1",         par%rembo1)
+        call nml_read(filename,group1,"solver",         par%solver)
+        call nml_read(filename,group1,"step",           par%step)
         call nml_read(filename,group1,"en_dt",          par%en_dt)
         call nml_read(filename,group1,"en_D",           par%en_D)
         call nml_read(filename,group1,"en_D_win",       par%en_D_win)
@@ -728,6 +735,7 @@ contains
             ave%tcw_sat     = 0.0 
             ave%ccw_prev    = 0.0
             ave%ccw         = 0.0 
+            ave%ccw_bnd     = 0.0
             ave%c_w         = 0.0  
             ave%ug          = 0.0 
             ave%vg          = 0.0   
@@ -784,6 +792,7 @@ contains
             ave%tcw_sat     = ave%tcw_sat  + now%tcw_sat 
             ave%ccw_prev    = ave%ccw_prev + now%ccw_prev
             ave%ccw         = ave%ccw      + now%ccw     
+            ave%ccw_bnd     = ave%ccw_bnd  + now%ccw_bnd 
             ave%c_w         = ave%c_w      + now%c_w      
             ave%ug          = ave%ug       + now%ug      
             ave%vg          = ave%vg       + now%vg        
@@ -841,6 +850,7 @@ contains
             ave%tcw_sat     = ave%tcw_sat  / nt_dble 
             ave%ccw_prev    = ave%ccw_prev / nt_dble
             ave%ccw         = ave%ccw      / nt_dble 
+            ave%ccw_bnd     = ave%ccw_bnd  / nt_dble 
             ave%c_w         = ave%c_w      / nt_dble  
             ave%ug          = ave%ug       / nt_dble 
             ave%vg          = ave%vg       / nt_dble   
@@ -910,6 +920,7 @@ contains
         allocate(now%tcw_sat(nx,ny)) ! Saturated total water content (kg/m2)
         allocate(now%ccw_prev(nx,ny))! Previous tcw value
         allocate(now%ccw(nx,ny))     ! Cloud water content (kg/m2)
+        allocate(now%ccw_bnd(nx,ny)) ! Cloud water content (kg/m2)
         allocate(now%c_w(nx,ny))     ! Condensated water (kg/m2)
         allocate(now%ug(nx,ny))      ! Horizontal x-component 750Mb velocity (m/s)
         allocate(now%vg(nx,ny))      ! Horizontal y-component 750Mb velocity (m/s)
@@ -963,6 +974,7 @@ contains
         now%tcw_sat     = 0.0 
         now%ccw_prev    = 0.0
         now%ccw         = 0.0 
+        now%ccw_bnd     = 0.0 
         now%c_w         = 0.0  
         now%ug          = 0.0 
         now%vg          = 0.0   
@@ -1028,6 +1040,7 @@ contains
         if (allocated(now%tcw_sat) )    deallocate(now%tcw_sat) ! Saturated total water content (kg/m2)
         if (allocated(now%ccw_prev) )   deallocate(now%ccw_prev)! Previous tcw value
         if (allocated(now%ccw) )        deallocate(now%ccw)     ! Cloud water content (kg/m2)
+        if (allocated(now%ccw_bnd) )    deallocate(now%ccw_bnd) ! Cloud water content (kg/m2)
         if (allocated(now%c_w) )        deallocate(now%c_w)     ! Condensated water (kg/m2)
         if (allocated(now%ug) )         deallocate(now%ug)      ! Horizontal x-component 750Mb velocity (m/s)
         if (allocated(now%vg) )         deallocate(now%vg)      ! Horizontal y-component 750Mb velocity (m/s)
@@ -1113,6 +1126,51 @@ contains
 
     end subroutine rembo_bnd_dealloc
 
+    subroutine rembo_forc_alloc(forc,nx,ny)
+
+        implicit none 
+
+        type(rembo_forcing_class), intent(INOUT) :: forc 
+        integer,                   intent(IN)  :: nx, ny 
+
+        call rembo_forc_dealloc(forc)
+
+        allocate(forc%z_srf(nx,ny))
+
+        allocate(forc%t2m(nx,ny,12))
+        allocate(forc%tsl(nx,ny,12))
+        allocate(forc%al_s(nx,ny,12))
+        allocate(forc%Z(nx,ny,12))
+        allocate(forc%tcwv(nx,ny,12))
+        
+        forc%z_srf  = 0.0 
+        forc%t2m    = 0.0
+        forc%tsl    = 0.0
+        forc%al_s   = 0.0
+        forc%Z      = 0.0
+        forc%tcwv   = 0.0 
+        
+        return 
+
+    end subroutine rembo_forc_alloc
+
+    subroutine rembo_forc_dealloc(forc)
+
+        implicit none 
+
+        type(rembo_forcing_class), intent(INOUT) :: forc 
+
+        if (allocated(forc%z_srf))  deallocate(forc%z_srf)
+        if (allocated(forc%t2m))    deallocate(forc%t2m)
+        if (allocated(forc%tsl))    deallocate(forc%tsl)
+        if (allocated(forc%al_s))   deallocate(forc%al_s)
+        if (allocated(forc%Z))      deallocate(forc%Z)
+        if (allocated(forc%tcwv))   deallocate(forc%tcwv)
+
+        return 
+
+    end subroutine rembo_forc_dealloc
+
     subroutine rembo_write_init(dom,filename,time_init,units)
 
         implicit none 
@@ -1182,7 +1240,7 @@ contains
             call nc_write(filename,"mask", emb%mask, dim1="xc",dim2="yc")
         end if 
 
-        call nc_write(filename,"kappa", real(emb%kappa),dim1="xc",dim2="yc",dim3="month", &
+        call nc_write(filename,"kappa_t", real(emb%kappa_t),dim1="xc",dim2="yc",dim3="month", &
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"tsl_bnd", real(emb%tsl_bnd),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
@@ -1190,15 +1248,13 @@ contains
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"tsl_F",real(emb%tsl_F),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
-        call nc_write(filename,"kappaw", real(emb%kappaw),dim1="xc",dim2="yc",dim3="month", &
+        call nc_write(filename,"kappa_w", real(emb%kappa_w),dim1="xc",dim2="yc",dim3="month", &
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"ccw_bnd",real(emb%ccw_bnd),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"ccw",real(emb%ccw),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"ccw_F",real(emb%ccw_F),dim1="xc",dim2="yc",dim3="month",&
-                      start=[1,1,m],count=[nx,ny,1])
-        call nc_write(filename,"tcw_bnd",real(emb%tcw_bnd),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])
         call nc_write(filename,"tcw",real(emb%tcw),dim1="xc",dim2="yc",dim3="month",&
                       start=[1,1,m],count=[nx,ny,1])

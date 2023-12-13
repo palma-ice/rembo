@@ -14,6 +14,9 @@ program test_solvers
     real(wp), parameter :: dy = 10e3
     real(wp), parameter :: k_rel = 1e-1
 
+    real(wp), parameter :: D = 1e12
+    real(wp), parameter :: tsl_fac = 101100.0 /9.81*715.0 
+
     real(wp) :: uu(nx,ny)
     real(wp) :: F(nx,ny)
     real(wp) :: kappa(nx,ny)
@@ -27,6 +30,11 @@ program test_solvers
     real(wp) :: time 
     real(wp) :: dt_out 
 
+    integer :: nx_mid, ny_mid
+
+    ! Get middle of domain
+    nx_mid = (nx-1)/2
+    ny_mid = (ny-1)/2
 
     ! Set relaxation mask
     mask = 0
@@ -35,23 +43,24 @@ program test_solvers
     mask(:,1:5)     = 1
     mask(:,ny-5:ny) = 1
 
-    uu = 0.0
-    uu(1:5,:)       = 100.0
-    uu(nx-5:nx,:)   = 100.0
-    uu(:,1:5)       = 100.0
-    uu(:,ny-5:ny)   = 100.0
+    uu = 250.0
+    uu(1:5,:)       = 273.15
+    uu(nx-5:nx,:)   = 273.15
+    uu(:,1:5)       = 273.15
+    uu(:,ny-5:ny)   = 273.15
 
-    ubnd = 100.0
+    ubnd = 273.15
 
     ! Define forcing field
     F = 0.0
+    F(nx_mid-5:nx_mid+5,ny_mid-5:ny_mid+5) = 50.0 / tsl_fac
 
     ! Define velocities
     v_x = 0.0
-    v_y = 0.0 
+    v_y = 10.0 
 
     ! Define kappa = D/ce
-    kappa = 1e6
+    kappa = D / tsl_fac
 
     time_init = 0.0
     time_end  = 10000.0 
@@ -69,7 +78,8 @@ program test_solvers
 
         time = time_init + (iter-1)*dt
 
-        call solve_adv_diff_2D_fe_expl(uu,F,kappa,ubnd,mask,dx,dy,dt,k_rel)
+        call solve_diffusion_advection_2D(uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel, &
+                                                                    solver="expl",step="fe")
 
         call write_step(filename,uu,F,time)
 

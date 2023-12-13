@@ -59,7 +59,8 @@ program test_rembo
     allocate(reg_mask(nx,ny))
 
     infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
-    call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path=trim(infldr),domain=domain,grid_name=grid_name)
+    call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path=trim(infldr), &
+                domain=domain,grid_name=grid_name,set_ice_free=.FALSE.)
 
     ! Load forcing
     call rembo_forc_alloc(forc,nx,ny)
@@ -69,14 +70,14 @@ program test_rembo
     !call load_clim_monthly_era(forc,path=trim(infldr),grid_name=grid_name,z_srf=z_srf)
 
     ! Load ERA5 data from global latlon grid (best)
-    !infldr    = "ice_data/"
-    !call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name, &
-    !                                                        z_srf=z_srf,dx=rembo1%grid%dx)
+    infldr    = "ice_data/"
+    call load_clim_monthly_era_latlon(forc,path=trim(infldr),grid_name=grid_name, &
+                                                           z_srf=z_srf,dx=rembo1%grid%dx)
 
     ! Loading ERA40 instead...
-    infldr    = "ice_data/"
-    call load_clim_monthly_era40_latlon(forc,path=trim(infldr),grid_name=grid_name, &
-                                                            z_srf=z_srf,dx=rembo1%grid%dx)
+    ! infldr    = "ice_data/"
+    ! call load_clim_monthly_era40_latlon(forc,path=trim(infldr),grid_name=grid_name, &
+    !                                                         z_srf=z_srf,dx=rembo1%grid%dx)
     
     ! Define additional forcing values 
     forc%co2_a = 350.0    ! [ppm]
@@ -86,10 +87,10 @@ program test_rembo
 
 if (.TRUE.) then
     ! REMBO1
-    call rembo1_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%co2_a,int(time))
+    call rembo1_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%tcwv,forc%co2_a,int(time))
 else
     ! REMBO2
-    call rembo_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%co2_a,int(time))
+    call rembo_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%tcwv,forc%Z,forc%co2_a,int(time))
 end if 
 
     ! Write final result 
@@ -117,7 +118,7 @@ end if
 
 contains 
 
-    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path,domain,grid_name)
+    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path,domain,grid_name,set_ice_free)
         ! Load the data into the rembo_class object
 
         implicit none 
@@ -129,10 +130,13 @@ contains
         character(len=*),  intent(IN)    :: path 
         character(len=*),  intent(IN)    :: domain
         character(len=*),  intent(IN)    :: grid_name 
+        logical,           intent(IN)    :: set_ice_free
 
         ! Local variables
         character(len=512) :: filename
         real(wp), allocatable :: H_ice(:,:)  
+        real(wp), allocatable :: z_bed(:,:)  
+        real(wp), allocatable :: z_sl(:,:)  
         integer :: nx, ny 
         real(wp) :: region_number 
 
@@ -140,7 +144,9 @@ contains
         ny = size(z_srf,2)
 
         allocate(H_ice(nx,ny))
-
+        allocate(z_bed(nx,ny))
+        allocate(z_sl(nx,ny))
+        
         filename = trim(path)//"/"//trim(grid_name)//"_TOPO-RTOPO-2.0.1.nc"
 
         ! Static fields
@@ -151,10 +157,24 @@ contains
         ! ## Ice thickness ##
         call nc_read(filename,"H_ice",H_ice)
         
+        ! ## Bedrock elevation ##
+        call nc_read(filename,"z_bed",z_bed)
+        
+        ! ## Sea level ##
+        z_sl = 0.0 
+
+        if (set_ice_free) then
+            ! Adjust the bedrock elevation to reflect new ice thickness
+            z_bed = z_bed + 910.d0/3300.d0*(H_ice)
+            z_srf = z_bed
+            where (z_srf .lt. z_sl) z_srf = z_sl
+            H_ice = 0.0
+        end if
+
         ! Ice fractions
         f_ice  = 0.0 
-        where (z_srf .gt. 0.0 .and. H_ice .gt. 10.0) f_ice = 1.0 
-        where (z_srf .gt. 0.0 .and. H_ice .lt. 10.0) f_ice = H_ice / 10.0 
+        where ( (z_srf-z_sl) .gt. 0.0 .and. H_ice .gt. 10.0) f_ice = 1.0 
+        where ( (z_srf-z_sl) .gt. 0.0 .and. H_ice .lt. 10.0) f_ice = H_ice / 10.0 
 
         f_shlf = 0.0
 
@@ -324,8 +344,8 @@ contains
 
         filename = trim(path)//"/ERA5/clim/"&
                         //"era5_monthly-single-levels_2m_temperature_1961-1990.nc"
-        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean", &
-                                filt_method="gaussian",filt_par=[32e3_wp,dx])
+        call nc_read_interp(filename,"t2m",forc%t2m,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])
         
         ! Get tsl and then correct temperature for model topography (instead of ERA topography)
         do m = 1, nm 
@@ -348,6 +368,13 @@ contains
                         filt_method="gaussian",filt_par=[32e3_wp,dx])
         forc%Z = forc%Z / 9.80665_wp
 
+        ! ## Total column water vapour (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_total_column_water_vapour_1961-1990.nc"
+        call nc_read_interp(filename,"tcwv",forc%tcwv,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        
         write(*,*) "z_srf:  ", minval(forc%z_srf),       maxval(forc%z_srf)
         write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),  maxval(forc%t2m(:,:,1))
         write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),  maxval(forc%t2m(:,:,7))
@@ -355,6 +382,8 @@ contains
         write(*,*) "al_s 7: ", minval(forc%al_s(:,:,7)), maxval(forc%al_s(:,:,7))
         write(*,*) "Z 1:    ", minval(forc%Z(:,:,1)),    maxval(forc%Z(:,:,1))
         write(*,*) "Z 7:    ", minval(forc%Z(:,:,7)),    maxval(forc%Z(:,:,7))
+        write(*,*) "tcwv 1: ", minval(forc%tcwv(:,:,1)), maxval(forc%tcwv(:,:,1))
+        write(*,*) "tcwv 7: ", minval(forc%tcwv(:,:,7)), maxval(forc%tcwv(:,:,7))
         
         write(*,*) "Loaded ERA5 boundary climate dataset."
         
@@ -431,36 +460,6 @@ contains
         return 
 
     end subroutine load_clim_monthly_era40_latlon
-
-    subroutine rembo_forc_alloc(forc,nx,ny)
-
-        implicit none 
-
-        type(rembo_forcing_class), intent(INOUT) :: forc 
-        integer,                   intent(IN)  :: nx, ny 
-
-        if (allocated(forc%z_srf))  deallocate(forc%z_srf)
-        if (allocated(forc%t2m))    deallocate(forc%t2m)
-        if (allocated(forc%tsl))    deallocate(forc%tsl)
-        if (allocated(forc%al_s))   deallocate(forc%al_s)
-        if (allocated(forc%Z))      deallocate(forc%Z)
-        
-        allocate(forc%z_srf(nx,ny))
-
-        allocate(forc%t2m(nx,ny,12))
-        allocate(forc%tsl(nx,ny,12))
-        allocate(forc%al_s(nx,ny,12))
-        allocate(forc%Z(nx,ny,12))
-        
-        forc%z_srf  = 0.0 
-        forc%t2m    = 0.0
-        forc%tsl    = 0.0
-        forc%al_s   = 0.0
-        forc%Z      = 0.0
-
-        return 
-
-    end subroutine rembo_forc_alloc
 
     subroutine rembo_write_step(dom,forc,filename,time)
 
@@ -585,6 +584,8 @@ contains
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"ccw",dom%mon(m)%ccw,units="kg m^-2",long_name="Total column cloud water content", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"ccw_bnd",dom%mon(m)%ccw_bnd,units="kg m^-2",long_name="Total column cloud water content (boundary)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             
 
             call nc_write(filename,"pr",dom%mon(m)%pr*dom%par%c%sec_day,units="mm d**-1",long_name="Precipitation", &
@@ -594,6 +595,8 @@ contains
             
             ! Error compared to forcing, assuming boundary field is the target
             call nc_write(filename,"t2m_err",dom%mon(m)%t2m-dom%mon(m)%t2m_bnd,units="K",long_name="Near-surface air temperature error", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"ccw_err",dom%mon(m)%ccw-dom%mon(m)%ccw_bnd,units="kg m^-2",long_name="Total column cloud water content error", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
         
         end do 
@@ -713,6 +716,13 @@ contains
                         !filt_method="gaussian",filt_par=[32e3_wp,dx])
         forc%Z = forc%Z / 9.80665_wp
 
+        ! ## Total column water vapour (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_total_column_water_vapour_1961-1990.nc"
+        call nc_read_interp(filename,"tcwv",forc%tcwv,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        
         write(*,*) "z_srf:  ", minval(forc%z_srf),       maxval(forc%z_srf)
         write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),  maxval(forc%t2m(:,:,1))
         write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),  maxval(forc%t2m(:,:,7))
@@ -720,6 +730,8 @@ contains
         write(*,*) "al_s 7: ", minval(forc%al_s(:,:,7)), maxval(forc%al_s(:,:,7))
         write(*,*) "Z 1:    ", minval(forc%Z(:,:,1)),    maxval(forc%Z(:,:,1))
         write(*,*) "Z 7:    ", minval(forc%Z(:,:,7)),    maxval(forc%Z(:,:,7))
+        write(*,*) "tcwv 1: ", minval(forc%tcwv(:,:,1)), maxval(forc%tcwv(:,:,1))
+        write(*,*) "tcwv 7: ", minval(forc%tcwv(:,:,7)), maxval(forc%tcwv(:,:,7))
         
         write(*,*) "Loaded ERA5 boundary climate dataset."
         
@@ -783,8 +795,11 @@ contains
         call nc_write(filename,"z750",forc%Z,units="m",long_name="Geopotential height (750 Mb)", &
                         dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
 
+        call nc_write(filename,"tcwv",forc%tcwv,units="kg m**-2",long_name="Total column water vapour", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
 
-        ! Load and write data simultaneously...
+
+        ! Load and write remaining data simultaneously...
 
         ! ## TOA net long-wave radiation (monthly) ##
 
@@ -859,16 +874,16 @@ contains
         call nc_write(filename,"sp",tmp3D,units="Pa",long_name="Surface pressure", &
                         dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
 
-        ! ## Total column water vapour (monthly) ##
+        ! ## Total cloud cover (monthly) ##
 
         filename = trim(path)//"/ERA5/clim/"&
-                        //"era5_monthly-single-levels_total_column_water_vapour_1961-1990.nc"
-        call nc_read_interp(filename,"tcwv",tmp3D,mps=mps,method="mean") !, &
+                        //"era5_monthly-single-levels_total_cloud_cover_1961-1990.nc"
+        call nc_read_interp(filename,"tcc",tmp3D,mps=mps,method="mean") !, &
                                 !filt_method="gaussian",filt_par=[32e3_wp,dx])        
-        call nc_write(filename,"tcwv",tmp3D,units="kg m**-2",long_name="Total column water vapour", &
+        call nc_write(filename,"tcc",tmp3D,units="(0 - 1)",long_name="Total cloud cover", &
                         dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
-
-        ! ## Total cloud cover (monthly) ##
+        
+        ! ## Total column water content (monthly) ##
 
         filename = trim(path)//"/ERA5/clim/"&
                         //"era5_monthly-single-levels_total_cloud_cover_1961-1990.nc"

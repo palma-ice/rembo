@@ -15,7 +15,10 @@ $(objdir)/ncio.o: $(libdir)/ncio.f90
 $(objdir)/nml.o: $(libdir)/nml.f90
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
-$(objdir)/solvers.o: $(libdir)/solvers.f90 $(objdir)/precision.o
+$(objdir)/solver_linear.o: $(libdir)/solver_linear.F90 $(objdir)/precision.o
+	$(FC) $(DFLAGS) $(FFLAGS) $(INC_LINEAR) -c -o $@ $<
+
+$(objdir)/solvers.o: $(libdir)/solvers.f90 $(objdir)/precision.o $(objdir)/solver_linear.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/monthlydaily.o: $(libdir)/monthlydaily.f90 $(objdir)/precision.o
@@ -85,6 +88,7 @@ rembo_libs = 		   $(objdir)/precision.o \
 					   $(objdir)/nml.o \
 			 		   $(objdir)/ncio.o \
 			 		   $(objdir)/solvers.o \
+					   $(objdir)/solver_linear.o \
 			 		   $(objdir)/insolation.o \
 					   $(objdir)/gaussian_filter.o \
 					   $(objdir)/grid_to_cdo.o \

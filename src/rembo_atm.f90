@@ -14,7 +14,7 @@ module rembo_atm
 
     real(wp), parameter :: cap  = 1000.0_wp  !< specific heat capacitiy of air [J/(kg K)]
     ! ajr: move to rembo_defs later...
-    
+
     private
     public :: rembo1_calc_atmosphere
     public :: rembo_calc_atmosphere
@@ -69,7 +69,7 @@ contains
         now%t2m = now%t2m_bnd 
         
         ! Initialize emb object for this day 
-        call rembo_calc_iterinit(emb,bnd%mask,bnd%z_srf,now%t2m_bnd,now%gamma,par,day)
+        call rembo_calc_iterinit(emb,bnd%mask,bnd%z_srf,now%t2m_bnd,now%ccw_bnd,now%gamma,par,day,par%c%g)
 
         n_iter      = 2
         n_iter_surf = 2 
@@ -321,7 +321,7 @@ end if
         now%t2m = now%t2m_bnd 
         
         ! Initialize emb object for this day 
-        call rembo_calc_iterinit(emb,bnd%mask,bnd%z_srf,now%t2m_bnd,now%gamma,par,day)
+        call rembo_calc_iterinit(emb,bnd%mask,bnd%z_srf,now%t2m_bnd,now%ccw_bnd,now%gamma,par,day,par%c%g)
 
         n_iter      = 2
         n_iter_surf = 2 
@@ -513,7 +513,7 @@ end if
 
     end subroutine rembo_calc_atmosphere
 
-    subroutine rembo_calc_iterinit(emb,mask,z_srf,t2m_bnd,gamma,par,day)
+    subroutine rembo_calc_iterinit(emb,mask,z_srf,t2m_bnd,ccw_bnd,gamma,par,day,g)
 
         implicit none 
 
@@ -521,9 +521,11 @@ end if
         integer,                 intent(IN)    :: mask(:,:)
         real(wp),                intent(IN)    :: z_srf(:,:)
         real(wp),                intent(IN)    :: t2m_bnd(:,:)
+        real(wp),                intent(IN)    :: ccw_bnd(:,:)
         real(wp),                intent(IN)    :: gamma(:,:)
         type(rembo_param_class), intent(IN)    :: par 
         integer,                 intent(IN)    :: day 
+        real(wp),                intent(IN)    :: g 
 
         ! Local variables  
         real(wp) :: tsl_fac 
@@ -549,18 +551,36 @@ end if
         call map_scrip_field(emb%map_toemb,"z_srf",z_srf,emb%z_srf,method="mean", &
                                         missing_value=real(mv,wp),fill_method="weighted")
 
-        ! Get the 2D energy diffusion coefficient
-        ! emb%kappa = par%en_D 
-        emb%kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
+        ! Get the tsl => column energy conversion
+        ! tsl_fac = H_a[m] c_v[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
+        ! H_a = 8000 m
+        !tsl_fac = 8000.0 *715.0 *1.225 !* 1.225 ! =~ 8e6
         
+        ! climber-x formula to get tsl_fac
+        ! tsl_fac = slp / g * cv_atm 
+        ! slp = 101100.0 [kg m-1 s-2]; g = 9.81 [m s-2]; c_v_atm = 715.0 [J kg-1 K-1]
+        ! tsl_fac => [kg m-1 s-2] * [m-1 s2] * [J kg-1 K-1] = [J m-2 K-1]
+        tsl_fac = 101100.0 /g *715.0 
+
+        ! Get the 2D energy diffusion coefficient
+        ! emb%kappa_t = par%en_D 
+        emb%kappa_t = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
+        emb%kappa_t = emb%kappa_t / tsl_fac 
+
         ! Boundary sea-level temperature, tsl
         ! Interpolate to low resolution emb domain
         emb%tsl_bnd = mv 
         call map_scrip_field(emb%map_toemb,"tsl_bnd",t2m_bnd+gamma*z_srf,emb%tsl_bnd,method="mean", &
                                                         missing_value=real(mv,wp),fill_method="weighted")
 
-        ! Initialize temperature to boundary field
+        ! Boundary total column water vapor, ccw
+        emb%ccw_bnd = mv 
+        call map_scrip_field(emb%map_toemb,"ccw_bnd",ccw_bnd,emb%ccw_bnd,method="mean", &
+                                                        missing_value=real(mv,wp),fill_method="weighted")
+
+        ! Initialize temperature and ccw to boundary field
         emb%tsl = emb%tsl_bnd 
+        emb%ccw = emb%ccw_bnd 
 
         return 
 
@@ -627,13 +647,14 @@ end if
 
         ! Energy diffusion coefficient
         kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
+        kappa = kappa / tsl_fac 
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            ! call solve_adv_diff_2D_rk4_expl(tsl,tsl_F,kappa,tsl_bnd,mask,dx,dx, &
-            !                                 dt=par%en_dt,k_rel=par%en_kr,v_x=ug,v_y=vg)
-            call solve_diff_2D_adi(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
-                                   dt=par%en_dt,kappa=kappa,k_relax=par%en_kr)
+            call solve_diffusion_advection_2D(tsl,ug,vg,tsl_F,kappa,tsl_bnd,mask,dx,dx, &
+                                    par%en_dt,k_rel=par%en_kr,solver=par%solver,step=par%step)
+            ! call solve_diff_2D_adi(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
+            !                        dt=par%en_dt,kappa=kappa,k_relax=par%en_kr)
         end do 
 
         ! 2m temperature
@@ -701,8 +722,8 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call solve_adv_diff_2D_rk4_expl(emb%tsl,emb%tsl_F,emb%kappa,emb%tsl_bnd,emb%mask,emb%grid%dx, &
-                                            emb%grid%dy,dt=par%en_dt,k_rel=par%en_kr,v_x=emb%ug,v_y=emb%vg)
+            call solve_diffusion_advection_2D(emb%tsl,ug,vg,emb%tsl_F,emb%kappa_t,emb%tsl_bnd,emb%mask,emb%grid%dx, &
+                                            emb%grid%dy,par%en_dt,k_rel=par%en_kr,solver=par%solver,step=par%step)
         end do 
 
         ! Sea-level temperature, tsl
@@ -731,22 +752,21 @@ end if
         ! Local variables
         real(wp)  :: dtsl_mean, lat0, lat1, sigma 
         integer   :: q  
+        real(wp), parameter  :: ccw_fac = 1.0
+
         !real(wp)  :: dtsl_mean    ! Average temp anomaly away from boundary temps 
 
         ! == Total water content ==
         call map_scrip_field(emb%map_toemb,"tcw",tcw,emb%tcw,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
 
-        ! Set tcw_bnd for completeness
-        ! ajr: eventually remove this variable
-        emb%tcw_bnd = emb%tcw 
-
         ! == Relative humidity == 
         call map_scrip_field(emb%map_toemb,"q_r",q_r,emb%q_r,method="mean", &
                                     missing_value=real(mv,wp),fill_method="weighted")
         
         ! Get 2D diffusion constant
-        emb%kappaw = par%ccw_D
+        emb%kappa_w = par%ccw_D
+        emb%kappa_w = emb%kappa_w / ccw_fac 
 
         ! Note: removed any lat/elevation dependence of diffusion coefficient (ajr, 2015-08-31)
 !         lat0 = minval(emb%grid%lat)
@@ -762,11 +782,13 @@ end if
                                     missing_value=real(mv,wp),fill_method="weighted")
 
         ! Get current moisture content [kg m-2]
-        ! call map_scrip_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="mean", &
-        !                             missing_value=real(mv,wp),fill_method="weighted")
+        call map_scrip_field(emb%map_toemb,"ccw",ccw,emb%ccw,method="mean", &
+                                    missing_value=real(mv,wp),fill_method="weighted")
 
-        ! ajr: to do: define ccw_bnd!!!
-        emb%ccw_bnd = emb%ccw 
+        ! Get boundary current moisture content [kg m-2]
+        ! call map_scrip_field(emb%map_toemb,"ccw_bnd",ccw_bnd,emb%ccw_bnd,method="mean", &
+        !                             missing_value=real(mv,wp),fill_method="weighted")
+        ! Note: ccw_bnd has been updated in `rembo_calc_iterinit`
 
         ! Calculate the initial lo-res precipitation rate [kg m-2 s-1]
         call map_scrip_field(emb%map_toemb,"pr",pr,emb%ccw_pr,method="mean", &
@@ -784,8 +806,8 @@ end if
 
         ! Calculate moisture balance to equilibrium
         do q = 1, par%ccw_nstep
-            call solve_adv_diff_2D_rk4_expl(emb%ccw,emb%ccw_F,emb%kappaw,emb%ccw_bnd,emb%mask,emb%grid%dx, &
-                                            emb%grid%dy,dt=par%ccw_dt,k_rel=par%ccw_kr,v_x=emb%ug,v_y=emb%vg)
+            call solve_diffusion_advection_2D(emb%ccw,emb%ug,emb%vg,emb%ccw_F,emb%kappa_w,emb%ccw_bnd,emb%mask, &
+                                emb%grid%dx,emb%grid%dy,par%ccw_dt,k_rel=par%ccw_kr,solver=par%solver,step=par%step)
 
             where (emb%ccw .lt. 0.d0) emb%ccw = 0.d0
 

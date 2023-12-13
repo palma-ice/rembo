@@ -64,7 +64,7 @@ test_monthlydaily : $(objdir)/monthlydaily.o $(objdir)/precision.o
 		@echo "    $(bindir)/test_monthlydaily.x is ready."
 		@echo " "
 
-test_solvers : $(objdir)/solvers.o $(objdir)/precision.o $(objdir)/ncio.o
+test_solvers : $(objdir)/solvers.o $(objdir)/solver_linear.o $(objdir)/precision.o $(objdir)/ncio.o
 		$(FC) $(DLAGS) $(FFLAGS) -o $(bindir)/test_solvers.x tests/test_solvers.f90 \
 				$^	$(LFLAGS)
 		@echo " "

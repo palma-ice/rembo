@@ -1,12 +1,12 @@
 module solvers
 
     use precision, only : wp
+    use solver_linear 
 
     implicit none
     
     private
-    public :: solve_adv_diff_2D_fe_expl
-    public :: solve_adv_diff_2D_rk4_expl
+    public :: solve_diffusion_advection_2D
     public :: solve2D
     public :: solve_diff_2D_adi, diff2Dadi_timestep
     public :: adv2D_timestep, diff2D_timestep
@@ -14,11 +14,13 @@ module solvers
 
 contains
 
-    subroutine solve_adv_diff_2D_fe_expl(uu,F,kappa,ubnd,mask,dx,dy,dt,k_rel,v_x,v_y)
+    subroutine solve_diffusion_advection_2D(uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,step)
 
         implicit none 
 
         real(wp), intent(INOUT) :: uu(:,:)
+        real(wp), intent(IN)    :: v_x(:,:)
+        real(wp), intent(IN)    :: v_y(:,:)
         real(wp), intent(IN)    :: F(:,:)
         real(wp), intent(IN)    :: kappa(:,:)
         real(wp), intent(IN)    :: ubnd(:,:)
@@ -27,43 +29,8 @@ contains
         real(wp), intent(IN)    :: dy
         real(wp), intent(IN)    :: dt
         real(wp), intent(IN)    :: k_rel
-        real(wp), intent(IN), optional :: v_x(:,:)
-        real(wp), intent(IN), optional :: v_y(:,:)
-
-        ! Local variables
-        integer :: nx, ny 
-        real(wp), allocatable :: dudt(:,:)
-
-        nx = size(uu,1)
-        ny = size(uu,2)
-
-        allocate(dudt(nx,ny))
-
-        ! Calculate derivative
-        call calc_tendency_expl(dudt,uu,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
-        
-        ! Update uu
-        uu = uu + dt*dudt
-
-        return
-
-    end subroutine solve_adv_diff_2D_fe_expl
-
-    subroutine solve_adv_diff_2D_rk4_expl(uu,F,kappa,ubnd,mask,dx,dy,dt,k_rel,v_x,v_y)
-
-        implicit none 
-
-        real(wp), intent(INOUT) :: uu(:,:)
-        real(wp), intent(IN)    :: F(:,:)
-        real(wp), intent(IN)    :: kappa(:,:)
-        real(wp), intent(IN)    :: ubnd(:,:)
-        integer,  intent(IN)    :: mask(:,:)
-        real(wp), intent(IN)    :: dx
-        real(wp), intent(IN)    :: dy
-        real(wp), intent(IN)    :: dt
-        real(wp), intent(IN)    :: k_rel 
-        real(wp), intent(IN), optional :: v_x(:,:)
-        real(wp), intent(IN), optional :: v_y(:,:)
+        character(len=*), intent(IN) :: solver
+        character(len=*), intent(IN) :: step
 
         ! Local variables
         integer :: nx, ny 
@@ -79,59 +46,83 @@ contains
         nx = size(uu,1)
         ny = size(uu,2)
 
-        allocate(f0(nx,ny))
-        allocate(f1(nx,ny))
-        allocate(f2(nx,ny))
-        allocate(f3(nx,ny))
+        select case(trim(step))
+
+            case("fe")
+                ! Forward-euler timestepping
+
+                allocate(f0(nx,ny))
+
+                ! Calculate derivative
+                call calc_tendency(f0,uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver)
+
+                ! Update uu
+                uu = uu + dt*f0
+
+            case("rk4")
+                ! Runge-kutta fourth order timestepping
+                
+                ! Get four values of the derivative between t0 and t0+dt
+                
+                ! call f ( t0, u0, f0 )
+
+                ! t1 = t0 + dt / 2.0
+                ! u1 = u0 + dt * f0 / 2.0
+                ! call f ( t1, u1, f1 )
+
+                ! t2 = t0 + dt / 2.0
+                ! u2 = u0 + dt * f1 / 2.0
+                ! call f ( t2, u2, f2 )
+
+                ! t3 = t0 + dt
+                ! u3 = u0 + dt * f2
+                ! call f ( t3, u3, f3 )
+
+                ! Combine them to estimate the solution U at time T1
+                ! u = u0 + dt * ( f0 + 2.0*f1 + 2.0*f2 + f3 ) / 6.0
+
+                allocate(f0(nx,ny))
+                allocate(f1(nx,ny))
+                allocate(f2(nx,ny))
+                allocate(f3(nx,ny))
+                
+                allocate(u0(nx,ny))
+                allocate(u1(nx,ny))
+                allocate(u2(nx,ny))
+                allocate(u3(nx,ny))
+
+                u0 = uu 
+
+                call calc_tendency(f0,u0,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver)
+
+                u1 = u0 + (dt/2.0)*f0
+
+                call calc_tendency(f1,u1,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver)
+
+                u2 = u0 + (dt/2.0)*f1
+                
+                call calc_tendency(f2,u2,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver)
+
+                u3 = u0 + dt*f2
+
+                call calc_tendency(f3,u3,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver)
+
+                ! Combine them to estimate the solution U at time t+dt
+                uu = u0 + dt * ( f0 + 2.0*f1 + 2.0*f2 + f3 ) / 6.0
+
+            case DEFAULT
+
+                write(*,*) "solve_diffusion_advection_2D:: timestepping method not recongized."
+                write(*,*) "step = ", trim(step)
+                stop 
+                
+        end select
         
-        allocate(u0(nx,ny))
-        allocate(u1(nx,ny))
-        allocate(u2(nx,ny))
-        allocate(u3(nx,ny))
-
-        u0 = uu 
-        
-        ! Get four values of the derivative between t0 and t0+dt
-        
-        ! call f ( t0, u0, f0 )
-
-        ! t1 = t0 + dt / 2.0
-        ! u1 = u0 + dt * f0 / 2.0
-        ! call f ( t1, u1, f1 )
-
-        ! t2 = t0 + dt / 2.0
-        ! u2 = u0 + dt * f1 / 2.0
-        ! call f ( t2, u2, f2 )
-
-        ! t3 = t0 + dt
-        ! u3 = u0 + dt * f2
-        ! call f ( t3, u3, f3 )
-
-        ! Combine them to estimate the solution U at time T1
-        ! u = u0 + dt * ( f0 + 2.0*f1 + 2.0*f2 + f3 ) / 6.0
-
-        call calc_tendency_expl(f0,u0,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
-
-        u1 = u0 + (dt/2.0)*f0
-
-        call calc_tendency_expl(f1,u1,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
-
-        u2 = u0 + (dt/2.0)*f1
-        
-        call calc_tendency_expl(f2,u2,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
-
-        u3 = u0 + dt*f2
-
-        call calc_tendency_expl(f3,u3,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
-
-        ! Combine them to estimate the solution U at time t+dt
-        uu = u0 + dt * ( f0 + 2.0*f1 + 2.0*f2 + f3 ) / 6.0
-
         return
 
-    end subroutine solve_adv_diff_2D_rk4_expl
+    end subroutine solve_diffusion_advection_2D
 
-    subroutine calc_tendency_expl(dudt,uu,F,kappa,ubnd,mask,dx,dy,k_rel,v_x,v_y)
+    subroutine calc_tendency(dudt,uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver)
         ! Calculate advection diffusion equation tendency
         ! du/dt = kappa * grad^2 T - u<dot>T + F + F_relax
 
@@ -139,21 +130,26 @@ contains
 
         real(wp), intent(INOUT) :: dudt(:,:)
         real(wp), intent(IN)    :: uu(:,:)
+        real(wp), intent(IN)    :: v_x(:,:)
+        real(wp), intent(IN)    :: v_y(:,:)
         real(wp), intent(IN)    :: F(:,:)
         real(wp), intent(IN)    :: kappa(:,:)
         real(wp), intent(IN)    :: ubnd(:,:)
         integer,  intent(IN)    :: mask(:,:)
         real(wp), intent(IN)    :: dx
         real(wp), intent(IN)    :: dy
+        real(wp), intent(IN)    :: dt
         real(wp), intent(IN)    :: k_rel
-        real(wp), intent(IN), optional :: v_x(:,:)
-        real(wp), intent(IN), optional :: v_y(:,:)
+        character(len=*), intent(IN) :: solver
+        
 
         ! Local variables
-        integer :: nx, ny 
+        integer  :: i, j, nx, ny 
+        real(wp) :: diff 
         real(wp), allocatable :: dudt_adv(:,:)
         real(wp), allocatable :: dudt_diff(:,:)
         real(wp), allocatable :: dudt_relax(:,:)
+        integer,  allocatable :: mask_adv(:,:)
         
         nx = size(dudt,1)
         ny = size(dudt,2) 
@@ -161,26 +157,108 @@ contains
         allocate(dudt_diff(nx,ny))
         allocate(dudt_adv(nx,ny))
         allocate(dudt_relax(nx,ny))
+        allocate(mask_adv(nx,ny))
 
-        ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
-        call calc_tendency_diffuse2D(dudt_diff,uu,kappa,dx,dy)
-
-        ! Get advective tendency if needed (du/dt)
-        if (present(v_x) .and. present(v_y)) then
-            call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy)
-        else
-            dudt_adv = 0.d0 
-        end if 
-
-        ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
-        dudt_relax = k_rel*mask*(ubnd-uu)
+        ! Define advection mask (used for implicit solver only for now)
+        mask_adv = 1
+        where (mask .eq. 1) mask_adv = -1
+        mask_adv(1,:)   = -1
+        mask_adv(nx,:)  = -1
+        mask_adv(:,1)   = -1
+        mask_adv(:,ny)  = -1
         
-        ! Get total tendency for this timestep
-        dudt = dudt_diff - dudt_adv + F + dudt_relax
+        select case(trim(solver))
+
+            case("expl-diff")
+                ! Explicit diffusion
+
+                ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
+                call calc_tendency_diffuse2D(dudt_diff,uu,kappa,dx,dy)
+
+                ! No advection considered
+                dudt_adv = 0.0
+
+                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
+                dudt_relax = -k_rel*mask*(uu-ubnd)
+
+                ! Get total tendency for this timestep
+                dudt = dudt_diff - dudt_adv + F + dudt_relax
+
+            case("expl-adv")
+                ! Explicit advection 
+
+                ! No diffusion considered
+                dudt_diff = 0.0 
+
+                ! Get advective tendency (du/dt)
+                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy)
+
+                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
+                dudt_relax = -k_rel*mask*(uu-ubnd)
+
+                ! Get total tendency for this timestep
+                dudt = dudt_diff - dudt_adv + F + dudt_relax
+                
+            case("expl")
+                ! Explicit diffusion and advection 
+
+                ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
+                call calc_tendency_diffuse2D(dudt_diff,uu,kappa,dx,dy)
+
+                ! Get advective tendency (du/dt)
+                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy)
+
+                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
+                dudt_relax = -k_rel*mask*(uu-ubnd)
+
+                ! Get total tendency for this timestep
+                dudt = dudt_diff - dudt_adv + F + dudt_relax
+                
+            case("expl-impl")
+                ! Explicit diffusion, implicit advection
+
+                ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
+                call calc_tendency_diffuse2D(dudt_diff,uu,kappa,dx,dy)
+                !dudt_diff = 0.0 
+
+                ! Get advective tendency (du/dt)
+                call calc_tendency_advec2D_upwind_impl(dudt_adv,uu,v_x,v_y,F*0.0,mask_adv, &
+                                                    dx,dy,dt,solver="impl-lis",boundaries="infinite")
+                !dudt_adv = 0.0
+
+                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
+                dudt_relax = -k_rel*mask*(uu-ubnd)
+
+                ! Get total tendency for this timestep
+                dudt = dudt_diff - dudt_adv + F + dudt_relax
+                
+            case("impl")
+                ! Implicit diffusion and advection 
+
+                ! TO DO 
+                write(*,*) "calc_tendency:: method not yet implemented."
+                write(*,*) "solver = ", trim(solver)
+                stop 
+
+            case ("adi-impl")
+                ! ADI diffusion, implicit advection
+
+                ! TO DO 
+                write(*,*) "calc_tendency:: method not yet implemented."
+                write(*,*) "solver = ", trim(solver)
+                stop 
+
+            case DEFAULT
+
+                write(*,*) "calc_tendency:: method not recongized."
+                write(*,*) "solver = ", trim(solver)
+                stop 
+                
+        end select
 
         return
 
-    end subroutine calc_tendency_expl 
+    end subroutine calc_tendency 
 
     subroutine calc_tendency_diffuse2D(dudt,uu,kappa,dx,dy)
         ! Explicit calculation of kappa * 2D Laplace: kappa*d2u/dxdy
@@ -609,4 +687,531 @@ contains
 
     end function diff2Dadi_timestep 
     
+
+
+    ! ==== LIS-based solving routines ====
+
+    subroutine calc_tendency_advec2D_upwind_impl(dvdt,var,ux,uy,var_dot,mask_adv,dx,dy,dt,solver,boundaries)
+        ! General routine to apply 2D advection equation to variable `var` 
+        ! with source term `var_dot`. Various solvers are possible
+
+        real(wp),       intent(OUT)   :: dvdt(:,:)              ! [dvdt] Variable rate of change
+        real(wp),       intent(IN)    :: var(:,:)               ! [var]  Variable to be advected
+        real(wp),       intent(IN)    :: ux(:,:)                ! [m/a] 2D velocity, x-direction (ac-nodes)
+        real(wp),       intent(IN)    :: uy(:,:)                ! [m/a] 2D velocity, y-direction (ac-nodes)
+        real(wp),       intent(IN)    :: var_dot(:,:)           ! [dvar/dt] Source term for variable
+        integer,        intent(IN)    :: mask_adv(:,:)          ! Advection mask
+        real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
+        real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
+        real(wp),       intent(IN)    :: dt                     ! [a]   Timestep 
+        character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
+        character(len=*), intent(IN)    :: boundaries           ! Boundary conditions to impose
+
+        ! Local variables
+        integer :: nx, ny  
+        type(linear_solver_class) :: lgs
+        character(len=256)        :: adv_lis_opt 
+
+        real(wp), allocatable :: var_now(:,:) 
+
+        nx = size(var,1)
+        ny = size(var,2)
+
+        allocate(var_now(nx,ny))
+
+        ! Assign local variable to be modified 
+        var_now = var 
+
+        select case(trim(solver))
+            ! Choose solver to use 
+
+            case("none") 
+
+                ! Do nothing: no advection considered. 
+
+            case("impl-lis")
+
+                ! Initialize linear solver variables
+                call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
+
+                ! Populate advection matrices Ax=b
+                call linear_solver_matrix_advection_csr_2D(lgs,var_now,ux,uy,var_dot,mask_adv,dx,dy,dt,boundaries)
+                
+                ! Solve linear equation
+                adv_lis_opt = "-i bicg -p ilu -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
+                !adv_lis_opt = "-i minres -p jacobi -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
+                call linear_solver_matrix_solve(lgs,adv_lis_opt)
+                
+                !call linear_solver_print_summary(lgs,io_unit_err)
+
+                ! Store advection solution
+                call linear_solver_save_advection(var_now,lgs)
+
+            case DEFAULT 
+
+                write(*,*) "calc_tendency_advec2D_upwind_impl:: Error: solver not recognized."
+                write(*,*) "solver = ", trim(solver)
+                stop 
+
+        end select 
+        
+        ! Determine rate of change 
+        dvdt = (var_now - var) / dt 
+
+        return 
+
+    end subroutine calc_tendency_advec2D_upwind_impl
+
+    subroutine linear_solver_save_advection(H,lgs)
+        ! Extract ice thickness solution from lgs object. 
+
+        implicit none 
+
+        real(wp), intent(OUT) :: H(:,:)                 ! [X]
+        type(linear_solver_class), intent(IN) :: lgs
+
+        ! Local variables 
+        integer :: i, j, nr 
+
+        do nr = 1, lgs%nmax
+
+            i = lgs%n2i(nr)
+            j = lgs%n2j(nr)
+
+            H(i,j) = lgs%x_value(nr)
+
+        end do
+
+        return
+
+    end subroutine linear_solver_save_advection
+
+    subroutine linear_solver_matrix_advection_csr_2D(lgs,H,ux,uy,F,mask,dx,dy,dt,boundaries)
+        ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
+        ! for 2D advection equations with velocity components
+        ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
+        ! and variable to be advected H defined on aa nodes.
+        ! Store sparse matrices in linear_solver_class object 'lgs' for later use.
+
+        implicit none 
+
+        type(linear_solver_class), intent(INOUT) :: lgs
+        real(wp), intent(INOUT)   :: H(:,:)         ! [X] Variable of interest (aa nodes)
+        real(wp), intent(IN)      :: ux(:,:)        ! [m a-1] Horizontal velocity x-direction (ac nodes)
+        real(wp), intent(IN)      :: uy(:,:)        ! [m a-1] Horizontal velocity y-direction (ac nodes)
+        real(wp), intent(IN)      :: F(:,:)         ! [m a-1] Net source/sink terms (aa nodes)
+        integer,  intent(IN)      :: mask(:,:)      ! Advection mask
+        real(wp), intent(IN)      :: dx             ! [m] Horizontal step x-direction
+        real(wp), intent(IN)      :: dy             ! [m] Horizontal step y-direction 
+        real(wp), intent(IN)      :: dt             ! [a] Time step 
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables  
+        integer  :: i, j, k, nx, ny
+        integer  :: im1, ip1, jm1, jp1 
+        integer  :: n, nr, nc
+        real(wp) :: dt_darea
+        character(len=56) :: bcs(4)
+
+        real(wp), allocatable  :: ux_1(:,:), ux_2(:,:)
+        real(wp), allocatable  :: uy_1(:,:), uy_2(:,:)
+        real(wp), allocatable  :: Hx_1(:,:), Hx_2(:,:)
+        real(wp), allocatable  :: Hy_1(:,:), Hy_2(:,:)
+
+        real(wp), parameter :: WOVI = 1.0     ! Weighting parameter for the over-implicit scheme 
+
+        nx = size(H,1)
+        ny = size(H,2) 
+
+        dt_darea = dt/(dx*dy)
+
+        ! Boundary conditions (bcs) counterclockwise unit circle 
+        ! 1: x, right-border
+        ! 2: y, upper-border 
+        ! 3: x, left--border 
+        ! 4: y, lower-border 
+        
+        ! Define border conditions (only choices are: no-slip, free-slip, periodic)
+        select case(trim(boundaries)) 
+
+            case("infinite")
+
+                bcs(1:4) = "infinite" 
+            
+            case("zeros")
+
+                bcs(1:4) = "zero" 
+
+            case("periodic","periodic-xy")
+
+                bcs(1:4) = "periodic" 
+
+            case DEFAULT 
+
+                bcs(1:4) = "zero"
+
+        end select 
+
+
+        ! Safety check for initialization
+        if (.not. allocated(lgs%x_value)) then 
+            ! Object 'lgs' has not been initialized yet, do so now.
+
+            call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
+
+        end if
+
+        ! Allocate local variables
+        allocate(ux_1(nx,ny))
+        allocate(ux_2(nx,ny))
+        allocate(uy_1(nx,ny))
+        allocate(uy_2(nx,ny))
+        
+        allocate(Hx_1(nx,ny))
+        allocate(Hx_2(nx,ny))
+        allocate(Hy_1(nx,ny))
+        allocate(Hy_2(nx,ny))
+        
+        ! ====================================================================================
+        ! Step 1: populate variables representing velocity components (ux,uy) at each
+        ! cell face (left,right,bottom,top) and upstream variable (Hx,Hy) at each cell face. 
+
+        ux_1 = 0.0
+        ux_2 = 0.0
+        uy_1 = 0.0
+        uy_2 = 0.0
+        
+        Hx_1 = 0.0
+        Hx_2 = 0.0
+        Hy_1 = 0.0
+        Hy_2 = 0.0
+
+        do j = 1, ny
+        do i = 1, nx 
+
+            ! Get neighbor indices
+            call get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
+
+            ! Get velocity components on each cell face 
+            ux_1(i,j) = ux(im1,j)
+            ux_2(i,j) = ux(i,j)
+            uy_1(i,j) = uy(i,jm1)
+            uy_2(i,j) = uy(i,j)
+
+            if (ux_1(i,j) >= 0.0) then
+                Hx_1(i,j) = H(im1,j)
+            else
+                Hx_1(i,j) = H(i,j)
+            end if
+
+            if (ux_2(i,j) >= 0.0) then
+                Hx_2(i,j) = H(i,j)
+            else
+                Hx_2(i,j) = H(ip1,j)
+            end if
+
+            if (uy_1(i,j) >= 0.0) then
+                Hy_1(i,j) = H(i,jm1)
+            else
+                Hy_1(i,j) = H(i,j)
+            end if
+
+            if (uy_2(i,j) >= 0.0) then
+                Hy_2(i,j) = H(i,j)
+            else
+                Hy_2(i,j) = H(i,jp1)
+            end if
+
+        end do
+        end do
+
+        !-------- Assembly of the system of linear equations
+        !             (matrix storage: compressed sparse row CSR) --------
+
+        ! Initialize values to zero 
+        lgs%a_index = 0.0
+        lgs%a_value = 0.0 
+        lgs%b_value = 0.0 
+        lgs%x_value = 0.0 
+
+        lgs%a_ptr(1) = 1
+
+        k = 0
+
+        do n = 1, lgs%nmax
+
+            ! Get i,j indices of current point
+            i = lgs%n2i(n)
+            j = lgs%n2j(n)
+
+            nr = n   ! row counter
+
+            ! Get neighbor indices assuming periodic domain
+            ! (all other boundary conditions are treated with special cases below)
+            im1 = i-1
+            if (im1 .eq. 0)    im1 = nx 
+            ip1 = i+1
+            if (ip1 .eq. nx+1) ip1 = 1 
+
+            jm1 = j-1
+            if (jm1 .eq. 0)    jm1 = ny
+            jp1 = j+1
+            if (jp1 .eq. ny+1) jp1 = 1 
+            
+
+            ! Handle special cases first, otherwise populate with normal inner discretization
+
+            if (mask(i,j) .eq. 0) then 
+                ! Zero value imposed 
+
+                k = k+1
+                lgs%a_index(k) = nr
+                lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                
+                lgs%b_value(nr) = 0.0_wp
+                lgs%x_value(nr) = 0.0_wp
+
+            else if (mask(i,j) .eq. -1) then 
+                ! Prescribed value imposed 
+
+                k = k+1
+                lgs%a_index(k) = nr
+                lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                
+                lgs%b_value(nr) = 0.0_wp
+                lgs%x_value(nr) = H(i,j)
+            
+            else if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
+                ! Right border
+
+                if (bcs(1) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(im1,j)                ! column counter for H(im1,j)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(2)) .eq. "periodic") .and. j .eq. ny) then
+                ! Top border
+
+                if (bcs(2) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,jm1)                ! column counter for H(i,jm1)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(3)) .eq. "periodic") .and. i .eq. 1) then
+                ! Left border
+
+                if (bcs(3) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(ip1,j)                ! column counter for H(ip1,j)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                    ! Initial guess == previous H
+
+                    lgs%x_value(nr) = H(i,j)                            
+                
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(4)) .eq. "periodic") .and. j .eq. 1) then
+                ! Bottom border
+
+                if (bcs(4) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,jp1)                ! column counter for H(i,jp1)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else
+                ! Inner point
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(i,jm1)                    ! for H(i,jm1)
+                if (uy_1(i,j) > 0.0) &
+                    lgs%a_value(k) = -dt_darea*uy_1(i,j)*dx*WOVI
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(im1,j)                    ! for H(im1,j)
+                if (ux_1(i,j) > 0.0) &
+                    lgs%a_value(k) = -dt_darea*ux_1(i,j)*dy*WOVI
+
+                k = k+1
+                lgs%a_index(k) = nr                                 ! for H(i,j)
+                lgs%a_value(k) = 1.0                                ! (diagonal element)
+                if (uy_1(i,j) < 0.0) &
+                    lgs%a_value(k) = lgs%a_value(k) &
+                                    - dt_darea*uy_1(i,j)*dx*WOVI
+                if (ux_1(i,j) < 0.0) &
+                    lgs%a_value(k) = lgs%a_value(k) &
+                                    - dt_darea*ux_1(i,j)*dy*WOVI
+                if (ux_2(i,j) > 0.0) &
+                    lgs%a_value(k) = lgs%a_value(k) &
+                                    + dt_darea*ux_2(i,j)*dy*WOVI
+                if (uy_2(i,j) > 0.0) &
+                    lgs%a_value(k) = lgs%a_value(k) &
+                                    + dt_darea*uy_2(i,j)*dx*WOVI
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(ip1,j)                    ! for H(ip1,j)
+                if (ux_2(i,j) < 0.0) &
+                    lgs%a_value(k) = dt_darea*ux_2(i,j)*dy*WOVI
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(i,jp1)                    ! for H(i,jp1)
+                if (uy_2(i,j) < 0.0) &
+                    lgs%a_value(k) = dt_darea*uy_2(i,j)*dx*WOVI
+
+
+                ! Right-hand side 
+
+                lgs%b_value(nr) = H(i,j) + dt*F(i,j) &
+                                -(1.0-WOVI) * dt_darea &
+                                     * (  ( ux_2(i,j)*Hx_2(i,j)*dy      &
+                                           -ux_1(i,j)*Hx_1(i,j)*dy )    &
+                                        + ( uy_2(i,j)*Hy_2(i,j)*dx      &
+                                           -uy_1(i,j)*Hy_1(i,j)*dx  ) )
+
+                ! Initial guess == previous H
+
+                lgs%x_value(nr) = H(i,j)                            
+                
+            end if
+
+            lgs%a_ptr(nr+1) = k+1   ! row is completed, store index to next row
+            
+        end do
+
+        ! Done: A, x and b matrices in Ax=b have been populated 
+        ! and stored in lgs object. 
+
+        return
+
+    end subroutine linear_solver_matrix_advection_csr_2D
+
+    subroutine get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
+
+        implicit none
+
+        integer, intent(OUT) :: im1 
+        integer, intent(OUT) :: ip1 
+        integer, intent(OUT) :: jm1 
+        integer, intent(OUT) :: jp1 
+        integer, intent(IN)  :: i 
+        integer, intent(IN)  :: j
+        integer, intent(IN)  :: nx 
+        integer, intent(IN)  :: ny
+        
+        character(len=*), intent(IN) :: boundaries
+
+        select case(trim(boundaries))
+
+            case("infinite")
+                im1 = max(i-1,1)
+                ip1 = min(i+1,nx) 
+                jm1 = max(j-1,1)
+                jp1 = min(j+1,ny) 
+
+            case("MISMIP3D","TROUGH")
+                im1 = max(i-1,1)
+                ip1 = min(i+1,nx) 
+                jm1 = j-1
+                if (jm1 .eq. 0)    jm1 = ny
+                jp1 = j+1
+                if (jp1 .eq. ny+1) jp1 = 1 
+                
+            case DEFAULT 
+                ! Periodic
+
+                im1 = i-1
+                if (im1 .eq. 0)    im1 = nx 
+                ip1 = i+1
+                if (ip1 .eq. nx+1) ip1 = 1 
+
+                jm1 = j-1
+                if (jm1 .eq. 0)    jm1 = ny
+                jp1 = j+1
+                if (jp1 .eq. ny+1) jp1 = 1 
+
+        end select 
+
+        return
+
+    end subroutine get_neighbor_indices
+
 end module solvers

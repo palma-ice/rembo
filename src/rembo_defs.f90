@@ -3,7 +3,7 @@ module rembo_defs
     use precision
     use nml
     use monthlydaily, only : monthlydaily_class
-    
+
     use coordinates_mapping_scrip, only : map_scrip_class
 
     implicit none 
@@ -83,6 +83,8 @@ module rembo_defs
         ! Physics
         real(wp)    :: H_e   ! Precip vapor scale height (m)
         logical     :: rembo1  
+        character(len=56) :: solver 
+        character(len=56) :: step 
         real(wp)    :: dist_rel
         real(wp)    :: en_dt, en_D, en_kr, en_kz, en_kl, en_kdT, en_Ha 
         real(wp)    :: en_D_win, en_D_sum 
@@ -185,6 +187,7 @@ module rembo_defs
         real(wp), allocatable :: q_r(:,:)
         real(wp), allocatable :: tcw(:,:), tcw_sat(:,:)
         real(wp), allocatable :: ccw(:,:), c_w(:,:), ccw_prev(:,:) 
+        real(wp), allocatable :: ccw_bnd(:,:)
         real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), cc(:,:)
         real(wp), allocatable :: swd(:,:), lwu(:,:), al_p(:,:), at(:,:)
         real(wp), allocatable :: swd_s(:,:), lwd_s(:,:), shf_s(:,:), lhf_s(:,:), lwu_s(:,:)
@@ -208,11 +211,11 @@ module rembo_defs
         real(wp), allocatable :: tsl(:,:), tsl_bnd(:,:), tsl_F(:,:)  
         real(wp), allocatable :: ccw(:,:), ccw_bnd(:,:), ccw_F(:,:) 
         real(wp), allocatable :: ccw_cw(:,:), ccw_pr(:,:) 
-        real(wp), allocatable :: tcw(:,:), tcw_bnd(:,:)
+        real(wp), allocatable :: tcw(:,:)
         real(wp), allocatable :: ug(:,:), vg(:,:), uvg(:,:), ww(:,:), q_r(:,:)  
 
         ! Diffusion 
-        real(wp), allocatable :: kappa(:,:), kappaw(:,:) 
+        real(wp), allocatable :: kappa_t(:,:), kappa_w(:,:) 
         real(wp) :: en_dt, tsl_fac, en_kr, en_kz
         integer :: en_nstep
         logical :: bnd_pr 
@@ -248,7 +251,9 @@ module rembo_defs
         real(wp), allocatable :: al_s(:,:,:)     ! [--]    Surface albedo 
         real(wp), allocatable :: co2_a           ! [ppm]   Atmospheric CO2 concentration
         real(wp), allocatable :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
-    
+
+        real(wp), allocatable :: tcwv(:,:,:)     ! [kg m-2] Total column water vapor (used for boundary)
+        
     end type 
 
     !public   ! All rembo defs are public
