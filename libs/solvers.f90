@@ -341,14 +341,22 @@ contains
         du_y_neg = 0.d0  
         du_y_pos = 0.d0 
         
-        do i = 3,nx-2
-            do j = 3,ny-2
+        do j = 1, ny
+            do i = 3,nx
                 du_x_neg(i,j) = inv_2dx* ( 3.d0*uu(i,j)  -4.d0*uu(i-1,j)+1.d0*uu(i-2,j) )
+            end do
+            do i = 1,nx-2
                 du_x_pos(i,j) = inv_2dx* (-1.d0*uu(i+2,j)+4.d0*uu(i+1,j)-3.d0*uu(i,j) )
+            end do
+        end do
 
+        do i = 1,nx
+            do j = 3,ny
                 du_y_neg(i,j) = inv_2dy* ( 3.d0*uu(i,j)  -4.d0*uu(i,j-1)+1.d0*uu(i,j-2) )
+            end do
+            do j = 1,ny-2
                 du_y_pos(i,j) = inv_2dy* (-1.d0*uu(i,j+2)+4.d0*uu(i,j+1)-3.d0*uu(i,j) )
-            end do 
+            end do
         end do
 
         where(vx .le. 0.d0) du_x_neg = 0.d0 
