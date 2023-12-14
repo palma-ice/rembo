@@ -191,7 +191,7 @@ contains
                 dudt_diff = 0.0 
 
                 ! Get advective tendency (du/dt)
-                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy)
+                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy,boundaries="infinite")
 
                 ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
                 dudt_relax = -k_rel*mask*(uu-ubnd)
@@ -206,7 +206,7 @@ contains
                 call calc_tendency_diffuse2D(dudt_diff,uu,kappa,dx,dy)
 
                 ! Get advective tendency (du/dt)
-                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy)
+                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy,boundaries="infinite")
 
                 ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
                 dudt_relax = -k_rel*mask*(uu-ubnd)
@@ -301,9 +301,8 @@ contains
         return
 
     end subroutine calc_tendency_diffuse2D 
-
     
-    subroutine calc_tendency_advec2D_upwind(dudt,uu,vx,vy,dx,dy)
+    subroutine calc_tendency_advec2D_upwind(dudt,uu,vx,vy,dx,dy,boundaries)
         ! Second-order upwind advection scheme
         ! If input units are [u], returns [u/s]
         
@@ -315,64 +314,174 @@ contains
         real(wp), intent(IN)  :: vy(:,:)
         real(wp), intent(IN)  :: dx
         real(wp), intent(IN)  :: dy 
+        character(len=*), intent(IN) :: boundaries
 
         ! Local variables
         integer :: i, j, nx, ny 
-        real(wp) :: inv_2dx, inv_2dy
-        real(wp), allocatable :: utmp(:,:)
-        real(wp), allocatable :: du_x_neg(:,:)
-        real(wp), allocatable :: du_x_pos(:,:)
-        real(wp), allocatable :: du_y_neg(:,:)
-        real(wp), allocatable :: du_y_pos(:,:) 
-        
+
         nx = size(dudt,1)
-        ny = size(dudt,2) 
+        ny = size(dudt,2)
 
-        allocate(du_x_neg(nx,ny))
-        allocate(du_x_pos(nx,ny))
-        allocate(du_y_neg(nx,ny))
-        allocate(du_y_pos(nx,ny))
 
-        inv_2dx = 1.d0 / (2.d0*dx)
-        inv_2dy = 1.d0 / (2.d0*dy)
-
-        du_x_neg = 0.d0  
-        du_x_pos = 0.d0 
-        du_y_neg = 0.d0  
-        du_y_pos = 0.d0 
-        
         do j = 1, ny
-            do i = 3,nx
-                du_x_neg(i,j) = inv_2dx* ( 3.d0*uu(i,j)  -4.d0*uu(i-1,j)+1.d0*uu(i-2,j) )
-            end do
-            do i = 1,nx-2
-                du_x_pos(i,j) = inv_2dx* (-1.d0*uu(i+2,j)+4.d0*uu(i+1,j)-3.d0*uu(i,j) )
-            end do
+        do i = 1, nx 
+            call calc_advec_horizontal_point(dudt(i,j),uu,vx,vy,dx,i,j,boundaries)
+        end do 
         end do
 
-        do i = 1,nx
-            do j = 3,ny
-                du_y_neg(i,j) = inv_2dy* ( 3.d0*uu(i,j)  -4.d0*uu(i,j-1)+1.d0*uu(i,j-2) )
-            end do
-            do j = 1,ny-2
-                du_y_pos(i,j) = inv_2dy* (-1.d0*uu(i,j+2)+4.d0*uu(i,j+1)-3.d0*uu(i,j) )
-            end do
-        end do
-
-        where(vx .le. 0.d0) du_x_neg = 0.d0 
-        where(vx .gt. 0.d0) du_x_pos = 0.d0 
-        where(vy .le. 0.d0) du_y_neg = 0.d0 
-        where(vy .gt. 0.d0) du_y_pos = 0.d0 
-            
-        dudt =  (vx*du_x_neg + vx*du_x_pos) &
-              + (vy*du_y_neg + vy*du_y_pos)
 
         return
 
     end subroutine calc_tendency_advec2D_upwind
 
+    subroutine calc_advec_horizontal_point(dvardt,var,ux,uy,dx,i,j,boundaries)
+        ! Newly implemented advection algorithms (ajr)
+        ! Output: [[var] [time]-1]
 
+        ! e.g., [var] = [K]; [time] = [a-1]; [m-1] * [m a-1] * [K] = [K a-1]
 
+        implicit none
+
+        real(wp), intent(OUT) :: dvardt
+        real(wp), intent(IN)  :: var(:,:)       ! nx,ny  Enth, T, age, etc...
+        real(wp), intent(IN)  :: ux(:,:)        ! nx,ny
+        real(wp), intent(IN)  :: uy(:,:)        ! nx,ny 
+        real(wp), intent(IN)  :: dx  
+        integer,    intent(IN)  :: i, j 
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables 
+        integer :: k, nx, ny 
+        integer :: im1, ip1, jm1, jp1
+        real(wp) :: ux_aa, uy_aa 
+        real(wp) :: dx_inv, dx_inv2
+        real(wp) :: advecx, advecy, advec_rev 
+
+        ! Define some constants 
+        dx_inv  = 1.0_wp / dx 
+        dx_inv2 = 1.0_wp / (2.0_wp*dx)
+
+        nx  = size(var,1)
+        ny  = size(var,2)
+
+        advecx  = 0.0 
+        advecy  = 0.0 
+        dvardt  = 0.0 
+
+        ! Get neighbor indices
+        call get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
+
+        ! Estimate direction of current flow into cell (x and y), centered in grid point
+        ux_aa = 0.5_wp*(ux(i,j)+ux(im1,j))
+        uy_aa = 0.5_wp*(uy(i,j)+uy(i,jm1))
+        
+        ! Explicit form (to test different order approximations)
+        if (ux(im1,j) .gt. 0.0_wp .and. ux(i,j) .lt. 0.0_wp .and. i .ge. 3 .and. i .le. nx-2) then 
+            ! Convergent flow - take the mean 
+
+            ! 2nd order
+            !advecx    = dx_inv2 * ux(i-1,j)*(-(4.0*var(i-1,j)-var(i-2,j)-3.0*var(i,j)))
+            !advec_rev = dx_inv2 * ux(i,j)*((4.0*var(i+1,j)-var(i+2,j)-3.0*var(i,j)))
+
+            ! 1st order
+            advecx    = dx_inv * ux(im1,j)*(-(var(im1,j)-var(i,j)))
+            advec_rev = dx_inv * ux(i,j)*((var(ip1,j)-var(i,j)))
+            
+            advecx    = 0.5_wp * (advecx + advec_rev) 
+
+        else if (ux_aa .gt. 0.0 .and. i .ge. 3) then  
+            ! Flow to the right - inner points
+
+            ! 2nd order
+            !advecx = dx_inv2 * ux(i-1,j)*(-(4.0*var(i-1,j)-var(i-2,j)-3.0*var(i,j)))
+
+            ! 1st order
+            advecx = dx_inv * ux(im1,j)*(-(var(im1,j)-var(i,j)))
+            
+        else if (ux_aa .gt. 0.0 .and. i .eq. 2) then  
+            ! Flow to the right - border points
+
+            ! 1st order
+            advecx = dx_inv * ux(im1,j)*(-(var(im1,j)-var(i,j)))
+            
+        else if (ux_aa .lt. 0.0 .and. i .le. nx-2) then 
+            ! Flow to the left
+
+            ! 2nd order
+            !advecx = dx_inv2 * ux(i,j)*((4.0*var(i+1,j)-var(i+2,j)-3.0*var(i,j)))
+
+            ! 1st order 
+            advecx = dx_inv * ux(i,j)*((var(ip1,j)-var(i,j)))
+            
+        else if (ux_aa .lt. 0.0 .and. i .eq. nx-1) then 
+            ! Flow to the left
+
+            ! 1st order 
+            advecx = dx_inv * ux(i,j)*((var(ip1,j)-var(i,j)))
+            
+        else 
+            ! No flow or divergent 
+
+            advecx = 0.0
+
+        end if 
+
+        if (uy(i,j-1) .gt. 0.0_wp .and. uy(i,j) .lt. 0.0_wp .and. j .ge. 3 .and. j .le. ny-2) then 
+            ! Convergent flow - take the mean 
+
+            ! 2nd order
+            !advecy    = dx_inv2 * uy(i,j-1)*(-(4.0*var(i,j-1)-var(i,j-2)-3.0*var(i,j)))
+            !advec_rev = dx_inv2 * uy(i,j)*((4.0*var(i,j+1)-var(i,j+2)-3.0*var(i,j)))
+            
+            ! 1st order
+            advecy    = dx_inv * uy(i,jm1)*(-(var(i,jm1)-var(i,j)))
+            advec_rev = dx_inv * uy(i,j)*((var(i,jp1)-var(i,j)))
+            
+            advecy    = 0.5_wp * (advecy + advec_rev) 
+
+        else if (uy_aa .gt. 0.0 .and. j .ge. 3) then   
+            ! Flow to the right  - inner points
+
+            ! 2nd order
+            !advecy = dx_inv2 * uy(i,j-1)*(-(4.0*var(i,j-1)-var(i,j-2)-3.0*var(i,j)))
+
+            ! 1st order
+            advecy = dx_inv * uy(i,jm1)*(-(var(i,jm1)-var(i,j)))
+            
+        else if (uy_aa .gt. 0.0 .and. j .eq. 2) then   
+            ! Flow to the right - border points
+
+            ! 1st order
+            advecy = dx_inv * uy(i,jm1)*(-(var(i,jm1)-var(i,j)))
+            
+        else if (uy_aa .lt. 0.0 .and. j .le. ny-2) then 
+            ! Flow to the left
+
+            ! 2nd order
+            !advecy = dx_inv2 * uy(i,j)*((4.0*var(i,j+1)-var(i,j+2)-3.0*var(i,j)))
+            
+            ! 1st order
+            advecy = dx_inv * uy(i,j)*((var(i,jp1)-var(i,j)))
+            
+        else if (uy_aa .lt. 0.0 .and. j .eq. ny-1) then 
+            ! Flow to the left
+
+            ! 1st order
+            advecy = dx_inv * uy(i,j)*((var(i,jp1)-var(i,j)))
+                
+        else
+            ! No flow 
+            advecy = 0.0 
+
+        end if 
+        
+        ! Combine advection terms for total contribution 
+        dvardt = (advecx+advecy)
+
+        return 
+
+    end subroutine calc_advec_horizontal_point
+    
 
 
 

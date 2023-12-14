@@ -8,8 +8,8 @@ program test_solvers
 
     character(len=512) :: filename = "test.nc"
 
-    integer,  parameter :: nx = 101
-    integer,  parameter :: ny = 101
+    integer,  parameter :: nx = 51
+    integer,  parameter :: ny = 51
     real(wp), parameter :: dx = 10e3
     real(wp), parameter :: dy = 10e3
     real(wp), parameter :: k_rel = 1e-1
@@ -53,21 +53,22 @@ program test_solvers
 
     ! Define forcing field
     F = 0.0
-    F(nx_mid-5:nx_mid+5,ny_mid-5:ny_mid+5) = 50.0 / tsl_fac
+    !F(nx_mid-5:nx_mid+5,ny_mid-5:ny_mid+5) = 50.0 / tsl_fac
 
     ! Define velocities
-    v_x = 0.0
-    v_y = 10.0 
+    v_x = 100.0
+    v_y = 0.0 
 
     ! Define kappa = D/ce
     kappa = D / tsl_fac
+    kappa = kappa*1e-3
 
     time_init = 0.0
-    time_end  = 10000.0 
-    dt        = 10.0
+    time_end  = 1000.0 
+    dt        = 1.0
     n_iter    = ceiling( (time_end-time_init)/dt ) + 1 
 
-    dt_out    = 1000.0 
+    dt_out    = 100.0 
 
     time = time_init 
 
