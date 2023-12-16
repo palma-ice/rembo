@@ -182,7 +182,7 @@ contains
                 dudt_relax = -k_rel*mask*(uu-ubnd)
 
                 ! Get total tendency for this timestep
-                dudt = dudt_diff - dudt_adv + F + dudt_relax
+                dudt = dudt_diff + dudt_adv + F + dudt_relax
 
             case("expl-adv")
                 ! Explicit advection 
@@ -197,7 +197,7 @@ contains
                 dudt_relax = -k_rel*mask*(uu-ubnd)
 
                 ! Get total tendency for this timestep
-                dudt = dudt_diff - dudt_adv + F + dudt_relax
+                dudt = dudt_diff + dudt_adv + F + dudt_relax
                 
             case("expl")
                 ! Explicit diffusion and advection 
@@ -212,7 +212,7 @@ contains
                 dudt_relax = -k_rel*mask*(uu-ubnd)
 
                 ! Get total tendency for this timestep
-                dudt = dudt_diff - dudt_adv + F + dudt_relax
+                dudt = dudt_diff + dudt_adv + F + dudt_relax
                 
             case("expl-impl")
                 ! Explicit diffusion, implicit advection
@@ -230,7 +230,23 @@ contains
                 dudt_relax = -k_rel*mask*(uu-ubnd)
 
                 ! Get total tendency for this timestep
-                dudt = dudt_diff - dudt_adv + F + dudt_relax
+                dudt = dudt_diff + dudt_adv + F + dudt_relax
+            
+            case("impl-adv")
+                ! Implicit advection
+
+                ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
+                dudt_diff = 0.0 
+
+                ! Get advective tendency (du/dt)
+                call calc_tendency_advec2D_upwind_impl(dudt_adv,uu,v_x,v_y,F*0.0,mask_adv, &
+                                                    dx,dy,dt,solver="impl-lis",boundaries="infinite")
+                
+                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
+                dudt_relax = -k_rel*mask*(uu-ubnd)
+
+                ! Get total tendency for this timestep
+                dudt = dudt_diff + dudt_adv !+ F + dudt_relax
                 
             case("impl")
                 ! Implicit diffusion and advection 
@@ -301,7 +317,7 @@ contains
         return
 
     end subroutine calc_tendency_diffuse2D 
-    
+
     subroutine calc_tendency_advec2D_upwind(dudt,uu,vx,vy,dx,dy,boundaries)
         ! Second-order upwind advection scheme
         ! If input units are [u], returns [u/s]
@@ -476,7 +492,7 @@ contains
         end if 
         
         ! Combine advection terms for total contribution 
-        dvardt = (advecx+advecy)
+        dvardt = -(advecx+advecy)
 
         return 
 
@@ -902,7 +918,7 @@ contains
         return
 
     end subroutine linear_solver_save_advection
-
+    
     subroutine linear_solver_matrix_advection_csr_2D(lgs,H,ux,uy,F,mask,dx,dy,dt,boundaries)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
         ! for 2D advection equations with velocity components
@@ -1262,7 +1278,7 @@ contains
                                      * (  ( ux_2(i,j)*Hx_2(i,j)*dy      &
                                            -ux_1(i,j)*Hx_1(i,j)*dy )    &
                                         + ( uy_2(i,j)*Hy_2(i,j)*dx      &
-                                           -uy_1(i,j)*Hy_1(i,j)*dx  ) )
+                                           -uy_1(i,j)*Hy_1(i,j)*dx ) )
 
                 ! Initial guess == previous H
 
