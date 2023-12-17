@@ -74,12 +74,12 @@ end if
     !F(nx_mid-5:nx_mid+5,ny_mid-5:ny_mid+5) = 50.0 / tsl_fac
 
     ! Define velocities
-    v_x = 100.0
+    v_x = 0.0
     v_y = 0.0 
 
     ! Define kappa = D/ce
     kappa = D / tsl_fac
-    kappa = kappa*1e-3
+    kappa = kappa*1e1
 
     time_init = 0.0
     time_end  = 100.0 
@@ -93,8 +93,9 @@ end if
     ! Check timestep limit
     dt_check = adv2D_timestep(dx,dy,maxval(abs(v_x)), maxval(abs(v_y)))
     write(*,*) "Timestep check, maximum advective timestep CFL: ", dt_check 
-
-
+    dt_check = diff2D_timestep(dx,dy,maxval(kappa))
+    write(*,*) "Timestep check, maximum diffusive timestep CFL: ", dt_check 
+    
     ! Initialize the output file
     call write_init(filename,nx,ny,dx,dy,time_init)
 
@@ -104,9 +105,9 @@ end if
 
         if (time .gt. time_init) then
             call solve_diffusion_advection_2D(uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel, &
-                                                                        solver="impl-adv",step="fe")
+                                                                        solver="expl-diff",step="fe")
         end if
-        
+
         call write_step(filename,uu,F,time)
 
         write(*,*) "time = ", time

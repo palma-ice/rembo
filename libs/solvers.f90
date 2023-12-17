@@ -232,6 +232,22 @@ contains
                 ! Get total tendency for this timestep
                 dudt = dudt_diff + dudt_adv + F + dudt_relax
             
+            case("impl-diff")
+                ! Implicit diffusion and advection 
+
+                ! Get diffusive tendency (du/dt)
+                call calc_tendency_diff2D_upwind_impl(dudt_diff,uu,kappa,F*0.0,mask_adv, &
+                                                    dx,dy,dt,solver="impl-lis",boundaries="infinite")
+                
+                ! Advection term is zero
+                dudt_adv = 0.0 
+
+                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
+                dudt_relax = -k_rel*mask*(uu-ubnd)
+
+                ! Get total tendency for this timestep
+                dudt = dudt_diff + dudt_adv !+ F + dudt_relax
+                
             case("impl-adv")
                 ! Implicit advection
 
@@ -251,11 +267,19 @@ contains
             case("impl")
                 ! Implicit diffusion and advection 
 
-                ! TO DO 
-                write(*,*) "calc_tendency:: method not yet implemented."
-                write(*,*) "solver = ", trim(solver)
-                stop 
+                ! Diffusion term contained within dudt_adv result below
+                dudt_diff = 0.0 
 
+                ! Get diffusive-advective tendency (du/dt)
+                call calc_tendency_diffadvec2D_upwind_impl(dudt_adv,uu,v_x,v_y,kappa,F*0.0,mask_adv, &
+                                                    dx,dy,dt,solver="impl-lis",boundaries="infinite")
+                
+                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
+                dudt_relax = -k_rel*mask*(uu-ubnd)
+
+                ! Get total tendency for this timestep
+                dudt = dudt_diff + dudt_adv !+ F + dudt_relax
+                
             case ("adi-impl")
                 ! ADI diffusion, implicit advection
 
@@ -895,6 +919,148 @@ contains
 
     end subroutine calc_tendency_advec2D_upwind_impl
 
+    subroutine calc_tendency_diff2D_upwind_impl(dvdt,var,kappa,var_dot,mask_adv,dx,dy,dt,solver,boundaries)
+        ! General routine to apply 2D advection equation to variable `var` 
+        ! with source term `var_dot`. Various solvers are possible
+
+        real(wp),       intent(OUT)   :: dvdt(:,:)              ! [dvdt] Variable rate of change
+        real(wp),       intent(IN)    :: var(:,:)               ! [var]  Variable to be advected
+        real(wp),       intent(IN)    :: kappa(:,:)             ! [m2/a] Diffusion constant
+        real(wp),       intent(IN)    :: var_dot(:,:)           ! [dvar/dt] Source term for variable
+        integer,        intent(IN)    :: mask_adv(:,:)          ! Advection mask
+        real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
+        real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
+        real(wp),       intent(IN)    :: dt                     ! [a]   Timestep 
+        character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
+        character(len=*), intent(IN)    :: boundaries           ! Boundary conditions to impose
+
+        ! Local variables
+        integer :: nx, ny  
+        type(linear_solver_class) :: lgs
+        character(len=256)        :: adv_lis_opt 
+
+        real(wp), allocatable :: var_now(:,:) 
+
+        nx = size(var,1)
+        ny = size(var,2)
+
+        allocate(var_now(nx,ny))
+
+        ! Assign local variable to be modified 
+        var_now = var 
+
+        select case(trim(solver))
+            ! Choose solver to use 
+
+            case("none") 
+
+                ! Do nothing: no advection considered. 
+
+            case("impl-lis")
+
+                ! Initialize linear solver variables
+                call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
+
+                ! Populate advection matrices Ax=b
+                call linear_solver_matrix_diffusion_csr_2D(lgs,var_now,kappa,var_dot,mask_adv,dx,dy,dt,boundaries)
+                
+                ! Solve linear equation
+                adv_lis_opt = "-i bicg -p ilu -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
+                !adv_lis_opt = "-i minres -p jacobi -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
+                call linear_solver_matrix_solve(lgs,adv_lis_opt)
+                
+                !call linear_solver_print_summary(lgs,io_unit_err)
+
+                ! Store advection solution
+                call linear_solver_save_advection(var_now,lgs)
+
+            case DEFAULT 
+
+                write(*,*) "calc_tendency_diff2D_upwind_impl:: Error: solver not recognized."
+                write(*,*) "solver = ", trim(solver)
+                stop 
+
+        end select 
+        
+        ! Determine rate of change 
+        dvdt = (var_now - var) / dt 
+
+        return 
+
+    end subroutine calc_tendency_diff2D_upwind_impl
+
+    subroutine calc_tendency_diffadvec2D_upwind_impl(dvdt,var,ux,uy,kappa,var_dot,mask_adv,dx,dy,dt,solver,boundaries)
+        ! General routine to apply 2D advection equation to variable `var` 
+        ! with source term `var_dot`. Various solvers are possible
+
+        real(wp),       intent(OUT)   :: dvdt(:,:)              ! [dvdt] Variable rate of change
+        real(wp),       intent(IN)    :: var(:,:)               ! [var]  Variable to be advected
+        real(wp),       intent(IN)    :: ux(:,:)                ! [m/a] 2D velocity, x-direction (ac-nodes)
+        real(wp),       intent(IN)    :: uy(:,:)                ! [m/a] 2D velocity, y-direction (ac-nodes)
+        real(wp),       intent(IN)    :: kappa(:,:)             ! [m2/a] Diffusion constant
+        real(wp),       intent(IN)    :: var_dot(:,:)           ! [dvar/dt] Source term for variable
+        integer,        intent(IN)    :: mask_adv(:,:)          ! Advection mask
+        real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
+        real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
+        real(wp),       intent(IN)    :: dt                     ! [a]   Timestep 
+        character(len=*), intent(IN)    :: solver               ! Solver to use for the ice thickness advection equation
+        character(len=*), intent(IN)    :: boundaries           ! Boundary conditions to impose
+
+        ! Local variables
+        integer :: nx, ny  
+        type(linear_solver_class) :: lgs
+        character(len=256)        :: adv_lis_opt 
+
+        real(wp), allocatable :: var_now(:,:) 
+
+        nx = size(var,1)
+        ny = size(var,2)
+
+        allocate(var_now(nx,ny))
+
+        ! Assign local variable to be modified 
+        var_now = var 
+
+        select case(trim(solver))
+            ! Choose solver to use 
+
+            case("none") 
+
+                ! Do nothing: no advection considered. 
+
+            case("impl-lis")
+
+                ! Initialize linear solver variables
+                call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
+
+                ! Populate advection matrices Ax=b
+                call linear_solver_matrix_diffusion_advection_csr_2D(lgs,var_now,ux,uy,kappa,var_dot,mask_adv,dx,dy,dt,boundaries)
+                
+                ! Solve linear equation
+                adv_lis_opt = "-i bicg -p ilu -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
+                !adv_lis_opt = "-i minres -p jacobi -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
+                call linear_solver_matrix_solve(lgs,adv_lis_opt)
+                
+                !call linear_solver_print_summary(lgs,io_unit_err)
+
+                ! Store advection solution
+                call linear_solver_save_advection(var_now,lgs)
+
+            case DEFAULT 
+
+                write(*,*) "calc_tendency_diffadvec2D_upwind_impl:: Error: solver not recognized."
+                write(*,*) "solver = ", trim(solver)
+                stop 
+
+        end select 
+        
+        ! Determine rate of change 
+        dvdt = (var_now - var) / dt 
+
+        return 
+
+    end subroutine calc_tendency_diffadvec2D_upwind_impl
+
     subroutine linear_solver_save_advection(H,lgs)
         ! Extract ice thickness solution from lgs object. 
 
@@ -1296,6 +1462,689 @@ contains
         return
 
     end subroutine linear_solver_matrix_advection_csr_2D
+
+    subroutine linear_solver_matrix_diffusion_csr_2D(lgs,H,kappa,F,mask,dx,dy,dt,boundaries)
+        ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
+        ! for 2D advection equations with velocity components
+        ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
+        ! and variable to be advected H defined on aa nodes.
+        ! Store sparse matrices in linear_solver_class object 'lgs' for later use.
+
+        implicit none 
+
+        type(linear_solver_class), intent(INOUT) :: lgs
+        real(wp), intent(INOUT)   :: H(:,:)         ! [X] Variable of interest (aa nodes)
+        real(wp), intent(IN)      :: kappa(:,:)     ! [m2 a-1] Diffusion constant
+        real(wp), intent(IN)      :: F(:,:)         ! [m a-1] Net source/sink terms (aa nodes)
+        integer,  intent(IN)      :: mask(:,:)      ! Advection mask
+        real(wp), intent(IN)      :: dx             ! [m] Horizontal step x-direction
+        real(wp), intent(IN)      :: dy             ! [m] Horizontal step y-direction 
+        real(wp), intent(IN)      :: dt             ! [a] Time step 
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables  
+        integer  :: i, j, k, nx, ny
+        integer  :: im1, ip1, jm1, jp1 
+        integer  :: n, nr, nc
+        real(wp) :: dt_dx2
+        real(wp) :: dt_dy2
+        real(wp) :: alpha
+        real(wp) :: beta
+        character(len=56) :: bcs(4)
+
+        nx = size(H,1)
+        ny = size(H,2) 
+
+        dt_dx2   = dt/(dx*dx)
+        dt_dy2   = dt/(dy*dy)
+
+        ! Boundary conditions (bcs) counterclockwise unit circle 
+        ! 1: x, right-border
+        ! 2: y, upper-border 
+        ! 3: x, left--border 
+        ! 4: y, lower-border 
+        
+        ! Define border conditions (only choices are: no-slip, free-slip, periodic)
+        select case(trim(boundaries)) 
+
+            case("infinite")
+
+                bcs(1:4) = "infinite" 
+            
+            case("zeros")
+
+                bcs(1:4) = "zero" 
+
+            case("periodic","periodic-xy")
+
+                bcs(1:4) = "periodic" 
+
+            case DEFAULT 
+
+                bcs(1:4) = "zero"
+
+        end select 
+
+
+        ! Safety check for initialization
+        if (.not. allocated(lgs%x_value)) then 
+            ! Object 'lgs' has not been initialized yet, do so now.
+
+            call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
+
+        end if
+
+        !-------- Assembly of the system of linear equations
+        !             (matrix storage: compressed sparse row CSR) --------
+
+        ! Initialize values to zero 
+        lgs%a_index = 0.0
+        lgs%a_value = 0.0 
+        lgs%b_value = 0.0 
+        lgs%x_value = 0.0 
+
+        lgs%a_ptr(1) = 1
+
+        k = 0
+
+        do n = 1, lgs%nmax
+
+            ! Get i,j indices of current point
+            i = lgs%n2i(n)
+            j = lgs%n2j(n)
+
+            nr = n   ! row counter
+
+            ! Get neighbor indices assuming periodic domain
+            ! (all other boundary conditions are treated with special cases below)
+            im1 = i-1
+            if (im1 .eq. 0)    im1 = nx 
+            ip1 = i+1
+            if (ip1 .eq. nx+1) ip1 = 1 
+
+            jm1 = j-1
+            if (jm1 .eq. 0)    jm1 = ny
+            jp1 = j+1
+            if (jp1 .eq. ny+1) jp1 = 1 
+            
+
+            ! Handle special cases first, otherwise populate with normal inner discretization
+
+            if (mask(i,j) .eq. 0) then 
+                ! Zero value imposed 
+
+                k = k+1
+                lgs%a_index(k) = nr
+                lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                
+                lgs%b_value(nr) = 0.0_wp
+                lgs%x_value(nr) = 0.0_wp
+
+            else if (mask(i,j) .eq. -1) then 
+                ! Prescribed value imposed 
+
+                k = k+1
+                lgs%a_index(k) = nr
+                lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                
+                lgs%b_value(nr) = 0.0_wp
+                lgs%x_value(nr) = H(i,j)
+            
+            else if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
+                ! Right border
+
+                if (bcs(1) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(im1,j)                ! column counter for H(im1,j)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(2)) .eq. "periodic") .and. j .eq. ny) then
+                ! Top border
+
+                if (bcs(2) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,jm1)                ! column counter for H(i,jm1)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(3)) .eq. "periodic") .and. i .eq. 1) then
+                ! Left border
+
+                if (bcs(3) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(ip1,j)                ! column counter for H(ip1,j)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                    ! Initial guess == previous H
+
+                    lgs%x_value(nr) = H(i,j)                            
+                
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(4)) .eq. "periodic") .and. j .eq. 1) then
+                ! Bottom border
+
+                if (bcs(4) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,jp1)                ! column counter for H(i,jp1)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else
+                ! Inner point
+
+                alpha = kappa(i,j) * dt_dx2
+                beta  = kappa(i,j) * dt_dy2
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(i,jm1)                    ! for H(i,jm1)
+                lgs%a_value(k) = -beta
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(im1,j)                    ! for H(im1,j)
+                lgs%a_value(k) = -alpha
+
+                k = k+1
+                lgs%a_index(k) = nr                                 ! for H(i,j)
+                lgs%a_value(k) = 1.0+2.0*alpha+2.0*beta             ! diagonal element
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(ip1,j)                    ! for H(ip1,j)
+                lgs%a_value(k) = -alpha
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(i,jp1)                    ! for H(i,jp1)
+                lgs%a_value(k) = -beta
+
+                ! Right-hand side 
+
+                lgs%b_value(nr) = H(i,j) + dt*F(i,j)
+
+                ! Initial guess == previous H
+
+                lgs%x_value(nr) = H(i,j)                            
+                
+            end if
+
+            lgs%a_ptr(nr+1) = k+1   ! row is completed, store index to next row
+            
+        end do
+
+        ! Done: A, x and b matrices in Ax=b have been populated 
+        ! and stored in lgs object. 
+
+        return
+
+    end subroutine linear_solver_matrix_diffusion_csr_2D
+
+    subroutine linear_solver_matrix_diffusion_advection_csr_2D(lgs,H,ux,uy,kappa,F,mask,dx,dy,dt,boundaries)
+        ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
+        ! for 2D advection equations with velocity components
+        ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
+        ! and variable to be advected H defined on aa nodes.
+        ! Store sparse matrices in linear_solver_class object 'lgs' for later use.
+
+        implicit none 
+
+        type(linear_solver_class), intent(INOUT) :: lgs
+        real(wp), intent(INOUT)   :: H(:,:)         ! [X] Variable of interest (aa nodes)
+        real(wp), intent(IN)      :: ux(:,:)        ! [m a-1] Horizontal velocity x-direction (ac nodes)
+        real(wp), intent(IN)      :: uy(:,:)        ! [m a-1] Horizontal velocity y-direction (ac nodes)
+        real(wp), intent(IN)      :: kappa(:,:)     ! [m2 a-1] Diffusion constant
+        real(wp), intent(IN)      :: F(:,:)         ! [m a-1] Net source/sink terms (aa nodes)
+        integer,  intent(IN)      :: mask(:,:)      ! Advection mask
+        real(wp), intent(IN)      :: dx             ! [m] Horizontal step x-direction
+        real(wp), intent(IN)      :: dy             ! [m] Horizontal step y-direction 
+        real(wp), intent(IN)      :: dt             ! [a] Time step 
+        character(len=*), intent(IN) :: boundaries 
+
+        ! Local variables  
+        integer  :: i, j, k, nx, ny
+        integer  :: im1, ip1, jm1, jp1 
+        integer  :: n, nr, nc
+        real(wp) :: dt_darea
+        real(wp) :: dt_dx2
+        real(wp) :: dt_dy2
+        real(wp) :: alpha
+        real(wp) :: beta
+        character(len=56) :: bcs(4)
+
+        real(wp), allocatable  :: ux_1(:,:), ux_2(:,:)
+        real(wp), allocatable  :: uy_1(:,:), uy_2(:,:)
+        real(wp), allocatable  :: Hx_1(:,:), Hx_2(:,:)
+        real(wp), allocatable  :: Hy_1(:,:), Hy_2(:,:)
+
+        real(wp), parameter :: WOVI = 1.0     ! Weighting parameter for the over-implicit scheme 
+
+        nx = size(H,1)
+        ny = size(H,2) 
+
+        dt_darea = dt/(dx*dy)
+        dt_dx2   = dt/(dx*dx)
+        dt_dy2   = dt/(dy*dy)
+
+        ! Boundary conditions (bcs) counterclockwise unit circle 
+        ! 1: x, right-border
+        ! 2: y, upper-border 
+        ! 3: x, left--border 
+        ! 4: y, lower-border 
+        
+        ! Define border conditions (only choices are: no-slip, free-slip, periodic)
+        select case(trim(boundaries)) 
+
+            case("infinite")
+
+                bcs(1:4) = "infinite" 
+            
+            case("zeros")
+
+                bcs(1:4) = "zero" 
+
+            case("periodic","periodic-xy")
+
+                bcs(1:4) = "periodic" 
+
+            case DEFAULT 
+
+                bcs(1:4) = "zero"
+
+        end select 
+
+
+        ! Safety check for initialization
+        if (.not. allocated(lgs%x_value)) then 
+            ! Object 'lgs' has not been initialized yet, do so now.
+
+            call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
+
+        end if
+
+        ! Allocate local variables
+        allocate(ux_1(nx,ny))
+        allocate(ux_2(nx,ny))
+        allocate(uy_1(nx,ny))
+        allocate(uy_2(nx,ny))
+        
+        allocate(Hx_1(nx,ny))
+        allocate(Hx_2(nx,ny))
+        allocate(Hy_1(nx,ny))
+        allocate(Hy_2(nx,ny))
+        
+        ! ====================================================================================
+        ! Step 1: populate variables representing velocity components (ux,uy) at each
+        ! cell face (left,right,bottom,top) and upstream variable (Hx,Hy) at each cell face. 
+
+        ux_1 = 0.0
+        ux_2 = 0.0
+        uy_1 = 0.0
+        uy_2 = 0.0
+        
+        Hx_1 = 0.0
+        Hx_2 = 0.0
+        Hy_1 = 0.0
+        Hy_2 = 0.0
+
+        do j = 1, ny
+        do i = 1, nx 
+
+            ! Get neighbor indices
+            call get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
+
+            ! Get velocity components on each cell face 
+            ux_1(i,j) = ux(im1,j)
+            ux_2(i,j) = ux(i,j)
+            uy_1(i,j) = uy(i,jm1)
+            uy_2(i,j) = uy(i,j)
+
+            if (ux_1(i,j) >= 0.0) then
+                Hx_1(i,j) = H(im1,j)
+            else
+                Hx_1(i,j) = H(i,j)
+            end if
+
+            if (ux_2(i,j) >= 0.0) then
+                Hx_2(i,j) = H(i,j)
+            else
+                Hx_2(i,j) = H(ip1,j)
+            end if
+
+            if (uy_1(i,j) >= 0.0) then
+                Hy_1(i,j) = H(i,jm1)
+            else
+                Hy_1(i,j) = H(i,j)
+            end if
+
+            if (uy_2(i,j) >= 0.0) then
+                Hy_2(i,j) = H(i,j)
+            else
+                Hy_2(i,j) = H(i,jp1)
+            end if
+
+        end do
+        end do
+
+        !-------- Assembly of the system of linear equations
+        !             (matrix storage: compressed sparse row CSR) --------
+
+        ! Initialize values to zero 
+        lgs%a_index = 0.0
+        lgs%a_value = 0.0 
+        lgs%b_value = 0.0 
+        lgs%x_value = 0.0 
+
+        lgs%a_ptr(1) = 1
+
+        k = 0
+
+        do n = 1, lgs%nmax
+
+            ! Get i,j indices of current point
+            i = lgs%n2i(n)
+            j = lgs%n2j(n)
+
+            nr = n   ! row counter
+
+            ! Get neighbor indices assuming periodic domain
+            ! (all other boundary conditions are treated with special cases below)
+            im1 = i-1
+            if (im1 .eq. 0)    im1 = nx 
+            ip1 = i+1
+            if (ip1 .eq. nx+1) ip1 = 1 
+
+            jm1 = j-1
+            if (jm1 .eq. 0)    jm1 = ny
+            jp1 = j+1
+            if (jp1 .eq. ny+1) jp1 = 1 
+            
+
+            ! Handle special cases first, otherwise populate with normal inner discretization
+
+            if (mask(i,j) .eq. 0) then 
+                ! Zero value imposed 
+
+                k = k+1
+                lgs%a_index(k) = nr
+                lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                
+                lgs%b_value(nr) = 0.0_wp
+                lgs%x_value(nr) = 0.0_wp
+
+            else if (mask(i,j) .eq. -1) then 
+                ! Prescribed value imposed 
+
+                k = k+1
+                lgs%a_index(k) = nr
+                lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                
+                lgs%b_value(nr) = 0.0_wp
+                lgs%x_value(nr) = H(i,j)
+            
+            else if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
+                ! Right border
+
+                if (bcs(1) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(im1,j)                ! column counter for H(im1,j)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(2)) .eq. "periodic") .and. j .eq. ny) then
+                ! Top border
+
+                if (bcs(2) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,jm1)                ! column counter for H(i,jm1)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(3)) .eq. "periodic") .and. i .eq. 1) then
+                ! Left border
+
+                if (bcs(3) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(ip1,j)                ! column counter for H(ip1,j)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                    ! Initial guess == previous H
+
+                    lgs%x_value(nr) = H(i,j)                            
+                
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else if ( (.not. trim(bcs(4)) .eq. "periodic") .and. j .eq. 1) then
+                ! Bottom border
+
+                if (bcs(4) .eq. "infinite") then
+
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,j)                  ! column counter for H(i,j)
+                    lgs%a_value(k) =  1.0_wp
+                    
+                    k = k+1
+                    lgs%a_index(k) = lgs%ij2n(i,jp1)                ! column counter for H(i,jp1)
+                    lgs%a_value(k) = -1.0_wp
+
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = H(i,j)
+
+                else
+                    ! Assume zero for now
+
+                    k = k+1
+                    lgs%a_index(k) = nr
+                    lgs%a_value(k) = 1.0_wp   ! diagonal element only
+                    
+                    lgs%b_value(nr) = 0.0_wp
+                    lgs%x_value(nr) = 0.0_wp
+
+                end if
+
+            else
+                ! Inner point
+
+                alpha = kappa(i,j) * dt_dx2
+                beta  = kappa(i,j) * dt_dy2
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(i,jm1)                    ! for H(i,jm1)
+                if (uy_1(i,j) > 0.0) &
+                    lgs%a_value(k) = -dt_darea*uy_1(i,j)*dx*WOVI
+                lgs%a_value(k) = lgs%a_value(k) - beta
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(im1,j)                    ! for H(im1,j)
+                if (ux_1(i,j) > 0.0) &
+                    lgs%a_value(k) = -dt_darea*ux_1(i,j)*dy*WOVI
+                lgs%a_value(k) = lgs%a_value(k) - alpha
+
+                k = k+1
+                lgs%a_index(k) = nr                                 ! for H(i,j)
+                lgs%a_value(k) = 1.0                                ! (diagonal element)
+                if (uy_1(i,j) < 0.0) &
+                    lgs%a_value(k) = lgs%a_value(k) &
+                                    - dt_darea*uy_1(i,j)*dx*WOVI
+                if (ux_1(i,j) < 0.0) &
+                    lgs%a_value(k) = lgs%a_value(k) &
+                                    - dt_darea*ux_1(i,j)*dy*WOVI
+                if (ux_2(i,j) > 0.0) &
+                    lgs%a_value(k) = lgs%a_value(k) &
+                                    + dt_darea*ux_2(i,j)*dy*WOVI
+                if (uy_2(i,j) > 0.0) &
+                    lgs%a_value(k) = lgs%a_value(k) &
+                                    + dt_darea*uy_2(i,j)*dx*WOVI
+                lgs%a_value(k) = lgs%a_value(k) + (1.0+2.0*alpha+2.0*beta)
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(ip1,j)                    ! for H(ip1,j)
+                if (ux_2(i,j) < 0.0) &
+                    lgs%a_value(k) = dt_darea*ux_2(i,j)*dy*WOVI
+                lgs%a_value(k) = lgs%a_value(k) - alpha
+
+                k = k+1
+                lgs%a_index(k) = lgs%ij2n(i,jp1)                    ! for H(i,jp1)
+                if (uy_2(i,j) < 0.0) &
+                    lgs%a_value(k) = dt_darea*uy_2(i,j)*dx*WOVI
+                lgs%a_value(k) = lgs%a_value(k) - beta
+
+                ! Right-hand side 
+
+                lgs%b_value(nr) = H(i,j) + dt*F(i,j) &
+                                -(1.0-WOVI) * dt_darea &
+                                     * (  ( ux_2(i,j)*Hx_2(i,j)*dy      &
+                                           -ux_1(i,j)*Hx_1(i,j)*dy )    &
+                                        + ( uy_2(i,j)*Hy_2(i,j)*dx      &
+                                           -uy_1(i,j)*Hy_1(i,j)*dx ) )
+
+                ! Initial guess == previous H
+
+                lgs%x_value(nr) = H(i,j)                            
+                
+            end if
+
+            lgs%a_ptr(nr+1) = k+1   ! row is completed, store index to next row
+            
+        end do
+
+        ! Done: A, x and b matrices in Ax=b have been populated 
+        ! and stored in lgs object. 
+
+        return
+
+    end subroutine linear_solver_matrix_diffusion_advection_csr_2D
 
     subroutine get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,boundaries)
 
