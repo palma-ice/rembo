@@ -7,6 +7,8 @@ module solvers
     implicit none
     
     private
+    public :: solve_diffusion_2D
+    public :: solve_advection_2D
     public :: solve_diffusion_advection_2D
     public :: adv2D_timestep
     public :: diff2D_timestep
@@ -15,6 +17,87 @@ module solvers
     public :: solve_diff_2D_adi
 
 contains
+
+    subroutine solve_diffusion_2D(uu,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,step, &
+                                                                    bc,bc1,bc2,bc3,bc4)
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: uu(:,:)
+        real(wp), intent(IN)    :: F(:,:)
+        real(wp), intent(IN)    :: kappa(:,:)
+        real(wp), intent(IN)    :: ubnd(:,:)
+        integer,  intent(IN)    :: mask(:,:)
+        real(wp), intent(IN)    :: dx
+        real(wp), intent(IN)    :: dy
+        real(wp), intent(IN)    :: dt
+        real(wp), intent(IN)    :: k_rel
+        character(len=*), intent(IN) :: solver
+        character(len=*), intent(IN) :: step
+        character(len=*), intent(IN), optional :: bc
+        character(len=*), intent(IN), optional :: bc1
+        character(len=*), intent(IN), optional :: bc2
+        character(len=*), intent(IN), optional :: bc3
+        character(len=*), intent(IN), optional :: bc4
+
+        ! Local variables
+        integer :: nx, ny 
+        real(wp), allocatable :: zeros(:,:)
+
+        nx = size(uu,1)
+        ny = size(uu,2)
+        
+        allocate(zeros(nx,ny))
+        zeros = 0.0 
+
+        ! Call more general diffusion-advection routine with no velocity
+        call solve_diffusion_advection_2D(uu,zeros,zeros,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,step, &
+                                                                                    bc,bc1,bc2,bc3,bc4)
+
+        return
+
+    end subroutine solve_diffusion_2D
+
+    subroutine solve_advection_2D(uu,v_x,v_y,F,ubnd,mask,dx,dy,dt,k_rel,solver,step, &
+                                                                        bc,bc1,bc2,bc3,bc4)
+
+        implicit none 
+
+        real(wp), intent(INOUT) :: uu(:,:)
+        real(wp), intent(IN)    :: v_x(:,:)
+        real(wp), intent(IN)    :: v_y(:,:)
+        real(wp), intent(IN)    :: F(:,:)
+        real(wp), intent(IN)    :: ubnd(:,:)
+        integer,  intent(IN)    :: mask(:,:)
+        real(wp), intent(IN)    :: dx
+        real(wp), intent(IN)    :: dy
+        real(wp), intent(IN)    :: dt
+        real(wp), intent(IN)    :: k_rel
+        character(len=*), intent(IN) :: solver
+        character(len=*), intent(IN) :: step
+        character(len=*), intent(IN), optional :: bc
+        character(len=*), intent(IN), optional :: bc1
+        character(len=*), intent(IN), optional :: bc2
+        character(len=*), intent(IN), optional :: bc3
+        character(len=*), intent(IN), optional :: bc4
+
+        ! Local variables
+        integer :: nx, ny 
+        real(wp), allocatable :: zeros(:,:)
+
+        nx = size(uu,1)
+        ny = size(uu,2)
+        
+        allocate(zeros(nx,ny))
+        zeros = 0.0 
+
+        ! Call more general diffusion-advection routine with no diffusion constant
+        call solve_diffusion_advection_2D(uu,v_x,v_y,F,zeros,ubnd,mask,dx,dy,dt,k_rel,solver,step, &
+                                                                                    bc,bc1,bc2,bc3,bc4)
+
+        return
+
+    end subroutine solve_advection_2D
 
     subroutine solve_diffusion_advection_2D(uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,step, &
                                                                                     bc,bc1,bc2,bc3,bc4)

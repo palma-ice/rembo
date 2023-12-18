@@ -39,7 +39,7 @@ program test_solvers
     nx_mid = (nx-1)/2
     ny_mid = (ny-1)/2
 
-    ! Set relaxation mask (-1: set ubnd, 0: set 0, 1: solve)
+    ! Set relaxation mask (-2: relaxation to ubnd, -1: set ubnd, 0: set 0, 1: solve, 2: solve+relaxation)
     mask = 1
     mask(1:5,:)     = -1
     mask(nx-5:nx,:) = -1
@@ -57,7 +57,7 @@ program test_solvers
     uu   = 0.0
     ubnd = 0.0 
 
-if (.FALSE.) then
+if (.TRUE.) then
     ! Advect a perfect square
     n2 = 5
     uu(nx_mid-n2:nx_mid+n2,ny_mid-n2:ny_mid+n2) = 10.0 
