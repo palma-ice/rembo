@@ -10,9 +10,9 @@ module solvers
     public :: solve_diffusion_2D
     public :: solve_advection_2D
     public :: solve_diffusion_advection_2D
-    public :: adv2D_timestep
-    public :: diff2D_timestep
-    public :: diff2Dadi_timestep
+    public :: timestep_cfl_advec2D
+    public :: timestep_cfl_diffuse2D
+    public :: timestep_cfl_diffuse2D_adi
     public :: solve2D
     public :: solve_diff_2D_adi
 
@@ -705,6 +705,7 @@ contains
                                                 ! WOVI=0: Explicit scheme
                                                 ! WOVI=1: Implicit scheme
                                                 ! WOVI=1.5: Over-implicit scheme
+                                                ! Same as the so-called theta-rule
 
         nx = size(H,1)
         ny = size(H,2) 
@@ -1133,7 +1134,7 @@ contains
 
     end subroutine set_boundary_conditions
 
-    function adv2D_timestep(dx,dy,vx_max, vy_max) result(dt)
+    function timestep_cfl_advec2D(dx,dy,vx_max, vy_max) result(dt)
         implicit none 
         real(wp) :: dx, dy, vx_max, vy_max 
         real(wp) :: dt 
@@ -1144,9 +1145,9 @@ contains
 
         return 
 
-    end function adv2D_timestep 
+    end function timestep_cfl_advec2D 
 
-    function diff2D_timestep(dx,dy,kappa) result(dt)
+    function timestep_cfl_diffuse2D(dx,dy,kappa) result(dt)
         implicit none 
         real(wp) :: dx, dy, kappa 
         real(wp) :: dt 
@@ -1157,9 +1158,9 @@ contains
         dt = (1.d0/(2.d0*kappa)) *(dx*dy)**2/(dx**2+dy**2)
         return 
 
-    end function diff2D_timestep 
+    end function timestep_cfl_diffuse2D 
     
-    function diff2Dadi_timestep(dx,dy,kappa) result(dt)
+    function timestep_cfl_diffuse2D_adi(dx,dy,kappa) result(dt)
         implicit none 
         real(wp) :: dx, dy, kappa 
         real(wp) :: dt 
@@ -1170,7 +1171,7 @@ contains
 
         return 
 
-    end function diff2Dadi_timestep 
+    end function timestep_cfl_diffuse2D_adi 
 
 !  === ADI related routines that need refactoring, probably with LIS ===
 

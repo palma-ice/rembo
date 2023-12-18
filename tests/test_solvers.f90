@@ -91,9 +91,9 @@ end if
     time = time_init 
 
     ! Check timestep limit
-    dt_check = adv2D_timestep(dx,dy,maxval(abs(v_x)), maxval(abs(v_y)))
+    dt_check = timestep_cfl_advec2D(dx,dy,maxval(abs(v_x)), maxval(abs(v_y)))
     write(*,*) "Timestep check, maximum advective timestep CFL: ", dt_check 
-    dt_check = diff2D_timestep(dx,dy,maxval(kappa))
+    dt_check = timestep_cfl_diffuse2D(dx,dy,maxval(kappa))
     write(*,*) "Timestep check, maximum diffusive timestep CFL: ", dt_check 
     
     ! Initialize the output file
