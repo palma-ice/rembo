@@ -701,7 +701,10 @@ contains
         real(wp), allocatable  :: Hx_1(:,:), Hx_2(:,:)
         real(wp), allocatable  :: Hy_1(:,:), Hy_2(:,:)
 
-        real(wp), parameter :: WOVI = 1.0     ! Weighting parameter for the over-implicit scheme 
+        real(wp), parameter :: WOVI = 1.0       ! Weighting parameter for the over-implicit scheme 
+                                                ! WOVI=0: Explicit scheme
+                                                ! WOVI=1: Implicit scheme
+                                                ! WOVI=1.5: Over-implicit scheme
 
         nx = size(H,1)
         ny = size(H,2) 
@@ -969,13 +972,13 @@ contains
                 lgs%a_index(k) = lgs%ij2n(i,jm1)                    ! for H(i,jm1)
                 if (uy_1(i,j) > 0.0) &                              !   -Advection
                     lgs%a_value(k) = lgs%a_value(k) - dt_darea*uy_1(i,j)*dx*WOVI
-                lgs%a_value(k) = lgs%a_value(k) - beta              !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) - beta*WOVI         !   -Diffusion
 
                 k = k+1
                 lgs%a_index(k) = lgs%ij2n(im1,j)                    ! for H(im1,j)
                 if (ux_1(i,j) > 0.0) &                              !   -Advection
                     lgs%a_value(k) = lgs%a_value(k) - dt_darea*ux_1(i,j)*dy*WOVI
-                lgs%a_value(k) = lgs%a_value(k) - alpha             !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) - alpha*WOVI        !   -Diffusion
 
                 k = k+1
                 lgs%a_index(k) = nr                                 ! for H(i,j)
@@ -992,28 +995,35 @@ contains
                 if (uy_2(i,j) > 0.0) &
                     lgs%a_value(k) = lgs%a_value(k) &               !   -Advection
                                     + dt_darea*uy_2(i,j)*dx*WOVI
-                lgs%a_value(k) = lgs%a_value(k) + (2.0*alpha+2.0*beta)  !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) + (2.0*alpha+2.0*beta)*WOVI  !   -Diffusion
 
                 k = k+1
                 lgs%a_index(k) = lgs%ij2n(ip1,j)                    ! for H(ip1,j)
                 if (ux_2(i,j) < 0.0) &                              !   -Advection
                     lgs%a_value(k) = lgs%a_value(k) + dt_darea*ux_2(i,j)*dy*WOVI
-                lgs%a_value(k) = lgs%a_value(k) - alpha             !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) - alpha*WOVI        !   -Diffusion
 
                 k = k+1
                 lgs%a_index(k) = lgs%ij2n(i,jp1)                    ! for H(i,jp1)
                 if (uy_2(i,j) < 0.0) &                              !   -Advection
                     lgs%a_value(k) = lgs%a_value(k) + dt_darea*uy_2(i,j)*dx*WOVI
-                lgs%a_value(k) = lgs%a_value(k) - beta              !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) - beta*WOVI         !   -Diffusion
 
                 ! Right-hand side 
 
-                lgs%b_value(nr) = H(i,j) + dt*F(i,j) &
-                                -(1.0-WOVI) * dt_darea &            !   -Advection (explicit)
+                lgs%b_value(nr) = H(i,j) + dt*F(i,j)
+                
+                lgs%b_value(nr) = lgs%b_value(nr) + &               !   -Advection (explicit)
+                                -(1.0-WOVI) * dt_darea &            
                                      * (  ( ux_2(i,j)*Hx_2(i,j)*dy      &
                                            -ux_1(i,j)*Hx_1(i,j)*dy )    &
                                         + ( uy_2(i,j)*Hy_2(i,j)*dx      &
                                            -uy_1(i,j)*Hy_1(i,j)*dx ) )
+
+                lgs%b_value(nr) = lgs%b_value(nr) + &               !   -Diffusion (explicit)
+                                -(1.0-WOVI) * &
+                                    ( -alpha*(H(ip1,j)-2.0*H(i,j)+H(im1,j)) &
+                                      -beta *(H(i,jp1)-2.0*H(i,j)+H(i,jm1)) )
 
                 ! Initial guess == previous H
 
