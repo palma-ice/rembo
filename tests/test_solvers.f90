@@ -69,9 +69,6 @@ else
                                                 maxval(uu(nx_mid-n2:nx_mid+n2,ny_mid-n2:ny_mid+n2)) *10.0
 end if
 
-    uu   = 100.0 
-    ubnd = 100.0
-
     ! Define forcing field
     F = 0.0
     !F(nx_mid-5:nx_mid+5,ny_mid-5:ny_mid+5) = 50.0 / tsl_fac
@@ -108,7 +105,7 @@ end if
 
         if (time .gt. time_init) then
             call solve_diffusion_advection_2D(uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel, &
-                                                            solver="expl",step="fe",bc="infinite")
+                                                            solver="impl",step="fe",bc="infinite")
         end if
 
         call write_step(filename,uu,F,time)

@@ -134,6 +134,9 @@ contains
                 
         end select
         
+        ! Impose hard boundary conditions
+        !where (mask .eq. -1) uu = ubnd 
+
         return
 
     end subroutine solve_diffusion_advection_2D
@@ -515,7 +518,7 @@ contains
         character(len=*), intent(IN)  :: bcs(4)
 
         ! Local variables
-        integer :: nx, ny  
+        integer :: nx, ny, i, j 
         type(linear_solver_class) :: lgs
         character(len=256)        :: lis_opt 
         real(wp), allocatable :: H_new(:,:) 
@@ -752,9 +755,9 @@ contains
                 lgs%a_index(k) = nr
                 lgs%a_value(k) = 1.0_wp   ! diagonal element only
                 
-                lgs%b_value(nr) = 0.0_wp
-                lgs%x_value(nr) = Hbnd(i,j)
-            
+                lgs%b_value(nr) = Hbnd(i,j)
+                lgs%x_value(nr) = H(i,j)
+
             else if ( (.not. trim(bcs(1)) .eq. "periodic") .and. i .eq. nx) then
                 ! Right border
 
