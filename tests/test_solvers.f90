@@ -39,12 +39,12 @@ program test_solvers
     nx_mid = (nx-1)/2
     ny_mid = (ny-1)/2
 
-    ! Set relaxation mask
-    mask = 0
-    mask(1:5,:)     = 1
-    mask(nx-5:nx,:) = 1
-    mask(:,1:5)     = 1
-    mask(:,ny-5:ny) = 1
+    ! Set relaxation mask (-1: set ubnd, 0: set 0, 1: solve)
+    mask = 1
+    mask(1:5,:)     = -1
+    mask(nx-5:nx,:) = -1
+    mask(:,1:5)     = -1
+    mask(:,ny-5:ny) = -1
 
     uu = 250.0
     uu(1:5,:)       = 273.15
@@ -63,7 +63,7 @@ if (.FALSE.) then
     uu(nx_mid-n2:nx_mid+n2,ny_mid-n2:ny_mid+n2) = 10.0 
 else
     ! Advect a Gaussian bump
-    n2 = 8
+    n2 = 10
     uu(nx_mid-n2:nx_mid+n2,ny_mid-n2:ny_mid+n2) = gauss_values(dx,dy,sigma=2.0*dx,n=n2*2+1)
     uu(nx_mid-n2:nx_mid+n2,ny_mid-n2:ny_mid+n2) = uu(nx_mid-n2:nx_mid+n2,ny_mid-n2:ny_mid+n2) / &
                                                 maxval(uu(nx_mid-n2:nx_mid+n2,ny_mid-n2:ny_mid+n2)) *10.0
@@ -75,14 +75,14 @@ end if
 
     ! Define velocities
     v_x = 100.0
-    v_y = 0.0 
+    v_y = 100.0 
 
     ! Define kappa = D/ce
     kappa = D / tsl_fac
     kappa = kappa*1e1
 
     time_init = 0.0
-    time_end  = 100.0 
+    time_end  = 1000.0 
     dt        = 5.0
     n_iter    = ceiling( (time_end-time_init)/dt ) + 1 
 
@@ -105,12 +105,12 @@ end if
 
         if (time .gt. time_init) then
             call solve_diffusion_advection_2D(uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel, &
-                                                                        solver="impl",step="fe")
+                                                            solver="impl",step="fe",bc="infinite")
         end if
 
         call write_step(filename,uu,F,time)
 
-        write(*,*) "time = ", time
+        write(*,*) "time = ", time, sum(uu) / real(count(uu .gt. 0.0),wp)
 
     end do 
 
