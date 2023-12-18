@@ -2106,7 +2106,7 @@ contains
                 if (uy_2(i,j) > 0.0) &
                     lgs%a_value(k) = lgs%a_value(k) &
                                     + dt_darea*uy_2(i,j)*dx*WOVI
-                lgs%a_value(k) = lgs%a_value(k) + (1.0+2.0*alpha+2.0*beta)
+                lgs%a_value(k) = lgs%a_value(k) + (2.0*alpha+2.0*beta)
 
                 k = k+1
                 lgs%a_index(k) = lgs%ij2n(ip1,j)                    ! for H(ip1,j)

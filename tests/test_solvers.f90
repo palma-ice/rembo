@@ -74,7 +74,7 @@ end if
     !F(nx_mid-5:nx_mid+5,ny_mid-5:ny_mid+5) = 50.0 / tsl_fac
 
     ! Define velocities
-    v_x = 0.0
+    v_x = 100.0
     v_y = 0.0 
 
     ! Define kappa = D/ce
@@ -105,7 +105,7 @@ end if
 
         if (time .gt. time_init) then
             call solve_diffusion_advection_2D(uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel, &
-                                                                        solver="expl-diff",step="fe")
+                                                                        solver="impl",step="fe")
         end if
 
         call write_step(filename,uu,F,time)
