@@ -8,10 +8,11 @@ module solvers
     
     private
     public :: solve_diffusion_advection_2D
+    public :: adv2D_timestep
+    public :: diff2D_timestep
+    public :: diff2Dadi_timestep
     public :: solve2D
-    public :: solve_diff_2D_adi, diff2Dadi_timestep
-    public :: adv2D_timestep, diff2D_timestep
-    public :: set_border
+    public :: solve_diff_2D_adi
 
 contains
 
@@ -40,7 +41,8 @@ contains
         character(len=*), intent(IN), optional :: bc4
 
         ! Local variables
-        integer :: nx, ny 
+        integer :: nx, ny
+
         real(wp), allocatable :: f0(:,:)
         real(wp), allocatable :: f1(:,:)
         real(wp), allocatable :: f2(:,:)
@@ -50,8 +52,15 @@ contains
         real(wp), allocatable :: u2(:,:)
         real(wp), allocatable :: u3(:,:)
 
+        character(len=56) :: bcs(4)
+
         nx = size(uu,1)
         ny = size(uu,2)
+
+        ! Set boundary conditions
+        call set_boundary_conditions(bcs,bc,bc1,bc2,bc3,bc4)
+        
+        ! Perform timestepping
 
         select case(trim(step))
 
@@ -61,8 +70,7 @@ contains
                 allocate(f0(nx,ny))
 
                 ! Calculate derivative
-                call calc_tendency(f0,uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver, &
-                                                                            bc,bc1,bc2,bc3,bc4)
+                call calc_tendency(f0,uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,bcs)
 
                 ! Update uu
                 uu = uu + dt*f0
@@ -101,23 +109,19 @@ contains
 
                 u0 = uu 
 
-                call calc_tendency(f0,u0,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver, &
-                                                                            bc,bc1,bc2,bc3,bc4)
+                call calc_tendency(f0,u0,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,bcs)
 
                 u1 = u0 + (dt/2.0)*f0
 
-                call calc_tendency(f1,u1,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver, &
-                                                                            bc,bc1,bc2,bc3,bc4)
+                call calc_tendency(f1,u1,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,bcs)
 
                 u2 = u0 + (dt/2.0)*f1
                 
-                call calc_tendency(f2,u2,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver, &
-                                                                            bc,bc1,bc2,bc3,bc4)
+                call calc_tendency(f2,u2,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,bcs)
 
                 u3 = u0 + dt*f2
 
-                call calc_tendency(f3,u3,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver, &
-                                                                            bc,bc1,bc2,bc3,bc4)
+                call calc_tendency(f3,u3,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,bcs)
 
                 ! Combine them to estimate the solution U at time t+dt
                 uu = u0 + dt * ( f0 + 2.0*f1 + 2.0*f2 + f3 ) / 6.0
@@ -134,8 +138,7 @@ contains
 
     end subroutine solve_diffusion_advection_2D
 
-    subroutine calc_tendency(dudt,uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver, &
-                                                                            bc,bc1,bc2,bc3,bc4)
+    subroutine calc_tendency(dudt,uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel,solver,bcs)
         ! Calculate advection diffusion equation tendency
         ! du/dt = kappa * grad^2 T - u<dot>T + F + F_relax
 
@@ -154,12 +157,7 @@ contains
         real(wp), intent(IN)    :: dt
         real(wp), intent(IN)    :: k_rel
         character(len=*), intent(IN) :: solver
-        character(len=*), intent(IN), optional :: bc
-        character(len=*), intent(IN), optional :: bc1
-        character(len=*), intent(IN), optional :: bc2
-        character(len=*), intent(IN), optional :: bc3
-        character(len=*), intent(IN), optional :: bc4
-
+        character(len=*), intent(IN) :: bcs(4)
 
         ! Local variables
         integer  :: i, j, nx, ny 
@@ -175,23 +173,29 @@ contains
         allocate(dudt_adv(nx,ny))
         allocate(dudt_relax(nx,ny))
 
+        ! Get relaxation rate at boundaries 
+        dudt_relax = 0.0
+        where (mask .eq. -2)
+            ! Imposed relaxation rate (k_rel is restoring rate fraction per second, positive value)
+            dudt_relax = -k_rel*(uu-ubnd)
+        end where 
+        
         select case(trim(solver))
+
+            case("none")
+                ! No solver right now, set dudt to zero
+
+                dudt = 0.0 
 
             case("expl-diff")
                 ! Explicit diffusion
 
                 ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
-                call calc_tendency_diffuse2D(dudt_diff,uu,kappa,dx,dy)
+                call calc_tendency_diffuse2D(dudt_diff,uu,kappa,mask,dx,dy,bcs)
 
                 ! No advection considered
                 dudt_adv = 0.0
-
-                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
-                dudt_relax = 0.0
-                where (mask .eq. -1)
-                    dudt_relax = -k_rel*(uu-ubnd)
-                end where 
-                
+        
                 ! Get total tendency for this timestep
                 dudt = dudt_diff + dudt_adv + F + dudt_relax
 
@@ -202,13 +206,7 @@ contains
                 dudt_diff = 0.0 
 
                 ! Get advective tendency (du/dt)
-                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy,boundaries="infinite")
-
-                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
-                dudt_relax = 0.0
-                where (mask .eq. -1)
-                    dudt_relax = -k_rel*(uu-ubnd)
-                end where 
+                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,mask,dx,dy,bcs)
 
                 ! Get total tendency for this timestep
                 dudt = dudt_diff + dudt_adv + F + dudt_relax
@@ -217,33 +215,20 @@ contains
                 ! Explicit diffusion and advection 
 
                 ! Get diffusive tendency, i.e. kappa*(Laplacian operator) (du/dt)
-                call calc_tendency_diffuse2D(dudt_diff,uu,kappa,dx,dy)
+                call calc_tendency_diffuse2D(dudt_diff,uu,kappa,mask,dx,dy,bcs)
 
                 ! Get advective tendency (du/dt)
-                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,dx,dy,boundaries="infinite")
+                call calc_tendency_advec2D_upwind(dudt_adv,uu,v_x,v_y,mask,dx,dy,bcs)
 
-                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
-                dudt_relax = 0.0
-                where (mask .eq. -1)
-                    dudt_relax = -k_rel*(uu-ubnd)
-                end where 
-                
                 ! Get total tendency for this timestep
                 dudt = dudt_diff + dudt_adv + F + dudt_relax
                 
             case("impl")
                 ! Implicit diffusion and advection 
 
-                ! Get relaxation rate at boundaries (k_rel is restoring rate fraction per second, positive value)
-                dudt_relax = 0.0
-                where (mask .eq. -1)
-                    dudt_relax = -k_rel*(uu-ubnd)
-                end where 
-                
                 ! Get total tendency (du/dt): diffusive-advective + F + relaxation
-                call calc_tendency_diffadvec2D_upwind_impl(dudt,uu,v_x,v_y,kappa,F+dudt_relax,ubnd,mask, &
-                                                                                dx,dy,dt,bc,bc1,bc2,bc3,bc4)
-                
+                call calc_tendency_diffadvec2D_upwind_impl(dudt,uu,v_x,v_y,kappa, &
+                                                           F+dudt_relax,ubnd,mask,dx,dy,dt,bcs)
                 
             case ("adi-impl")
                 ! ADI diffusion, implicit advection
@@ -265,7 +250,7 @@ contains
 
     end subroutine calc_tendency 
 
-    subroutine calc_tendency_diffuse2D(dudt,uu,kappa,dx,dy)
+    subroutine calc_tendency_diffuse2D(dudt,uu,kappa,mask,dx,dy,bcs)
         ! Explicit calculation of kappa * 2D Laplace: kappa*d2u/dxdy
         ! If input units are [u], returns [u/m2]
     
@@ -274,11 +259,14 @@ contains
         real(wp), intent(OUT) :: dudt(:,:)
         real(wp), intent(IN)  :: uu(:,:)
         real(wp), intent(IN)  :: kappa(:,:)
+        integer,  intent(IN)  :: mask(:,:)
         real(wp), intent(IN)  :: dx
         real(wp), intent(IN)  :: dy
+        character(len=*), intent(IN) :: bcs(4)
 
         ! Local variables 
-        integer :: i, j, nx, ny 
+        integer :: i, j, nx, ny
+        integer :: im1, ip1, jm1, jp1 
         real(wp) :: inv_dx2, inv_dy2
         real(wp) :: du
 
@@ -290,15 +278,27 @@ contains
 
         dudt = 0.d0 
 
-        do j = 2,ny-1
-        do i = 2,nx-1
-        
-            ! Laplacian, five-point stencil finite difference method (du/(dx*dy))
-            du =  inv_dx2*(uu(i-1,j)-2.d0*uu(i,j)+uu(i+1,j)) &
-                + inv_dy2*(uu(i,j-1)-2.d0*uu(i,j)+uu(i,j+1))
+        do j = 1,ny
+        do i = 1,nx
             
-            ! Get tendency (du/dt)
-            dudt(i,j) = kappa(i,j)*du
+            if (mask(i,j) .ne. -1) then
+
+                ! Get neighbor indices
+                call get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,bcs)
+
+                ! Laplacian, five-point stencil finite difference method (du/(dx*dy))
+                du =  inv_dx2*(uu(im1,j)-2.d0*uu(i,j)+uu(ip1,j)) &
+                    + inv_dy2*(uu(i,jm1)-2.d0*uu(i,j)+uu(i,jp1))
+                
+                ! Get tendency (du/dt)
+                dudt(i,j) = kappa(i,j)*du
+
+            else
+                ! Impose no change
+
+                dudt(i,j) = 0.0
+
+            end if 
 
         end do 
         end do
@@ -307,7 +307,7 @@ contains
 
     end subroutine calc_tendency_diffuse2D 
 
-    subroutine calc_tendency_advec2D_upwind(dudt,uu,vx,vy,dx,dy,boundaries)
+    subroutine calc_tendency_advec2D_upwind(dudt,uu,vx,vy,mask,dx,dy,bcs)
         ! Second-order upwind advection scheme
         ! If input units are [u], returns [u/s]
         
@@ -317,23 +317,28 @@ contains
         real(wp), intent(IN)  :: uu(:,:)
         real(wp), intent(IN)  :: vx(:,:)
         real(wp), intent(IN)  :: vy(:,:)
+        integer,  intent(IN)  :: mask(:,:)
         real(wp), intent(IN)  :: dx
         real(wp), intent(IN)  :: dy 
-        character(len=*), intent(IN) :: boundaries
+        character(len=*), intent(IN) :: bcs(4)
 
         ! Local variables
         integer :: i, j, nx, ny 
-        character(len=56) :: bcs(4)
 
         nx = size(dudt,1)
         ny = size(dudt,2)
 
-        ! Temporary fix
-        bcs(1:4) = trim(boundaries)
+        dudt = 0.0 
 
         do j = 1, ny
         do i = 1, nx 
-            call calc_advec_horizontal_point(dudt(i,j),uu,vx,vy,dx,i,j,bcs)
+
+            if (mask(i,j) .ne. -1) then
+                call calc_advec_horizontal_point(dudt(i,j),uu,vx,vy,dx,i,j,bcs)
+            else
+                dudt(i,j) = 0.0
+            end if
+
         end do 
         end do
 
@@ -490,54 +495,9 @@ contains
 
     end subroutine calc_advec_horizontal_point
     
-
-
-
-    function adv2D_timestep(dx,dy,vx_max, vy_max) result(dt)
-        implicit none 
-        real(wp) :: dx, dy, vx_max, vy_max 
-        real(wp) :: dt 
-
-        ! Condition v*dt/dx <= 1 
-        ! dt = dx / v
-        dt = min(dx/max(vx_max,1d-6),dy/max(vy_max,1d-6))
-
-        return 
-
-    end function adv2D_timestep 
-
-    function diff2D_timestep(dx,dy,kappa) result(dt)
-        implicit none 
-        real(wp) :: dx, dy, kappa 
-        real(wp) :: dt 
-
-        ! 1D condition kappa*dt/dx^2 <= 1
-        ! dt = dx^2/kappa 
-
-        dt = (1.d0/(2.d0*kappa)) *(dx*dy)**2/(dx**2+dy**2)
-        return 
-
-    end function diff2D_timestep 
-    
-    function diff2Dadi_timestep(dx,dy,kappa) result(dt)
-        implicit none 
-        real(wp) :: dx, dy, kappa 
-        real(wp) :: dt 
-
-        ! Condition: 4*kappa*dt / (dx*dx) <= 1
-
-        dt = (dx*dy) / (4.d0*kappa)
-
-        return 
-
-    end function diff2Dadi_timestep 
-    
-
-
     ! ==== LIS-based solving routines ====
 
-    subroutine calc_tendency_diffadvec2D_upwind_impl(dHdt,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt, &
-                                                                                bc,bc1,bc2,bc3,bc4)
+    subroutine calc_tendency_diffadvec2D_upwind_impl(dHdt,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt,bcs)
         ! General routine to apply 2D advection equation to variable `var` 
         ! with source term `F`. Various solvers are possible
 
@@ -552,17 +512,12 @@ contains
         real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                     ! [[time]]   Timestep 
-        character(len=*), intent(IN), optional :: bc
-        character(len=*), intent(IN), optional :: bc1
-        character(len=*), intent(IN), optional :: bc2
-        character(len=*), intent(IN), optional :: bc3
-        character(len=*), intent(IN), optional :: bc4
+        character(len=*), intent(IN)  :: bcs(4)
 
         ! Local variables
         integer :: nx, ny  
         type(linear_solver_class) :: lgs
         character(len=256)        :: lis_opt 
-        character(len=56)         :: bcs(4)
         real(wp), allocatable :: H_new(:,:) 
 
         nx = size(H,1)
@@ -572,9 +527,6 @@ contains
 
         ! Initialize linear solver variables
         call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
-
-        ! Set boundary conditions
-        call set_boundary_conditions(bcs,bc,bc1,bc2,bc3,bc4)
 
         ! Populate advection matrices Ax=b
         call linear_solver_matrix_diffusion_advection_csr_2D(lgs,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt,bcs)
@@ -1085,6 +1037,44 @@ contains
 
     end subroutine set_boundary_conditions
 
+    function adv2D_timestep(dx,dy,vx_max, vy_max) result(dt)
+        implicit none 
+        real(wp) :: dx, dy, vx_max, vy_max 
+        real(wp) :: dt 
+
+        ! Condition v*dt/dx <= 1 
+        ! dt = dx / v
+        dt = min(dx/max(vx_max,1d-6),dy/max(vy_max,1d-6))
+
+        return 
+
+    end function adv2D_timestep 
+
+    function diff2D_timestep(dx,dy,kappa) result(dt)
+        implicit none 
+        real(wp) :: dx, dy, kappa 
+        real(wp) :: dt 
+
+        ! 1D condition kappa*dt/dx^2 <= 1
+        ! dt = dx^2/kappa 
+
+        dt = (1.d0/(2.d0*kappa)) *(dx*dy)**2/(dx**2+dy**2)
+        return 
+
+    end function diff2D_timestep 
+    
+    function diff2Dadi_timestep(dx,dy,kappa) result(dt)
+        implicit none 
+        real(wp) :: dx, dy, kappa 
+        real(wp) :: dt 
+
+        ! Condition: 4*kappa*dt / (dx*dx) <= 1
+
+        dt = (dx*dy) / (4.d0*kappa)
+
+        return 
+
+    end function diff2Dadi_timestep 
 
 !  === ADI related routines that need refactoring, probably with LIS ===
 
