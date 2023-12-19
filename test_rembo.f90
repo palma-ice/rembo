@@ -87,10 +87,10 @@ program test_rembo
 
 if (.TRUE.) then
     ! REMBO1
-    call rembo1_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%tcwv,forc%co2_a,int(time))
+    call rembo1_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%tcwv,forc%co2_a,int(time),forc%pr)
 else
     ! REMBO2
-    call rembo_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%tcwv,forc%Z,forc%co2_a,int(time))
+    call rembo_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%tcwv,forc%co2_a,int(time))
 end if 
 
     ! Write final result 
@@ -375,6 +375,13 @@ contains
         call nc_read_interp(filename,"tcwv",forc%tcwv,mps=mps,method="mean") !, &
                                 !filt_method="gaussian",filt_par=[32e3_wp,dx])        
         
+        ! ## Precipitation rate (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_mean_total_precipitation_rate_1961-1990.nc"
+        call nc_read_interp(filename,"mtpr",forc%pr,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        
         write(*,*) "z_srf:  ", minval(forc%z_srf),       maxval(forc%z_srf)
         write(*,*) "t2m 1:  ", minval(forc%t2m(:,:,1)),  maxval(forc%t2m(:,:,1))
         write(*,*) "t2m 7:  ", minval(forc%t2m(:,:,7)),  maxval(forc%t2m(:,:,7))
@@ -384,6 +391,8 @@ contains
         write(*,*) "Z 7:    ", minval(forc%Z(:,:,7)),    maxval(forc%Z(:,:,7))
         write(*,*) "tcwv 1: ", minval(forc%tcwv(:,:,1)), maxval(forc%tcwv(:,:,1))
         write(*,*) "tcwv 7: ", minval(forc%tcwv(:,:,7)), maxval(forc%tcwv(:,:,7))
+        write(*,*) "pr 1:   ", minval(forc%pr(:,:,1)), maxval(forc%pr(:,:,1))
+        write(*,*) "pr 7:   ", minval(forc%pr(:,:,7)), maxval(forc%pr(:,:,7))
         
         write(*,*) "Loaded ERA5 boundary climate dataset."
         
@@ -518,6 +527,8 @@ contains
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"t2m_bnd",dom%mon(m)%t2m_bnd,units="K",long_name="Near-surface temperature (boundary)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"tsl_bnd",dom%mon(m)%tsl_bnd,units="K",long_name="Near-surface temperature at sea level (boundary)", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"al_s",dom%mon(m)%al_s,units="K",long_name="Surface albedo (boundary)", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"Z",dom%mon(m)%Z,units="m",long_name="Geopotential height 750 Mb layer (boundary)", &
@@ -535,6 +546,8 @@ contains
             
             ! Climate fields
             call nc_write(filename,"t2m",dom%mon(m)%t2m,units="K",long_name="Near-surface air temperature", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"tsl",dom%mon(m)%tsl,units="K",long_name="Near-surface air temperature at sea level", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"tsurf",dom%mon(m)%tsurf,units="K",long_name="Surface temperature", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
@@ -595,6 +608,8 @@ contains
             
             ! Error compared to forcing, assuming boundary field is the target
             call nc_write(filename,"t2m_err",dom%mon(m)%t2m-dom%mon(m)%t2m_bnd,units="K",long_name="Near-surface air temperature error", &
+                          dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+            call nc_write(filename,"tsl_err",dom%mon(m)%tsl-dom%mon(m)%tsl_bnd,units="K",long_name="Near-surface air temperature at sea level error", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"ccw_err",dom%mon(m)%ccw-dom%mon(m)%ccw_bnd,units="kg m^-2",long_name="Total column cloud water content error", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)

@@ -212,13 +212,15 @@ if (.TRUE.) then
             !                   rco2=par%en_kdT + now%rco2_a, &
             !                   ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
 
-            call rembo_calc_en_simple(now%t2m,par,day,bnd%z_srf,now%t2m_bnd,now%gamma, &
+            call rembo_calc_en_simple(now%t2m,now%tsl,par,day,bnd%z_srf, &
+                              now%t2m_bnd,now%tsl_bnd,now%gamma, &
                               swn=now%swd*(1.0-now%al_p), &
                               lwn=-now%lwu, &
                               shf=now%shf_s*0.0_wp,lhf=now%lhf_s, &
                               lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0_wp, &
+                              !lhp=now%pr*0.0, &
                               rco2=par%en_kdT + now%rco2_a, &
-                              ug=now%ug,vg=now%vg, &
+                              ug=now%ug*0.0,vg=now%vg*0.0, &
                               mask=bnd%mask, &
                               dx=grid%dx,g=par%c%g)
 
@@ -246,18 +248,18 @@ end if
                                         par%k_c,par%k_x)
 
             ! ajr: disabled condensation for now, while testing energy
-            now%c_w = 0.0
-            
+            !now%c_w = 0.0
+
 if (.FALSE.) then
             ! Calculate the current cloud water content  (kg m**-2)
             call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww,grid%dx) 
 
             ! Now calculate the high resolution precipitation rate (kg m**-2 s**-1)
             now%pr = calc_precip(now%ccw,now%ww,now%t2m,bnd%z_srf,par%k_w,par%k_z,par%k_t)  
-end if 
 
             ! Calculate snowfall (kg m**-2 s**-1)
             now%sf = calc_snowfrac(now%t2m,par%sf_a,par%sf_b) * now%pr 
+end if 
 
 if (.FALSE.) then
     ! REMBO1 - old code!! Not working well yet....
@@ -467,7 +469,8 @@ if (.TRUE.) then
             !                   rco2=par%en_kdT + now%rco2_a, &
             !                   ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
 
-            call rembo_calc_en_simple(now%t2m,par,day,bnd%z_srf,now%t2m_bnd,now%gamma, &
+            call rembo_calc_en_simple(now%t2m,now%tsl,par,day,bnd%z_srf, &
+                              now%t2m_bnd,now%tsl_bnd,now%gamma, &
                               swn=now%swd*(1.0-now%al_p), &
                               lwn=-now%lwu, &
                               shf=now%shf_s*0.0_wp,lhf=now%lhf_s, &
@@ -582,6 +585,9 @@ end if
         call map_scrip_field(emb%map_toemb,"ccw_bnd",ccw_bnd,emb%ccw_bnd,method="mean", &
                                                         missing_value=real(mv,wp),fill_method="weighted")
 
+        ! ajr: testing disabling ccw_bnd
+        emb%ccw_bnd = emb%ccw_bnd*0.01
+
         ! Initialize temperature and ccw to boundary field
         emb%tsl = emb%tsl_bnd 
         emb%ccw = emb%ccw_bnd 
@@ -590,15 +596,17 @@ end if
 
     end subroutine rembo_calc_iterinit
 
-    subroutine rembo_calc_en_simple(t2m,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,mask,dx,g)
+    subroutine rembo_calc_en_simple(t2m,tsl,par,day,z_srf,t2m_bnd,tsl_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,mask,dx,g)
 
         implicit none 
 
         real(wp),                intent(INOUT) :: t2m(:,:)  
+        real(wp),                intent(INOUT) :: tsl(:,:)  
         type(rembo_param_class), intent(IN)    :: par 
         integer,                 intent(IN)    :: day 
         real(wp),                intent(IN)    :: z_srf(:,:)
         real(wp),                intent(IN)    :: t2m_bnd(:,:)
+        real(wp),                intent(IN)    :: tsl_bnd(:,:)
         real(wp),                intent(IN)    :: gamma(:,:)
         real(wp),                intent(IN)    :: swn(:,:)
         real(wp),                intent(IN)    :: lwn(:,:)
@@ -616,17 +624,13 @@ end if
         real(wp) :: tsl_fac 
         integer :: q, nx, ny
 
-        real(wp), allocatable :: tsl(:,:)
         real(wp), allocatable :: tsl_F(:,:)
-        real(wp), allocatable :: tsl_bnd(:,:)
         real(wp), allocatable :: kappa(:,:)
 
         nx = size(t2m,1)
         ny = size(t2m,2)
 
-        allocate(tsl(nx,ny))
         allocate(tsl_F(nx,ny))
-        allocate(tsl_bnd(nx,ny))
         allocate(kappa(nx,ny))
 
         ! Get the tsl => column energy conversion
@@ -642,9 +646,6 @@ end if
 
         ! Sea-level temperature, tsl
         tsl = t2m+gamma*z_srf
-
-        ! Sea-level boundary temperature, tsl_bnd
-        tsl_bnd = t2m_bnd+gamma*z_srf
 
         ! Radiative forcing, tsl_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
         tsl_F = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac

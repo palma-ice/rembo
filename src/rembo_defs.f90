@@ -165,6 +165,7 @@ module rembo_defs
         ! Monthly forcing variables 
         real(wp), allocatable :: S(:,:)        ! [W m-2] Insolation top-of-atmosphere
         real(wp), allocatable :: t2m_bnd(:,:)  ! [K]     Near-surface temperature (used for boundary)
+        real(wp), allocatable :: tsl_bnd(:,:)  ! [K]     Near-surface temperature at sea level (used for boundary)
         real(wp), allocatable :: al_s(:,:)     ! [--]    Surface albedo 
         real(wp), allocatable :: co2_a(:,:)    ! [ppm]   Atmospheric CO2 concentration
         real(wp), allocatable :: Z(:,:)        ! [m?]    Geopotential height of 750 Mb layer
@@ -178,6 +179,7 @@ module rembo_defs
         
         ! Seasonal variables
         real(wp), allocatable :: gamma(:,:)
+        real(wp), allocatable :: tsl(:,:)
         real(wp), allocatable :: t2m(:,:)   
         real(wp), allocatable :: ct2m(:,:)
         real(wp), allocatable :: tsurf(:,:)   
@@ -255,6 +257,9 @@ module rembo_defs
 
         real(wp), allocatable :: tcwv(:,:,:)     ! [kg m-2] Total column water vapor (used for boundary)
         
+        ! Extra variables that can be helpful
+        real(wp), allocatable :: pr(:,:,:)       ! [km m-2 s-1] Precipitation rate
+
     end type 
 
     !public   ! All rembo defs are public

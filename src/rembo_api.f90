@@ -39,7 +39,7 @@ module rembo_api
 
 contains 
 
-    subroutine rembo1_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,tcwv,co2_a,year)
+    subroutine rembo1_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,tcwv,co2_a,year,pr)
         ! Calculate atmosphere for each month of the year 
 
         implicit none 
@@ -51,9 +51,11 @@ contains
         real(wp), intent(IN) :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
         real(wp), intent(IN) :: reg_mask(:,:)   ! [--]    Maximum region of interest to model 
         real(wp), intent(IN) :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
+        real(wp), intent(IN) :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
         real(wp), intent(IN) :: tcwv(:,:,:)     ! [kg m-2]  Total column water vapor (used for boundary)
         real(wp), intent(IN) :: co2_a           ! [ppm]   Atmospheric CO2 concentration
         integer,  intent(IN) :: year            ! [yrs ago (since 1950)]
+        real(wp), intent(IN), optional :: pr(:,:,:)
 
         ! Local variables 
         integer  :: day, d, m, nm, nd, ndm, nt
@@ -121,8 +123,18 @@ contains
 
                     ! Interpolate monthly boundary values to the current day
                     call interp_monthly_to_day_2D(dom%now%t2m_bnd,t2m,day,dom%mm)
+                    call interp_monthly_to_day_2D(dom%now%Z,Z,day,dom%mm)
                     call interp_monthly_to_day_2D(dom%now%ccw_bnd,tcwv,day,dom%mm)
-                    
+
+                    ! Get tsl_bnd too for diagnostics
+                    dom%now%tsl_bnd = dom%now%t2m_bnd + dom%par%gamma*dom%bnd%z_srf
+
+                    if (present(pr)) then
+                        call interp_monthly_to_day_2D(dom%now%pr,pr,day,dom%mm)
+                        dom%now%sf = calc_snowfrac(dom%now%t2m_bnd,dom%par%sf_a,dom%par%sf_b) * dom%now%pr 
+                        write(*,*) "pr: ", day, minval(dom%now%pr), maxval(dom%now%pr)
+                    end if
+
                     ! Calculate insolation for current day
                     dom%now%S = calc_insol_day(day,dble(dom%grid%lat),dble(year),fldr="input")
 
@@ -711,6 +723,7 @@ contains
 
             ave%S           = 0.0 
             ave%t2m_bnd     = 0.0 
+            ave%tsl_bnd     = 0.0 
             ave%al_s        = 0.0 
             ave%co2_a       = 0.0 
             ave%Z           = 0.0 
@@ -723,6 +736,7 @@ contains
 
             ave%gamma       = 0.0
             ave%t2m         = 0.0
+            ave%tsl         = 0.0
             ave%ct2m        = 0.0
             ave%tsurf       = 0.0
             ave%pr          = 0.0        
@@ -768,6 +782,7 @@ contains
             ! Add current values to the running averaging sum
             ave%S           = ave%S        + now%S       
             ave%t2m_bnd     = ave%t2m_bnd  + now%t2m_bnd 
+            ave%tsl_bnd     = ave%tsl_bnd  + now%tsl_bnd 
             ave%al_s        = ave%al_s     + now%al_s    
             ave%co2_a       = ave%co2_a    + now%co2_a   
             ave%Z           = ave%Z        + now%Z       
@@ -780,6 +795,7 @@ contains
 
             ave%gamma       = ave%gamma    + now%gamma  
             ave%t2m         = ave%t2m      + now%t2m    
+            ave%tsl         = ave%tsl      + now%tsl    
             ave%ct2m        = ave%ct2m     + now%ct2m   
             ave%tsurf       = ave%tsurf    + now%tsurf  
             ave%pr          = ave%pr       + now%pr             
@@ -826,6 +842,7 @@ contains
 
             ave%S           = ave%S        / nt_dble 
             ave%t2m_bnd     = ave%t2m_bnd  / nt_dble 
+            ave%tsl_bnd     = ave%tsl_bnd  / nt_dble 
             ave%al_s        = ave%al_s     / nt_dble 
             ave%co2_a       = ave%co2_a    / nt_dble 
             ave%Z           = ave%Z        / nt_dble 
@@ -838,6 +855,7 @@ contains
 
             ave%gamma       = ave%gamma    / nt_dble
             ave%t2m         = ave%t2m      / nt_dble
+            ave%tsl         = ave%tsl      / nt_dble
             ave%ct2m        = ave%ct2m     / nt_dble
             ave%tsurf       = ave%tsurf    / nt_dble
             ave%pr          = ave%pr       / nt_dble        
@@ -896,6 +914,7 @@ contains
 
         allocate(now%S(nx,ny))       ! Insolation top of the atmosphere (W/m2)
         allocate(now%t2m_bnd(nx,ny)) ! Near-surface temp
+        allocate(now%tsl_bnd(nx,ny)) ! Near-surface temp at sea level
         allocate(now%al_s(nx,ny))    ! Surface albedo (0 - 1)
         allocate(now%co2_a(nx,ny))   ! Atmospheric CO2 (ppm)
         allocate(now%Z(nx,ny))       ! Geopotential height at input pressure level (eg 750Mb) (m)
@@ -908,6 +927,7 @@ contains
         
         allocate(now%gamma(nx,ny))   ! Temperature lapse rate
         allocate(now%t2m(nx,ny))     ! Near-surface temp
+        allocate(now%tsl(nx,ny))     ! Near-surface temp at sea level
         allocate(now%ct2m(nx,ny))    ! Near-surface temp inversion correction
         allocate(now%tsurf(nx,ny))   ! Near-surface temp
         allocate(now%pr(nx,ny))      ! Precipitation
@@ -950,6 +970,7 @@ contains
 
         now%S           = 0.0 
         now%t2m_bnd     = 0.0 
+        now%tsl_bnd     = 0.0 
         now%al_s        = 0.0 
         now%co2_a       = 0.0 
         now%Z           = 0.0 
@@ -962,6 +983,7 @@ contains
 
         now%gamma       = 0.0
         now%t2m         = 0.0
+        now%tsl         = 0.0
         now%ct2m        = 0.0
         now%tsurf       = 0.0
         now%pr          = 0.0        
@@ -1016,6 +1038,7 @@ contains
 
         if (allocated(now%S   ))        deallocate(now%S)       ! Insolation top of the atmosphere (W/m2)
         if (allocated(now%t2m_bnd ))    deallocate(now%t2m_bnd) ! Near-surface temp
+        if (allocated(now%tsl_bnd ))    deallocate(now%tsl_bnd) ! Near-surface temp at sea level
         if (allocated(now%al_s ))       deallocate(now%al_s)    ! Surface albedo (0 - 1)
         if (allocated(now%co2_a ))      deallocate(now%co2_a)   ! Atmospheric CO2 (ppm)
         if (allocated(now%Z ))          deallocate(now%Z)       ! Geopotential height at input pressure level (eg 750Mb) (m)
@@ -1028,6 +1051,7 @@ contains
 
         if (allocated(now%gamma) )      deallocate(now%gamma)   ! Temperature lapse rate 
         if (allocated(now%t2m) )        deallocate(now%t2m)     ! Near-surface temp
+        if (allocated(now%tsl) )        deallocate(now%tsl)     ! Near-surface temp at sea level
         if (allocated(now%ct2m) )       deallocate(now%ct2m)    ! Near-surface temp inversion correction
         if (allocated(now%tsurf) )      deallocate(now%tsurf)   ! Surface temp
         if (allocated(now%pr) )         deallocate(now%pr)      ! Precipitation
@@ -1142,6 +1166,8 @@ contains
         allocate(forc%Z(nx,ny,12))
         allocate(forc%tcwv(nx,ny,12))
         
+        allocate(forc%pr(nx,ny,12))
+        
         forc%z_srf  = 0.0 
         forc%t2m    = 0.0
         forc%tsl    = 0.0
@@ -1149,6 +1175,8 @@ contains
         forc%Z      = 0.0
         forc%tcwv   = 0.0 
         
+        forc%pr     = 0.0
+
         return 
 
     end subroutine rembo_forc_alloc
@@ -1165,6 +1193,7 @@ contains
         if (allocated(forc%al_s))   deallocate(forc%al_s)
         if (allocated(forc%Z))      deallocate(forc%Z)
         if (allocated(forc%tcwv))   deallocate(forc%tcwv)
+        if (allocated(forc%pr))     deallocate(forc%pr)
 
         return 
 
