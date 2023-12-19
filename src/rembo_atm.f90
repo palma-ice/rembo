@@ -18,6 +18,7 @@ module rembo_atm
     private
     public :: rembo1_calc_atmosphere
     public :: rembo_calc_atmosphere
+    public :: rembo_gen_domain_mask
 
 contains 
 
@@ -244,6 +245,9 @@ end if
             now%c_w = calc_condensation(now%tcw,now%q_r,bnd%dzsdxy,now%ww, &
                                         par%k_c,par%k_x)
 
+            ! ajr: disabled condensation for now, while testing energy
+            now%c_w = 0.0
+            
 if (.FALSE.) then
             ! Calculate the current cloud water content  (kg m**-2)
             call rembo_calc_ccw(now%pr,now%ccw,now%c_w,emb,par,now%tcw,now%q_r,now%ww,grid%dx) 
@@ -540,10 +544,10 @@ end if
         !call map_field(emb%map_toemb,"mask",mask,emb%mask,method="nn",fill=.TRUE.,missing_value=dble(mv))
         call map_scrip_field(emb%map_toemb,"mask",mask,emb%mask,method="count",missing_value=int(mv))
 
-        emb%mask(1,:)           = 1 
-        emb%mask(emb%grid%nx,:) = 1 
-        emb%mask(:,1)           = 1 
-        emb%mask(:,emb%grid%ny) = 1 
+        emb%mask(1,:)           = -1 
+        emb%mask(emb%grid%nx,:) = -1 
+        emb%mask(:,1)           = -1 
+        emb%mask(:,emb%grid%ny) = -1 
         call remove_islands(emb%mask)
 
         ! Surface elevation, z_srf
@@ -651,8 +655,8 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call solve_diffusion_advection_2D(tsl,ug,vg,tsl_F,kappa,tsl_bnd,mask,dx,dx, &
-                                    par%en_dt,k_rel=par%en_kr,solver=par%solver,step=par%step)
+            call solve_diffusion_advection_2D(tsl,ug,vg,tsl_F,kappa,tsl_bnd,mask,dx,dx,par%en_dt, &
+                                    k_rel=par%en_kr,solver=par%solver,step=par%step,bc="infinite")
             ! call solve_diff_2D_adi(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
             !                        dt=par%en_dt,kappa=kappa,k_relax=par%en_kr)
         end do 
@@ -723,7 +727,7 @@ end if
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
             call solve_diffusion_advection_2D(emb%tsl,ug,vg,emb%tsl_F,emb%kappa_t,emb%tsl_bnd,emb%mask,emb%grid%dx, &
-                                            emb%grid%dy,par%en_dt,k_rel=par%en_kr,solver=par%solver,step=par%step)
+                                    emb%grid%dy,par%en_dt,k_rel=par%en_kr,solver=par%solver,step=par%step,bc="infinite")
         end do 
 
         ! Sea-level temperature, tsl
@@ -802,14 +806,12 @@ end if
 
         ! Get moisture balance forcing [kg m-2 s-1]
         emb%ccw_F = emb%ccw_cw - emb%ccw_pr 
-        !where(emb%mask==1) emb%ccw_F = 0.d0 
+        !where(emb%mask==-1) emb%ccw_F = 0.d0 
 
         ! Calculate moisture balance to equilibrium
         do q = 1, par%ccw_nstep
             call solve_diffusion_advection_2D(emb%ccw,emb%ug,emb%vg,emb%ccw_F,emb%kappa_w,emb%ccw_bnd,emb%mask, &
-                                emb%grid%dx,emb%grid%dy,par%ccw_dt,k_rel=par%ccw_kr,solver=par%solver,step=par%step)
-
-            where (emb%ccw .lt. 0.d0) emb%ccw = 0.d0
+                        emb%grid%dx,emb%grid%dy,par%ccw_dt,k_rel=par%ccw_kr,solver=par%solver,step=par%step,bc="infinite")
 
             ! Now calculate the precipitation rate on emb grid (kg m**-2 s**-1)
             ! *Cheaper than reinterpolating, but necessary to update moisture balance
@@ -830,5 +832,110 @@ end if
         return 
 
     end subroutine rembo_calc_ccw
+
+    subroutine rembo_gen_domain_mask(mask,zs,xx,yy,zs_min,radius)
+        ! mask==1: solve model
+        ! mask==2: solve model + relaxation term
+        ! mask==0: set variable to zero
+        ! mask==-1: impose boundary variable
+        ! mask==-2: impose relaxation to boundary variable
+
+        implicit none 
+        
+        integer,  intent(OUT) :: mask(:,:)
+        real(wp), intent(IN) :: zs(:,:) 
+        real(wp), intent(IN) :: xx(:,:)
+        real(wp), intent(IN) :: yy(:,:) 
+        real(wp), intent(IN) :: zs_min
+        real(wp), intent(IN) :: radius
+
+        ! Local variables
+        real(wp) :: dist, mindist 
+        integer :: nx, ny, i, j, i1, j1 
+        !real(wp), parameter :: zs_min = 10.0   ! [m]
+        
+        real(wp) :: tmp(size(zs,1),size(zs,2))
+
+        nx = size(zs,1)
+        ny = size(zs,2)
+
+        ! First assume model should be resolved everywhere, except the borders
+        mask = 1
+        mask(1:2,:)     = -1
+        mask(nx-1:nx,:) = -1
+        mask(:,1:2)     = -1
+        mask(:,ny-1:ny) = -1
+
+        do j = 1, ny 
+        do i = 1, nx 
+        
+            if (zs(i,j) .gt. zs_min) then    ! Land points have zero distance to land 
+
+                mindist = 0.0 
+
+            else                        ! How far is each ocean point to land?
+
+                ! Loop over all land points to find minimum distance to coast
+                mindist = 1e8
+                do i1 = 1, nx
+                    do j1 = 1, ny 
+                        if (zs(i1,j1) .gt. zs_min) then 
+                            dist = sqrt( (xx(i1,j1)-xx(i,j))**2 + (yy(i1,j1)-yy(i,j))**2 )
+                            if (dist .lt. mindist) mindist = dist  
+                        end if 
+                    end do 
+                end do
+            end if 
+
+            if (mindist .gt. radius) mask(i,j) = -1 
+
+        end do 
+        end do 
+
+        call remove_islands(mask)
+
+        return
+
+    end subroutine rembo_gen_domain_mask 
+
+    subroutine remove_islands(mask)
+
+        implicit none 
+
+        integer :: mask(:,:) 
+
+        ! Local variables
+        integer :: nx, ny, i, j
+        real(wp) :: tmp(size(mask,1),size(mask,2))
+
+        nx = size(mask,1)
+        ny = size(mask,2)
+
+        ! Remove islands
+        tmp = mask
+
+        do j = 2, ny-1
+        do i = 2, nx-1 
+            
+            if (tmp(i,j)   .eq. -1 .and.  &
+                tmp(i-1,j) .eq. 1 .and. tmp(i+1,j) .eq. 1 .and. &
+                tmp(i,j-1) .eq. 1 .and. tmp(i,j+1) .eq. 1) then 
+
+                mask(i,j) = 1
+
+            else if (tmp(i,j)   .eq. 1 .and.  &
+                     tmp(i-1,j) .eq. -1 .and. tmp(i+1,j) .eq. -1 .and. &
+                     tmp(i,j-1) .eq. -1 .and. tmp(i,j+1) .eq. -1) then 
+ 
+                mask(i,j) = -1
+
+            end if 
+
+        end do 
+        end do 
+
+        return 
+
+    end subroutine remove_islands
 
 end module rembo_atm

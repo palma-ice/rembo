@@ -55,7 +55,9 @@ program test_solvers
     ubnd = 273.15
 
     uu   = 0.0
-    ubnd = 0.0 
+    ubnd = 100.0 
+
+    where(mask .eq. -1) uu = ubnd
 
 if (.TRUE.) then
     ! Advect a perfect square
@@ -91,10 +93,8 @@ end if
     time = time_init 
 
     ! Check timestep limit
-    dt_check = timestep_cfl_advec2D(dx,dy,maxval(abs(v_x)), maxval(abs(v_y)))
-    write(*,*) "Timestep check, maximum advective timestep CFL: ", dt_check 
-    dt_check = timestep_cfl_diffuse2D(dx,dy,maxval(kappa))
-    write(*,*) "Timestep check, maximum diffusive timestep CFL: ", dt_check 
+    dt_check = timestep_cfl_advec2D(dx,dy,maxval(abs(v_x)), maxval(abs(v_y)),verbose=.TRUE.)
+    dt_check = timestep_cfl_diffuse2D(dx,dy,maxval(kappa),verbose=.TRUE.)
     
     ! Initialize the output file
     call write_init(filename,nx,ny,dx,dy,time_init)
@@ -105,7 +105,7 @@ end if
 
         if (time .gt. time_init) then
             call solve_diffusion_advection_2D(uu,v_x,v_y,F,kappa,ubnd,mask,dx,dy,dt,k_rel, &
-                                                            solver="impl",step="fe",bc="infinite")
+                                                            solver="expl",step="fe",bc="infinite")
         end if
 
         call write_step(filename,uu,F,time)

@@ -10,11 +10,11 @@
     
     H_e        = 2500.0             ! [m] Vapor scale height
     rembo1     = .FALSE.
-    solver     = "expl"             ! "expl", "expl-impl"
+    solver     = "impl"             ! "expl", "expl-impl"
     step       = "fe"               ! "fe", "rk4"
 
     ! Diffusion parameters
-    en_dt      = 500                ! Diffusion time step, sec
+    en_dt      = 5000               ! Diffusion time step, sec
     en_D       = 1.0e13             ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 1.0e13             ! [m-2 s-1] Diffusion constant, energy
     en_D_sum   = 1.0e13             ! [m-2 s-1] Diffusion constant, energy

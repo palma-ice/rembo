@@ -285,6 +285,11 @@ contains
                 ! Get total tendency for this timestep
                 dudt = dudt_diff + dudt_adv + F + dudt_relax
 
+                ! Adjust rate where needed uu should be fixed to ubnd
+                where (mask .eq. -1 .and. uu+dudt*dt .ne. ubnd)
+                    dudt = -(uu-ubnd)/dt
+                end where
+
             case("expl-adv")
                 ! Explicit advection 
 
@@ -297,6 +302,11 @@ contains
                 ! Get total tendency for this timestep
                 dudt = dudt_diff + dudt_adv + F + dudt_relax
                 
+                ! Adjust rate where needed uu should be fixed to ubnd
+                where (mask .eq. -1 .and. uu+dudt*dt .ne. ubnd)
+                    dudt = -(uu-ubnd)/dt
+                end where
+                
             case("expl")
                 ! Explicit diffusion and advection 
 
@@ -308,6 +318,11 @@ contains
 
                 ! Get total tendency for this timestep
                 dudt = dudt_diff + dudt_adv + F + dudt_relax
+                
+                ! Adjust rate where needed uu should be fixed to ubnd
+                where (mask .eq. -1 .and. uu+dudt*dt .ne. ubnd)
+                    dudt = -(uu-ubnd)/dt
+                end where
                 
             case("impl")
                 ! Implicit diffusion and advection 
@@ -367,8 +382,13 @@ contains
         do j = 1,ny
         do i = 1,nx
             
-            if (mask(i,j) .ne. -1) then
+            if (mask(i,j) .eq. -1) then
 
+                ! Impose no change
+
+                dudt(i,j) = 0.0
+
+            else
                 ! Get neighbor indices
                 call get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,bcs)
 
@@ -378,12 +398,7 @@ contains
                 
                 ! Get tendency (du/dt)
                 dudt(i,j) = kappa(i,j)*du
-
-            else
-                ! Impose no change
-
-                dudt(i,j) = 0.0
-
+                
             end if 
 
         end do 
@@ -419,10 +434,10 @@ contains
         do j = 1, ny
         do i = 1, nx 
 
-            if (mask(i,j) .ne. -1) then
-                call calc_advec_horizontal_point(dudt(i,j),uu,vx,vy,dx,i,j,bcs)
-            else
+            if (mask(i,j) .eq. -1) then
                 dudt(i,j) = 0.0
+            else
+                call calc_advec_horizontal_point(dudt(i,j),uu,vx,vy,dx,i,j,bcs)
             end if
 
         end do 
@@ -1134,28 +1149,39 @@ contains
 
     end subroutine set_boundary_conditions
 
-    function timestep_cfl_advec2D(dx,dy,vx_max, vy_max) result(dt)
+    function timestep_cfl_advec2D(dx,dy,vx_max,vy_max,verbose) result(dt)
         implicit none 
         real(wp) :: dx, dy, vx_max, vy_max 
+        logical  :: verbose
         real(wp) :: dt 
 
         ! Condition v*dt/dx <= 1 
         ! dt = dx / v
         dt = min(dx/max(vx_max,1d-6),dy/max(vy_max,1d-6))
 
+        if (verbose) then
+            write(*,*) "Maximum advective timestep CFL: ", dt 
+        end if
+
         return 
 
     end function timestep_cfl_advec2D 
 
-    function timestep_cfl_diffuse2D(dx,dy,kappa) result(dt)
+    function timestep_cfl_diffuse2D(dx,dy,kappa,verbose) result(dt)
         implicit none 
         real(wp) :: dx, dy, kappa 
+        logical  :: verbose
         real(wp) :: dt 
 
         ! 1D condition kappa*dt/dx^2 <= 1
         ! dt = dx^2/kappa 
 
         dt = (1.d0/(2.d0*kappa)) *(dx*dy)**2/(dx**2+dy**2)
+
+        if (verbose) then
+            write(*,*) "Maximum diffusive timestep CFL: ", dt 
+        end if
+
         return 
 
     end function timestep_cfl_diffuse2D 

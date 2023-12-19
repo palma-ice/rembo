@@ -86,9 +86,9 @@ contains
 !                     dom%grid%x,dom%grid%y)
 
         ! Calculate the rembo relaxation mask
-        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,zs_min,radius=16.0)  
-        where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
-        
+        call rembo_gen_domain_mask(dom%bnd%mask,dom%bnd%z_srf,dom%grid%x,dom%grid%y,zs_min,radius=16.0)  
+        where(reg_mask .eq. 0.0) dom%bnd%mask = -1 
+
         ! EMB OUTPUT FOR TESTING 
         !call rembo_emb_write_init(dom%emb,"test.nc",dom%par%domain,dom%par%grid_name, &
         !                                            time_init=real(year,wp),units="kyr ago")
@@ -202,8 +202,8 @@ contains
 !                     dom%grid%x,dom%grid%y)
 
         ! Calculate the rembo relaxation mask
-        dom%bnd%mask = gen_relaxation(dom%bnd%z_srf,dom%grid%x,dom%grid%y,zs_min,radius=16.0)  
-        where(reg_mask .eq. 0.0) dom%bnd%mask = 1.0 
+        call rembo_gen_domain_mask(dom%bnd%mask,dom%bnd%z_srf,dom%grid%x,dom%grid%y,zs_min,radius=16.0)  
+        where(reg_mask .eq. 0.0) dom%bnd%mask = -1 
 
         ! EMB OUTPUT FOR TESTING 
         call rembo_emb_write_init(dom%emb,"test.nc",dom%par%domain,dom%par%grid_name, &
@@ -352,12 +352,11 @@ contains
                                     method="con",fldr="maps",load=.TRUE.)
         
         ! Check diffusion time step consistency
-        dt_check(1) = diff2D_timestep(dom%emb%grid%dx,dom%emb%grid%dy, &
-                                      min(dom%par%en_D_sum,dom%par%en_D_win))
-        dt_check(2) = diff2D_timestep(dom%emb%grid%dx,dom%emb%grid%dy, &
-                                      dom%par%ccw_D)
-!         dt_check(1) = diff2Dadi_timestep(dom%emb%grid%dx,dom%emb%grid%dy,dom%par%en_D)
-!         dt_check(2) = diff2Dadi_timestep(dom%emb%grid%dx,dom%emb%grid%dy,dom%par%ccw_D)
+        dt_check = timestep_cfl_diffuse2D(dom%emb%grid%dx,dom%emb%grid%dy, &
+                                      max(dom%par%en_D_sum,dom%par%en_D_win),verbose=.FALSE.)
+        dt_check = timestep_cfl_diffuse2D(dom%emb%grid%dx,dom%emb%grid%dy, &
+                                      dom%par%ccw_D,verbose=.FALSE.)
+
         fmt1="(a,f10.1,a,f10.1,a)"
         write(*,fmt1) "Diffusion time step,   energy: ", dom%par%en_dt, " s ( max = ",dt_check(1)," s )"
         write(*,fmt1) "Diffusion time step, moisture: ", dom%par%ccw_dt," s ( max = ",dt_check(2)," s )"
@@ -528,7 +527,7 @@ contains
         real(wp) :: npts 
         character(len=256) :: fmt_head, fmt_table 
 
-        npts = real(count(dom%bnd%mask>0),wp)
+        npts = real(count(dom%bnd%mask==1),wp)
 
         fmt_head  = "(a6,a5,  5a8,2x,  a8,  3a8,2x,  4a8)"
         fmt_table = "(i6,i5,5f8.2,2x,f8.2,3f8.2,2x,4f8.2)"
@@ -540,12 +539,12 @@ contains
         if (npts>0) then 
 
             write(*,fmt_table) year, d, &
-                sum(dom%now%swd,        mask=dom%bnd%mask>0)/npts, &     ! [W/m^2]
-                sum(dom%now%t2m,        mask=dom%bnd%mask>0)/npts, &     ! [K]
-                sum(dom%now%tcw,        mask=dom%bnd%mask>0)/npts, &     ! [mm]
-                sum(dom%now%ccw,        mask=dom%bnd%mask>0)/npts, &     ! [mm]
-                sum(dom%now%c_w*dom%par%c%sec_day,mask=dom%bnd%mask>0)/npts, &     ! [mm/d]
-                sum(dom%now%pr*dom%par%c%sec_day, mask=dom%bnd%mask>0)/npts        ! [mm/d]
+                sum(dom%now%swd,        mask=dom%bnd%mask==1)/npts, &     ! [W/m^2]
+                sum(dom%now%t2m,        mask=dom%bnd%mask==1)/npts, &     ! [K]
+                sum(dom%now%tcw,        mask=dom%bnd%mask==1)/npts, &     ! [mm]
+                sum(dom%now%ccw,        mask=dom%bnd%mask==1)/npts, &     ! [mm]
+                sum(dom%now%c_w*dom%par%c%sec_day,mask=dom%bnd%mask==1)/npts, &     ! [mm/d]
+                sum(dom%now%pr*dom%par%c%sec_day, mask=dom%bnd%mask==1)/npts        ! [mm/d]
 
         else 
             ! Print empty table 
@@ -1086,7 +1085,7 @@ contains
         allocate(bnd%f_ice(nx,ny))   ! Ice thickness (grounded)
         allocate(bnd%f_shlf(nx,ny))  ! Ice thickness (floating)
         
-        allocate(bnd%mask(nx,ny))    ! Ocean-land-ice mask 
+        allocate(bnd%mask(nx,ny))    ! Model domain mask 
         allocate(bnd%f(nx,ny))       ! Coriolis parameter (1/s)
         allocate(bnd%dzsdx(nx,ny))   ! Surface gradient (x-dir)
         allocate(bnd%dzsdy(nx,ny))   ! Surface gradient (y-dir)
@@ -1096,7 +1095,7 @@ contains
         bnd%f_ice       = 0.0 
         bnd%f_shlf      = 0.0 
 
-        bnd%mask        = 0.0
+        bnd%mask        = 0
         bnd%f           = 0.0 
         bnd%dzsdx       = 0.0 
         bnd%dzsdy       = 0.0 
@@ -1116,7 +1115,7 @@ contains
         if (allocated(bnd%f_ice ))  deallocate(bnd%f_ice)   ! Ice thickness (grounded)
         if (allocated(bnd%f_shlf )) deallocate(bnd%f_shlf)  ! Ice thickness (floating)
         
-        if (allocated(bnd%mask ))   deallocate(bnd%mask)    ! Ocean-land-ice mask 
+        if (allocated(bnd%mask ))   deallocate(bnd%mask)    ! Model domain mask 
         if (allocated(bnd%f ))      deallocate(bnd%f)       ! Coriolis parameter (1/s)
         if (allocated(bnd%dzsdx ))  deallocate(bnd%dzsdx)   ! Surface gradient (x-dir)
         if (allocated(bnd%dzsdy ))  deallocate(bnd%dzsdy)   ! Surface gradient (y-dir)
@@ -1312,7 +1311,7 @@ contains
                       dim1="xc",dim2="yc",ncid=ncid)
         call nc_write(filename,"f_shlf",dom%bnd%f_shlf,units="1",long_name="Ice fraction (floating)", &
                       dim1="xc",dim2="yc",ncid=ncid)
-        call nc_write(filename,"mask",dom%bnd%mask,units="1",long_name="Mask (solve REMBO or boundary)", &
+        call nc_write(filename,"mask",dom%bnd%mask,units="1",long_name="Model domain mask (1: solve REMBO, -1: boundary)", &
                       dim1="xc",dim2="yc",ncid=ncid)
 
         call nc_write(filename,"dzsdx",dom%bnd%dzsdx,units="m/m",long_name="Surface elevation gradient (x-dir)", &

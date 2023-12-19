@@ -150,12 +150,13 @@ module rembo_defs
         real(wp), allocatable :: f_shlf(:,:)   ! [--]    Fraction of floating (shelf) ice coverage in cell
         
         ! Derived annual boundary variables
-        integer,  allocatable :: mask(:,:)     ! [--]    0: Ocean; 1: Land, 2: Grounded ice, 3: Floating ice
         real(wp), allocatable :: f(:,:)        ! [--]    Coriolis parameter
         real(wp), allocatable :: dzsdx(:,:)
         real(wp), allocatable :: dzsdy(:,:)
         real(wp), allocatable :: dzsdxy(:,:)
 
+        integer,  allocatable :: mask(:,:)     ! [--]    1: solve model, -1: fix values to boundary
+        
     end type 
 
     ! Now define all variables of the domain
@@ -203,7 +204,7 @@ module rembo_defs
         type(map_scrip_class) :: map_toemb, map_fromemb  ! map EMB <=> rembo grid
 
         ! Relaxation mask, topography  
-        integer,  allocatable :: mask(:,:)
+        integer,  allocatable :: mask(:,:)                  ! 1: solve model, -1: fix values to boundary
         real(wp), allocatable :: z_srf(:,:), rho_a(:,:) 
         real(wp), allocatable :: dzsdx(:,:), dzsdy(:,:), dzsdxy(:,:) 
 

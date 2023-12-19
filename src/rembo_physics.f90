@@ -39,8 +39,6 @@ module rembo_physics
     public :: calc_magnitude
     public :: calc_magnitude_from_staggered
     public :: calc_gradient_to_sealevel
-    public :: gen_relaxation
-    public :: remove_islands
 
 contains
     
@@ -698,105 +696,5 @@ end if
         return 
 
     end subroutine calc_gradient_to_sealevel
-
-    function gen_relaxation(zs,xx,yy,zs_min,radius) result(relax) 
-        
-        implicit none 
-        
-        real(wp), intent(IN) :: zs(:,:) 
-        real(wp), intent(IN) :: xx(:,:)
-        real(wp), intent(IN) :: yy(:,:) 
-        real(wp), intent(IN) :: zs_min
-        real(wp), intent(IN) :: radius
-        integer :: relax(size(zs,1),size(zs,2)) 
-
-        ! Local variables
-        real(wp) :: dist, mindist 
-        integer :: nx, ny, i, j, i1, j1 
-        !real(wp), parameter :: zs_min = 10.0   ! [m]
-        
-        real(wp) :: tmp(size(zs,1),size(zs,2))
-
-        nx = size(zs,1)
-        ny = size(zs,2)
-
-        ! Initialize relaxation matrix with fixed boundary
-        relax            = 0 
-        relax(1:2,:)     = 1
-        relax(nx-1:nx,:) = 1
-        relax(:,1:2)     = 1
-        relax(:,ny-1:ny) = 1
-
-        do j = 1, ny 
-        do i = 1, nx 
-        
-            if (zs(i,j) .gt. zs_min) then    ! Land points have zero distance to land 
-
-                mindist = 0.0 
-
-            else                        ! How far is each ocean point to land?
-
-                ! Loop over all land points to find minimum distance to coast
-                mindist = 1e8
-                do i1 = 1, nx
-                    do j1 = 1, ny 
-                        if (zs(i1,j1) .gt. zs_min) then 
-                            dist = sqrt( (xx(i1,j1)-xx(i,j))**2 + (yy(i1,j1)-yy(i,j))**2 )
-                            if (dist .lt. mindist) mindist = dist  
-                        end if 
-                    end do 
-                end do
-            end if 
-
-            if (mindist .gt. radius) relax(i,j) = 1 
-
-        end do 
-        end do 
-
-        call remove_islands(relax)
-
-        return
-
-    end function gen_relaxation 
-
-    subroutine remove_islands(mask)
-
-        implicit none 
-
-        integer :: mask(:,:) 
-
-        ! Local variables
-        integer :: nx, ny, i, j
-        real(wp) :: tmp(size(mask,1),size(mask,2))
-
-        nx = size(mask,1)
-        ny = size(mask,2)
-
-        ! Remove islands
-        tmp = mask
-
-        do j = 2, ny-1
-        do i = 2, nx-1 
-            
-            if (tmp(i,j)   .eq. 1 .and.  &
-                tmp(i-1,j) .eq. 0 .and. tmp(i+1,j) .eq. 0 .and. &
-                tmp(i,j-1) .eq. 0 .and. tmp(i,j+1) .eq. 0) then 
-
-                mask(i,j) = 0
-
-            else if (tmp(i,j)   .eq. 0 .and.  &
-                     tmp(i-1,j) .eq. 1 .and. tmp(i+1,j) .eq. 1 .and. &
-                     tmp(i,j-1) .eq. 1 .and. tmp(i,j+1) .eq. 1) then 
- 
-                mask(i,j) = 1
-
-            end if 
-
-        end do 
-        end do 
-
-        return 
-
-    end subroutine remove_islands
 
 end module rembo_physics 
