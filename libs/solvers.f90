@@ -329,7 +329,8 @@ contains
 
                 ! Get total tendency (du/dt): diffusive-advective + F + relaxation
                 call calc_tendency_diffadvec2D_upwind_impl(dudt,uu,v_x,v_y,kappa, &
-                                                           F+dudt_relax,ubnd,mask,dx,dy,dt,bcs)
+                                                           F+dudt_relax,ubnd,mask,dx,dy,dt, &
+                                                           theta=1.0,bcs=bcs)
                 
             case ("adi-impl")
                 ! ADI diffusion, implicit advection
@@ -371,6 +372,11 @@ contains
         real(wp) :: inv_dx2, inv_dy2
         real(wp) :: du
 
+        real(wp) :: alpha
+        real(wp) :: beta
+        real(wp) :: dalpha 
+        real(wp) :: dbeta 
+
         nx = size(dudt,1)
         ny = size(dudt,2) 
 
@@ -392,13 +398,20 @@ contains
                 ! Get neighbor indices
                 call get_neighbor_indices(im1,ip1,jm1,jp1,i,j,nx,ny,bcs)
 
-                ! Laplacian, five-point stencil finite difference method (du/(dx*dy))
-                du =  inv_dx2*(uu(im1,j)-2.d0*uu(i,j)+uu(ip1,j)) &
-                    + inv_dy2*(uu(i,jm1)-2.d0*uu(i,j)+uu(i,jp1))
+                ! Get helper terms related to diffusion constant
+                alpha = kappa(i,j) * inv_dx2
+                beta  = kappa(i,j) * inv_dy2
+
+                dalpha = (kappa(ip1,j)-kappa(im1,j)) * inv_dx2
+                dbeta  = (kappa(i,jp1)-kappa(i,jm1)) * inv_dy2
                 
-                ! Get tendency (du/dt)
-                dudt(i,j) = kappa(i,j)*du
-                
+                ! Laplacian (nabla <dot> (kappa nabla(uu))), five-point stencil finite difference method (du/(dx*dy))
+                ! allowing for spatially variable kappa
+                dudt(i,j) =  alpha*(uu(im1,j)-2.0*uu(i,j)+uu(ip1,j)) &
+                           + beta *(uu(i,jm1)-2.0*uu(i,j)+uu(i,jp1)) &
+                           + dalpha*uu(ip1,j) - dalpha*uu(im1,j) &
+                           + dbeta *uu(i,jp1) - dbeta *uu(i,jm1)
+
             end if 
 
         end do 
@@ -598,7 +611,7 @@ contains
     
     ! ==== LIS-based solving routines ====
 
-    subroutine calc_tendency_diffadvec2D_upwind_impl(dHdt,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt,bcs)
+    subroutine calc_tendency_diffadvec2D_upwind_impl(dHdt,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt,theta,bcs)
         ! General routine to apply 2D advection equation to variable `var` 
         ! with source term `F`. Various solvers are possible
 
@@ -613,6 +626,7 @@ contains
         real(wp),       intent(IN)    :: dx                     ! [m]   Horizontal resolution, x-direction
         real(wp),       intent(IN)    :: dy                     ! [m]   Horizontal resolution, y-direction
         real(wp),       intent(IN)    :: dt                     ! [[time]]   Timestep 
+        real(wp),       intent(IN)    :: theta                  ! Theta rule (theta=1: implicit, theta=0: explicit, theta=1.5: over-implicit)  
         character(len=*), intent(IN)  :: bcs(4)
 
         ! Local variables
@@ -630,7 +644,7 @@ contains
         call linear_solver_init(lgs,nx,ny,nvar=1,n_terms=5)
 
         ! Populate advection matrices Ax=b
-        call linear_solver_matrix_diffusion_advection_csr_2D(lgs,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt,bcs)
+        call linear_solver_matrix_diffusion_advection_csr_2D(lgs,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt,theta,bcs)
         
         ! Solve linear equation
         lis_opt = "-i bicg -p ilu -maxiter 1000 -tol 1.0e-12 -initx_zeros false"
@@ -673,7 +687,7 @@ contains
 
     end subroutine linear_solver_save_variable
 
-    subroutine linear_solver_matrix_diffusion_advection_csr_2D(lgs,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt,bcs)
+    subroutine linear_solver_matrix_diffusion_advection_csr_2D(lgs,H,ux,uy,kappa,F,Hbnd,mask,dx,dy,dt,theta,bcs)
         ! Define sparse matrices A*x=b in format 'compressed sparse row' (csr)
         ! for 2D advection equations with velocity components
         ! ux and uy defined on ac-nodes (right and top borders of i,j grid cell)
@@ -699,8 +713,9 @@ contains
         real(wp), intent(IN)      :: dx             ! [m] Horizontal step x-direction
         real(wp), intent(IN)      :: dy             ! [m] Horizontal step y-direction 
         real(wp), intent(IN)      :: dt             ! [a] Time step 
+        real(wp), intent(IN)      :: theta          ! Theta rule (theta=1: implicit, theta=0: explicit, theta=1.5: over-implicit)     
         character(len=56), intent(IN) :: bcs(4)     ! Boundary conditions
-
+        
         ! Local variables  
         integer  :: i, j, k, nx, ny
         integer  :: im1, ip1, jm1, jp1 
@@ -710,17 +725,22 @@ contains
         real(wp) :: dt_dy2
         real(wp) :: alpha
         real(wp) :: beta
-        
+        real(wp) :: dalpha
+        real(wp) :: dbeta 
+
         real(wp), allocatable  :: ux_1(:,:), ux_2(:,:)
         real(wp), allocatable  :: uy_1(:,:), uy_2(:,:)
         real(wp), allocatable  :: Hx_1(:,:), Hx_2(:,:)
         real(wp), allocatable  :: Hy_1(:,:), Hy_2(:,:)
 
-        real(wp), parameter :: WOVI = 1.0       ! Weighting parameter for the over-implicit scheme 
-                                                ! WOVI=0: Explicit scheme
-                                                ! WOVI=1: Implicit scheme
-                                                ! WOVI=1.5: Over-implicit scheme
-                                                ! Same as the so-called theta-rule
+        real(wp) :: WOVI        ! Weighting parameter for the over-implicit scheme 
+                                ! WOVI=0: Explicit scheme
+                                ! WOVI=1: Implicit scheme
+                                ! WOVI=1.5: Over-implicit scheme
+                                ! Same as the so-called theta-rule
+
+        ! Use WOVI (weighting over-implicit) internally for visual clarity in terms below
+        WOVI = theta 
 
         nx = size(H,1)
         ny = size(H,2) 
@@ -984,17 +1004,20 @@ contains
                 alpha = kappa(i,j) * dt_dx2
                 beta  = kappa(i,j) * dt_dy2
 
+                dalpha = (kappa(ip1,j)-kappa(im1,j)) * dt_dx2
+                dbeta  = (kappa(i,jp1)-kappa(i,jm1)) * dt_dy2
+                
                 k = k+1
                 lgs%a_index(k) = lgs%ij2n(i,jm1)                    ! for H(i,jm1)
                 if (uy_1(i,j) > 0.0) &                              !   -Advection
                     lgs%a_value(k) = lgs%a_value(k) - dt_darea*uy_1(i,j)*dx*WOVI
-                lgs%a_value(k) = lgs%a_value(k) - beta*WOVI         !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) - beta*WOVI - dbeta*WOVI    !   -Diffusion
 
                 k = k+1
                 lgs%a_index(k) = lgs%ij2n(im1,j)                    ! for H(im1,j)
                 if (ux_1(i,j) > 0.0) &                              !   -Advection
                     lgs%a_value(k) = lgs%a_value(k) - dt_darea*ux_1(i,j)*dy*WOVI
-                lgs%a_value(k) = lgs%a_value(k) - alpha*WOVI        !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) - alpha*WOVI - dalpha*WOVI  !   -Diffusion
 
                 k = k+1
                 lgs%a_index(k) = nr                                 ! for H(i,j)
@@ -1017,13 +1040,13 @@ contains
                 lgs%a_index(k) = lgs%ij2n(ip1,j)                    ! for H(ip1,j)
                 if (ux_2(i,j) < 0.0) &                              !   -Advection
                     lgs%a_value(k) = lgs%a_value(k) + dt_darea*ux_2(i,j)*dy*WOVI
-                lgs%a_value(k) = lgs%a_value(k) - alpha*WOVI        !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) - alpha*WOVI + dalpha*WOVI  !   -Diffusion
 
                 k = k+1
                 lgs%a_index(k) = lgs%ij2n(i,jp1)                    ! for H(i,jp1)
                 if (uy_2(i,j) < 0.0) &                              !   -Advection
                     lgs%a_value(k) = lgs%a_value(k) + dt_darea*uy_2(i,j)*dx*WOVI
-                lgs%a_value(k) = lgs%a_value(k) - beta*WOVI         !   -Diffusion
+                lgs%a_value(k) = lgs%a_value(k) - beta*WOVI + dbeta*WOVI    !   -Diffusion
 
                 ! Right-hand side 
 
@@ -1039,7 +1062,9 @@ contains
                 lgs%b_value(nr) = lgs%b_value(nr) + &               !   -Diffusion (explicit)
                                 -(1.0-WOVI) * &
                                     ( -alpha*(H(ip1,j)-2.0*H(i,j)+H(im1,j)) &
-                                      -beta *(H(i,jp1)-2.0*H(i,j)+H(i,jm1)) )
+                                      -beta *(H(i,jp1)-2.0*H(i,j)+H(i,jm1)) &
+                                      +dalpha*H(ip1,j)-dalpha*H(im1,j) &
+                                      +dbeta*H(i,jp1)-dbeta*H(i,jm1) )
 
                 ! Initial guess == previous H
 
