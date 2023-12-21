@@ -137,6 +137,9 @@ contains
             where(now%al_p .lt. 0.0) now%al_p = 0.0
             where(now%al_p .gt. 1.0) now%al_p = 1.0  
 
+            ! ajr: testing strong albedo reduction for ice-free points
+            where (bnd%f_ice .lt. 0.5) now%al_p = 0.1
+
             ! Calculate the outgoing long-wave radiation at toa
             !now%lwu = par%lwu_a + par%lwu_b*(now%t2m-par%c%T0) + par%lwu_c*now%S
             !now%lwu = par%lwu_a + par%lwu_b*(now%t2m-par%c%T0)
@@ -834,12 +837,11 @@ end if
 
     end subroutine rembo_calc_ccw
 
-    subroutine rembo_gen_domain_mask(mask,zs,xx,yy,zs_min,radius)
+    subroutine rembo_gen_domain_mask(mask,zs,xx,yy,mask_domain,zs_min,radius)
+        ! mask==-1: impose boundary variable
+        ! mask==0: set variable to zero
         ! mask==1: solve model
         ! mask==2: solve model + relaxation term
-        ! mask==0: set variable to zero
-        ! mask==-1: impose boundary variable
-        ! mask==-2: impose relaxation to boundary variable
 
         implicit none 
         
@@ -847,6 +849,7 @@ end if
         real(wp), intent(IN) :: zs(:,:) 
         real(wp), intent(IN) :: xx(:,:)
         real(wp), intent(IN) :: yy(:,:) 
+        logical,  intent(IN) :: mask_domain(:,:)
         real(wp), intent(IN) :: zs_min
         real(wp), intent(IN) :: radius
 
@@ -860,23 +863,18 @@ end if
         nx = size(zs,1)
         ny = size(zs,2)
 
-        ! First assume model should be resolved everywhere, except the borders
+        ! First assume model should be resolved everywhere
         mask = 1
-        mask(1:2,:)     = -1
-        mask(nx-1:nx,:) = -1
-        mask(:,1:2)     = -1
-        mask(:,ny-1:ny) = -1
-
+        
+        ! Next determine which points are ocean or low-elevation points 
+        ! outside of the radius of interest.
         do j = 1, ny 
         do i = 1, nx 
-        
-            if (zs(i,j) .gt. zs_min) then    ! Land points have zero distance to land 
 
-                mindist = 0.0 
+            if (zs(i,j) .le. zs_min) then 
+                ! Ocean point, or too-low elevation point, see if it should be modeled
 
-            else                        ! How far is each ocean point to land?
-
-                ! Loop over all land points to find minimum distance to coast
+                ! Loop over all land points to find minimum distance to high-elevation (land) points
                 mindist = 1e8
                 do i1 = 1, nx
                     do j1 = 1, ny 
@@ -886,14 +884,27 @@ end if
                         end if 
                     end do 
                 end do
+            
+                ! Ensure ocean points above minimum distance to land are solved, but
+                ! with relaxation applied
+                if (mindist .gt. radius) mask(i,j) = 2
+
             end if 
 
-            if (mindist .gt. radius) mask(i,j) = -1 
-
         end do 
         end do 
 
+        ! Next ensure we do not solve model outside of the region mask 
+        where(.not. mask_domain) mask = -1 
+
+        ! Next remove any problematic 'island' points
         call remove_islands(mask)
+
+        ! Finally, ensure the borders are set to boundary conditions
+        mask(1:2,:)     = -1
+        mask(nx-1:nx,:) = -1
+        mask(:,1:2)     = -1
+        mask(:,ny-1:ny) = -1
 
         return
 

@@ -14,10 +14,10 @@ program test_rembo
     type(rembo_class)           :: rembo1 
     type(rembo_forcing_class)   :: forc 
     
-    real(wp), allocatable :: z_srf(:,:)      ! [m]     Surface elevation
-    real(wp), allocatable :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
-    real(wp), allocatable :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
-    real(wp), allocatable :: reg_mask(:,:)   ! [--]    Maximum region of interest
+    real(wp), allocatable :: z_srf(:,:)         ! [m]     Surface elevation
+    real(wp), allocatable :: f_ice(:,:)         ! [--]    Fraction of land-based ice coverage in cell
+    real(wp), allocatable :: f_shlf(:,:)        ! [--]    Fraction of floating (shelf) ice coverage in cell
+    logical,  allocatable :: mask_domain(:,:)   ! [--]    Maximum model region of interest
     
     character(len=56)  :: domain 
     character(len=56)  :: grid_name 
@@ -56,10 +56,10 @@ program test_rembo
     allocate(z_srf(nx,ny))
     allocate(f_ice(nx,ny))
     allocate(f_shlf(nx,ny))
-    allocate(reg_mask(nx,ny))
+    allocate(mask_domain(nx,ny))
 
     infldr    = "ice_data/"//trim(domain)//"/"//trim(grid_name)
-    call load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path=trim(infldr), &
+    call load_topo_rtopo2(z_srf,f_ice,f_shlf,mask_domain,path=trim(infldr), &
                 domain=domain,grid_name=grid_name,set_ice_free=.FALSE.)
 
     ! Load forcing
@@ -87,10 +87,10 @@ program test_rembo
 
 if (.TRUE.) then
     ! REMBO1
-    call rembo1_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%tcwv,forc%co2_a,int(time),forc%pr)
+    call rembo1_update(rembo1,z_srf,f_ice,f_shlf,mask_domain,forc%t2m,forc%Z,forc%tcwv,forc%co2_a,int(time),forc%pr)
 else
     ! REMBO2
-    call rembo_update(rembo1,z_srf,f_ice,f_shlf,reg_mask,forc%t2m,forc%Z,forc%tcwv,forc%co2_a,int(time))
+    call rembo_update(rembo1,z_srf,f_ice,f_shlf,mask_domain,forc%t2m,forc%Z,forc%tcwv,forc%co2_a,int(time))
 end if 
 
     ! Write final result 
@@ -101,7 +101,7 @@ end if
     call rembo_write_state(rembo1,"rembo_restart.nc",time,units="kyr ago",init=.TRUE.)
 
 
-if (.FALSE.) then
+if (.TRUE.) then
     ! Write lots of reanalysis data for offline analysis...
     infldr    = "ice_data/"
     call write_clim_monthly_era_latlon(rembo1,path=trim(infldr),grid_name=grid_name, &
@@ -118,7 +118,7 @@ end if
 
 contains 
 
-    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,reg_mask,path,domain,grid_name,set_ice_free)
+    subroutine load_topo_rtopo2(z_srf,f_ice,f_shlf,mask_domain,path,domain,grid_name,set_ice_free)
         ! Load the data into the rembo_class object
 
         implicit none 
@@ -126,7 +126,7 @@ contains
         real(wp),          intent(INOUT) :: z_srf(:,:) 
         real(wp),          intent(INOUT) :: f_ice(:,:) 
         real(wp),          intent(INOUT) :: f_shlf(:,:) 
-        real(wp),          intent(INOUT) :: reg_mask(:,:) 
+        logical,           intent(INOUT) :: mask_domain(:,:) 
         character(len=*),  intent(IN)    :: path 
         character(len=*),  intent(IN)    :: domain
         character(len=*),  intent(IN)    :: grid_name 
@@ -136,7 +136,8 @@ contains
         character(len=512) :: filename
         real(wp), allocatable :: H_ice(:,:)  
         real(wp), allocatable :: z_bed(:,:)  
-        real(wp), allocatable :: z_sl(:,:)  
+        real(wp), allocatable :: z_sl(:,:) 
+        real(wp), allocatable :: mask_reg(:,:) 
         integer :: nx, ny 
         real(wp) :: region_number 
 
@@ -146,7 +147,8 @@ contains
         allocate(H_ice(nx,ny))
         allocate(z_bed(nx,ny))
         allocate(z_sl(nx,ny))
-        
+        allocate(mask_reg(nx,ny))
+
         filename = trim(path)//"/"//trim(grid_name)//"_TOPO-RTOPO-2.0.1.nc"
 
         ! Static fields
@@ -180,7 +182,7 @@ contains
 
         ! Load regions to delete regions out of interest 
         filename = trim(path)//"/"//trim(grid_name)//"_REGIONS.nc"
-        call nc_read(filename,"mask",reg_mask)
+        call nc_read(filename,"mask",mask_reg)
         
         if (trim(domain) .eq. "Greenland") then 
             region_number = 1.3 
@@ -190,11 +192,11 @@ contains
             write(*,*) "Domain not recognized: "//trim(domain)
             stop 
         end if 
-         
-        where (reg_mask .ne. region_number) 
-            reg_mask = 0.0 
+        
+        where (mask_reg .ne. region_number) 
+            mask_domain = .FALSE.
         elsewhere 
-            reg_mask = 1.0 
+            mask_domain = .TRUE.
         end where
         
         return 
@@ -906,7 +908,17 @@ contains
                                 !filt_method="gaussian",filt_par=[32e3_wp,dx])        
         call nc_write(filename,"tcc",tmp3D,units="(0 - 1)",long_name="Total cloud cover", &
                         dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
+
+        ! ## Mean total precipitation rate (monthly) ##
+
+        filename = trim(path)//"/ERA5/clim/"&
+                        //"era5_monthly-single-levels_mean_total_precipitation_rate_1961-1990.nc"
+        call nc_read_interp(filename,"mtpr",tmp3D,mps=mps,method="mean") !, &
+                                !filt_method="gaussian",filt_par=[32e3_wp,dx])        
+        call nc_write(filename,"mtpr",tmp3D,units="(0 - 1)",long_name="Mean total precipitation rate", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,1],count=[nx,ny,nm],ncid=ncid)
         
+
         ! ## Sea surface temperature (monthly) ##
 
         filename = trim(path)//"/ERA5/clim/"&

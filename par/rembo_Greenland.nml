@@ -8,17 +8,19 @@
     grid_path_hi  = "ice_data/{domain}/{grid_name}/{grid_name}_REGIONS.nc"
     restart    = "no"               ! "no" for no restart, or else the filename to restart from
     
-    H_e        = 2500.0             ! [m] Vapor scale height
     rembo1     = .FALSE.
     solver     = "impl"             ! "expl", "expl-impl"
     step       = "fe"               ! "fe", "rk4"
+    mask_zs_min = 10.0              ! [m] Minimum elevation to model
+    mask_radius = 0.0               ! [km] Minimum distance from zs_min points to model 
 
     ! Diffusion parameters
+    H_e        = 2500.0             ! [m] Vapor scale height
     en_dt      = 5000               ! Diffusion time step, sec
     en_D       = 1.0e13             ! [m-2 s-1] Diffusion constant, energy
     en_D_win   = 1.0e13             ! [m-2 s-1] Diffusion constant, energy
     en_D_sum   = 1.0e13             ! [m-2 s-1] Diffusion constant, energy
-    en_kr      = 1e-3               ! [1/sec] Relaxation coefficient, energy
+    en_kr      = 5e-4               ! [1/s] Relaxation coefficient, energy
 !     en_kz      = 0.00017          ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125
 !     en_kl      = 0.33             ! [degrees-1] Kappa scalar with latitude (kl*lat) **REMBOv1=0.33 
     en_kz      = 0.0                ! [m-1] Kappa scalar with elevation (kz*zs)       **REMBOv1=0.00125

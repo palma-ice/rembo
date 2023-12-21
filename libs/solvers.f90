@@ -259,11 +259,12 @@ contains
         allocate(dudt_adv(nx,ny))
         allocate(dudt_relax(nx,ny))
 
-        ! Get relaxation rate at boundaries 
-        dudt_relax = 0.0
-        where (mask .eq. -2)
+        ! First, get relaxation rate as needed 
+        where (mask .eq. 2)
             ! Imposed relaxation rate (k_rel is restoring rate fraction per second, positive value)
             dudt_relax = -k_rel*(uu-ubnd)
+        elsewhere
+            dudt_relax = 0.0 
         end where 
         
         select case(trim(solver))

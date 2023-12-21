@@ -20,9 +20,6 @@ module rembo_api
     ! Day count for the middle of each month of the year
     integer, parameter :: mdays(12) =[30,60,90,120,150,180,210,240,270,300,330,360]-15
 
-    real(wp), parameter :: zs_min = 0.0_wp ! Minimum elevation of relaxation mask 
-    ! ajr: this is just for testing, later should be internalized, set to e.g. 10m.
-    
     private 
     public :: rembo_update
     public :: rembo_init 
@@ -39,23 +36,23 @@ module rembo_api
 
 contains 
 
-    subroutine rembo1_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,tcwv,co2_a,year,pr)
+    subroutine rembo1_update(dom,z_srf,f_ice,f_shlf,mask_domain,t2m,Z,tcwv,co2_a,year,pr)
         ! Calculate atmosphere for each month of the year 
 
         implicit none 
 
         type(rembo_class), intent(INOUT) :: dom 
 
-        real(wp), intent(IN) :: z_srf(:,:)      ! [m]     Surface elevation
-        real(wp), intent(IN) :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
-        real(wp), intent(IN) :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
-        real(wp), intent(IN) :: reg_mask(:,:)   ! [--]    Maximum region of interest to model 
-        real(wp), intent(IN) :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
-        real(wp), intent(IN) :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
-        real(wp), intent(IN) :: tcwv(:,:,:)     ! [kg m-2]  Total column water vapor (used for boundary)
-        real(wp), intent(IN) :: co2_a           ! [ppm]   Atmospheric CO2 concentration
-        integer,  intent(IN) :: year            ! [yrs ago (since 1950)]
-        real(wp), intent(IN), optional :: pr(:,:,:)
+        real(wp), intent(IN) :: z_srf(:,:)          ! [m]     Surface elevation
+        real(wp), intent(IN) :: f_ice(:,:)          ! [--]    Fraction of land-based ice coverage in cell
+        real(wp), intent(IN) :: f_shlf(:,:)         ! [--]    Fraction of floating (shelf) ice coverage in cell
+        logical,  intent(IN) :: mask_domain(:,:)    ! [--]    Maximum region of interest to model 
+        real(wp), intent(IN) :: t2m(:,:,:)          ! [K]     Near-surface temperature (used for boundary)
+        real(wp), intent(IN) :: Z(:,:,:)            ! [m?]    Geopotential height of 750 Mb layer
+        real(wp), intent(IN) :: tcwv(:,:,:)         ! [kg m-2]  Total column water vapor (used for boundary)
+        real(wp), intent(IN) :: co2_a               ! [ppm]   Atmospheric CO2 concentration
+        integer,  intent(IN) :: year                ! [yrs ago (since 1950)]
+        real(wp), intent(IN), optional :: pr(:,:,:) ! [kg m-2 s-1] Precipitation rate, imposed if present
 
         ! Local variables 
         integer  :: day, d, m, nm, nd, ndm, nt
@@ -88,8 +85,8 @@ contains
 !                     dom%grid%x,dom%grid%y)
 
         ! Calculate the rembo relaxation mask
-        call rembo_gen_domain_mask(dom%bnd%mask,dom%bnd%z_srf,dom%grid%x,dom%grid%y,zs_min,radius=16.0)  
-        where(reg_mask .eq. 0.0) dom%bnd%mask = -1 
+        call rembo_gen_domain_mask(dom%bnd%mask,dom%bnd%z_srf,dom%grid%x,dom%grid%y, &
+                                    mask_domain,dom%par%mask_zs_min,dom%par%mask_radius)  
 
         ! EMB OUTPUT FOR TESTING 
         !call rembo_emb_write_init(dom%emb,"test.nc",dom%par%domain,dom%par%grid_name, &
@@ -169,7 +166,7 @@ contains
 
     end subroutine rembo1_update
     
-    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,reg_mask,t2m,Z,tcwv,co2_a,year)
+    subroutine rembo_update(dom,z_srf,f_ice,f_shlf,mask_domain,t2m,Z,tcwv,co2_a,year)
         ! Calculate atmosphere for each month of the year 
 
         implicit none 
@@ -179,7 +176,7 @@ contains
         real(wp), intent(IN) :: z_srf(:,:)      ! [m]     Surface elevation
         real(wp), intent(IN) :: f_ice(:,:)      ! [--]    Fraction of land-based ice coverage in cell
         real(wp), intent(IN) :: f_shlf(:,:)     ! [--]    Fraction of floating (shelf) ice coverage in cell
-        real(wp), intent(IN) :: reg_mask(:,:)   ! [--]    Maximum region of interest to model 
+        logical,  intent(IN) :: mask_domain(:,:)   ! [--]    Maximum region of interest to model 
         real(wp), intent(IN) :: t2m(:,:,:)      ! [K]     Near-surface temperature (used for boundary)
         real(wp), intent(IN) :: Z(:,:,:)        ! [m?]    Geopotential height of 750 Mb layer
         real(wp), intent(IN) :: tcwv(:,:,:)     ! [kg m-2]  Total column water vapor (used for boundary)
@@ -214,8 +211,8 @@ contains
 !                     dom%grid%x,dom%grid%y)
 
         ! Calculate the rembo relaxation mask
-        call rembo_gen_domain_mask(dom%bnd%mask,dom%bnd%z_srf,dom%grid%x,dom%grid%y,zs_min,radius=16.0)  
-        where(reg_mask .eq. 0.0) dom%bnd%mask = -1 
+        call rembo_gen_domain_mask(dom%bnd%mask,dom%bnd%z_srf,dom%grid%x,dom%grid%y, &
+                                    mask_domain,dom%par%mask_zs_min,dom%par%mask_radius)  
 
         ! EMB OUTPUT FOR TESTING 
         call rembo_emb_write_init(dom%emb,"test.nc",dom%par%domain,dom%par%grid_name, &
@@ -605,10 +602,13 @@ contains
         call nml_read(filename,group1,"grid_path_hi",   par%grid_path_hi)
         call nml_read(filename,group1,"restart",        par%restart)
 
-        call nml_read(filename,group1,"H_e",            par%H_e)
         call nml_read(filename,group1,"rembo1",         par%rembo1)
         call nml_read(filename,group1,"solver",         par%solver)
         call nml_read(filename,group1,"step",           par%step)
+        call nml_read(filename,group1,"mask_zs_min",    par%mask_zs_min)
+        call nml_read(filename,group1,"mask_radius",    par%mask_radius)
+        
+        call nml_read(filename,group1,"H_e",            par%H_e)
         call nml_read(filename,group1,"en_dt",          par%en_dt)
         call nml_read(filename,group1,"en_D",           par%en_D)
         call nml_read(filename,group1,"en_D_win",       par%en_D_win)

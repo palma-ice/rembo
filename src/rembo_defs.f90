@@ -77,14 +77,18 @@ module rembo_defs
         character(len=256)  :: grid_path_emb
         character(len=256)  :: grid_path_hi
         character(len=256)  :: restart 
+        
         integer             :: npts, nx, ny
         real(wp)            :: dx 
+        
+        logical             :: rembo1  
+        character(len=56)   :: solver 
+        character(len=56)   :: step 
+        real(wp)            :: mask_zs_min
+        real(wp)            :: mask_radius
 
         ! Physics
         real(wp)    :: H_e   ! Precip vapor scale height (m)
-        logical     :: rembo1  
-        character(len=56) :: solver 
-        character(len=56) :: step 
         real(wp)    :: dist_rel
         real(wp)    :: en_dt, en_D, en_kr, en_kz, en_kl, en_kdT, en_Ha 
         real(wp)    :: en_D_win, en_D_sum 
