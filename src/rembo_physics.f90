@@ -7,6 +7,7 @@ module rembo_physics
     implicit none 
 
     private 
+    public :: calc_total_column_energy
     public :: calc_albedo_t2m
     public :: calc_condensation
     public :: calc_precip
@@ -42,6 +43,34 @@ module rembo_physics
 
 contains
     
+    elemental subroutine calc_total_column_energy(tce,t2m,z_srf,gamma,cv,rho_0,H_toa)
+        ! Calculate the total column energy from near-surface air temperature
+        ! following Willeit et al. (2022), Eq. A40 and subsequent text.
+        ! tce = integral_{z_srf}^{H_toa} cv * rho * T dz
+
+        implicit none
+
+        real(wp), intent(OUT) :: tce            ! [J/m^2] Total column energy
+        real(wp), intent(IN)  :: t2m            ! [K] Near-surface air temperature
+        real(wp), intent(IN)  :: z_srf          ! [m] Surface elevation
+        real(wp), intent(IN)  :: gamma          ! [K/m] Atmospheric lapse rate
+        real(wp), intent(IN)  :: cv             ! [J / kg-K] Air specific heat capacity at constant volume
+        real(wp), intent(IN)  :: rho_0          ! [kg/m^3] Air density at sea level
+        real(wp), intent(IN)  :: H_toa          ! [m] Maximum considered height of atmosphere
+        ! Local variables
+        integer :: k, nz
+        real(wp) :: rho_srf
+
+        nz = 10 
+
+        ! Get air density at surface elevation
+        rho_srf = calc_airdens(z_srf)
+
+
+        return
+
+    end subroutine calc_total_column_energy
+
     elemental function calc_albedo_t2m(t2m,als_min,als_max,afac,tmid) result(al_s)
         ! Calculate the surface albedo of snow as a function of near-surface temperature
         ! Alexander Robinson, inspired from Slater et al, etc. 

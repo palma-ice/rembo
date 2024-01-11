@@ -192,6 +192,9 @@ contains
                 now%shf_s  = calc_sensible_heat_flux(now%tsurf,now%t2m,now%uv_s,now%rho_a, &
                                                         csh_pos=1.65e-3*2.4,csh_neg=1.65e-3,cap=cap)
 
+                ! ajr: testing
+                now%shf_s = 50.0 
+                
             end do 
 
 if (.TRUE.) then
@@ -627,15 +630,17 @@ end if
         real(wp) :: tsl_fac 
         integer :: q, nx, ny
 
-        real(wp), allocatable :: tsl_F(:,:)
+        real(wp), allocatable :: en(:,:)
+        real(wp), allocatable :: en_F(:,:)
         real(wp), allocatable :: kappa(:,:)
 
         nx = size(t2m,1)
         ny = size(t2m,2)
 
-        allocate(tsl_F(nx,ny))
+        allocate(en(nx,ny))
+        allocate(en_F(nx,ny))
         allocate(kappa(nx,ny))
-
+        
         ! Get the tsl => column energy conversion
         ! tsl_fac = H_a[m] c_v[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
         ! H_a = 8000 m
@@ -650,8 +655,8 @@ end if
         ! Sea-level temperature, tsl
         tsl = t2m+gamma*z_srf
 
-        ! Radiative forcing, tsl_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
-        tsl_F = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac
+        ! Radiative forcing, en_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
+        en_F = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac
 
         ! Energy diffusion coefficient
         kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
@@ -661,8 +666,6 @@ end if
         do q = 1, par%en_nstep * 5
             call solve_diffusion_advection_2D(tsl,ug,vg,tsl_F,kappa,tsl_bnd,mask,dx,dx,par%en_dt, &
                                     k_rel=par%en_kr,solver=par%solver,step=par%step,bc="infinite")
-            ! call solve_diff_2D_adi(tsl,tsl_bnd,tsl_F,relax=mask,dx=dx,dy=dx, &
-            !                        dt=par%en_dt,kappa=kappa,k_relax=par%en_kr)
         end do 
 
         ! 2m temperature

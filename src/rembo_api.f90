@@ -734,6 +734,8 @@ contains
             ave%rho_a       = 0.0 
             ave%sp          = 0.0 
 
+            ave%tce         = 0.0
+            ave%tcm         = 0.0
             ave%gamma       = 0.0
             ave%t2m         = 0.0
             ave%tsl         = 0.0
@@ -793,7 +795,8 @@ contains
             ave%rho_a       = ave%rho_a    + now%rho_a   
             ave%sp          = ave%sp       + now%sp      
 
-            ave%gamma       = ave%gamma    + now%gamma  
+            ave%tce         = ave%tce      + now%tce  
+            ave%tcm         = ave%tcm      + now%tcm  
             ave%t2m         = ave%t2m      + now%t2m    
             ave%tsl         = ave%tsl      + now%tsl    
             ave%ct2m        = ave%ct2m     + now%ct2m   
@@ -853,6 +856,8 @@ contains
             ave%rho_a       = ave%rho_a    / nt_dble 
             ave%sp          = ave%sp       / nt_dble 
 
+            ave%tce         = ave%tce      / nt_dble
+            ave%tcm         = ave%tcm      / nt_dble
             ave%gamma       = ave%gamma    / nt_dble
             ave%t2m         = ave%t2m      / nt_dble
             ave%tsl         = ave%tsl      / nt_dble
@@ -925,6 +930,8 @@ contains
         allocate(now%rho_a(nx,ny))   ! Air density (kg m-3)
         allocate(now%sp(nx,ny))      ! Surface pressure (Pa)
         
+        allocate(now%tce(nx,ny))     ! Total column energy
+        allocate(now%tcm(nx,ny))     ! Total column mass
         allocate(now%gamma(nx,ny))   ! Temperature lapse rate
         allocate(now%t2m(nx,ny))     ! Near-surface temp
         allocate(now%tsl(nx,ny))     ! Near-surface temp at sea level
@@ -981,6 +988,8 @@ contains
         now%rho_a       = 0.0 
         now%sp          = 0.0 
 
+        now%tce         = 0.0
+        now%tcm         = 0.0
         now%gamma       = 0.0
         now%t2m         = 0.0
         now%tsl         = 0.0
@@ -1049,6 +1058,8 @@ contains
         if (allocated(now%rho_a)  )     deallocate(now%rho_a)   ! Air density (kg m-3)
         if (allocated(now%sp)     )     deallocate(now%sp)      ! Surface pressure (Pa)
 
+        if (allocated(now%tce) )        deallocate(now%tce)     ! Total column energy 
+        if (allocated(now%tcm) )        deallocate(now%tcm)     ! Total column mass
         if (allocated(now%gamma) )      deallocate(now%gamma)   ! Temperature lapse rate 
         if (allocated(now%t2m) )        deallocate(now%t2m)     ! Near-surface temp
         if (allocated(now%tsl) )        deallocate(now%tsl)     ! Near-surface temp at sea level

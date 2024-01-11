@@ -182,6 +182,8 @@ module rembo_defs
         real(wp), allocatable :: sp(:,:)
         
         ! Seasonal variables
+        real(wp), allocatable :: tce(:,:)
+        real(wp), allocatable :: tcm(:,:)
         real(wp), allocatable :: gamma(:,:)
         real(wp), allocatable :: tsl(:,:)
         real(wp), allocatable :: t2m(:,:)   
