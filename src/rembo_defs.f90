@@ -273,7 +273,8 @@ module rembo_defs
     ! safer ==>
     private 
 
-    public :: dp, sp, wp, rembo_write_log, MISSING_VALUE_DEFAULT, MISSING_VALUE, MV
+    public :: dp, sp, wp, TOL_UNDERFLOW
+    public :: rembo_write_log, MISSING_VALUE_DEFAULT, MISSING_VALUE, MV
     public :: ERR_DIST, ERR_IND, eps, pi, degrees_to_radians, radians_to_degrees
     public :: rembo_use_omp 
     public :: rembo_phys_const_class

@@ -15,6 +15,9 @@ $(objdir)/ncio.o: $(libdir)/ncio.f90
 $(objdir)/nml.o: $(libdir)/nml.f90
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
+$(objdir)/integration.o: $(libdir)/integration.F90 $(objdir)/precision.o
+	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
+
 $(objdir)/solver_linear.o: $(libdir)/solver_linear.F90 $(objdir)/precision.o
 	$(FC) $(DFLAGS) $(FFLAGS) $(INC_LINEAR) -c -o $@ $<
 
@@ -56,7 +59,8 @@ $(objdir)/rembo_defs.o: $(srcdir)/rembo_defs.f90 $(objdir)/nml.o $(objdir)/preci
 $(objdir)/rembo_grid.o : $(srcdir)/rembo_grid.f90 $(objdir)/rembo_defs.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
-$(objdir)/rembo_physics.o : $(srcdir)/rembo_physics.f90 $(objdir)/rembo_defs.o
+$(objdir)/rembo_physics.o : $(srcdir)/rembo_physics.f90 $(objdir)/rembo_defs.o \
+					$(objdir)/integration.o
 	$(FC) $(DFLAGS) $(FFLAGS) -c -o $@ $<
 
 $(objdir)/rembo_atm.o: $(srcdir)/rembo_atm.f90 $(objdir)/rembo_defs.o $(objdir)/rembo_grid.o \
@@ -88,6 +92,7 @@ rembo_libs = 		   $(objdir)/precision.o \
 					   $(objdir)/nml.o \
 			 		   $(objdir)/ncio.o \
 			 		   $(objdir)/solvers.o \
+					   $(objdir)/integration.o \
 					   $(objdir)/solver_linear.o \
 			 		   $(objdir)/insolation.o \
 					   $(objdir)/gaussian_filter.o \

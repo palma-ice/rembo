@@ -40,6 +40,10 @@ program test_rembo
     ! Assume program is running from the output folder
     outfldr = "./"
 
+    ! TESTING
+    call test_physics()
+    stop 
+
     ! Initialize rembo
     call rembo_init(rembo1,path_par=trim(path_par))
     
@@ -522,6 +526,9 @@ contains
 
         ! == REMBO fields == 
 
+        call nc_write(filename,"tcm",dom%now%tcm,units="kg m**-2",long_name="Total column mass", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+                      
         do m = 1, nm
 
             ! Forcing fields
@@ -946,6 +953,23 @@ contains
 
     end subroutine write_clim_monthly_era_latlon
 
+
+    subroutine test_physics()
+
+        implicit none
+
+        ! Local variables 
+        real(wp) :: tcm
+
+        ! Testing 
+        call calc_total_column_mass(tcm,z_srf=0.0_wp,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
+        write(*,*) "tcm = ", tcm 
+        call calc_total_column_mass(tcm,z_srf=3000.0_wp,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
+        write(*,*) "tcm = ", tcm 
+
+        return
+
+    end subroutine test_physics
 
 end program test_rembo
 

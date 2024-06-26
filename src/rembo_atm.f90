@@ -57,6 +57,9 @@ contains
         ! Get the surface pressure 
         now%sp = calc_sp(bnd%z_srf,par%c%g)
         
+        ! Get the total column mass
+        call calc_total_column_mass(now%tcm,bnd%z_srf,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
+        
         ! Calc gradient of Z: dZdx, dZdy 
         call d_dx(now%dZdx,now%Z,dx=grid%dx)
         call d_dy(now%dZdy,now%Z,dx=grid%dy)
@@ -664,7 +667,7 @@ end if
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call solve_diffusion_advection_2D(tsl,ug,vg,tsl_F,kappa,tsl_bnd,mask,dx,dx,par%en_dt, &
+            call solve_diffusion_advection_2D(tsl,ug,vg,en_F,kappa,tsl_bnd,mask,dx,dx,par%en_dt, &
                                     k_rel=par%en_kr,solver=par%solver,step=par%step,bc="infinite")
         end do 
 

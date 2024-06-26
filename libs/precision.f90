@@ -9,7 +9,10 @@ module precision
     ! Choose the precision of the library (sp,dp)
     integer,  parameter :: wp = sp 
     
+    ! Tolerance settings
+    real(wp), parameter :: TOL           = real(1e-5,wp)
+    real(wp), parameter :: TOL_UNDERFLOW = real(1e-15,wp)
 
-contains
+contains 
 
 end module precision
