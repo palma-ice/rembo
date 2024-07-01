@@ -50,21 +50,21 @@ rembo-static: $(rembo_libs) $(rembo_base) $(rembo_tests)
 	@echo "    $(objdir)/librembo.a is ready."
 	@echo " "
 
-test_rembo : rembo-static
+test-rembo : rembo-static
 		$(FC) $(DLAGS) $(FFLAGS) -o $(bindir)/test_rembo.x test_rembo.f90 \
 			-L${CURDIR}/librembo/include -lrembo $(LFLAGS) $(objdir)/nml.o
 		@echo " "
 		@echo "    $(bindir)/test_rembo.x is ready."
 		@echo " "
 
-test_monthlydaily : $(objdir)/monthlydaily.o $(objdir)/precision.o 
+test-monthlydaily : $(objdir)/monthlydaily.o $(objdir)/precision.o 
 		$(FC) $(DLAGS) $(FFLAGS) -o $(bindir)/test_monthlydaily.x tests/test_monthlydaily.f90 \
 				$^	$(LFLAGS)
 		@echo " "
 		@echo "    $(bindir)/test_monthlydaily.x is ready."
 		@echo " "
 
-test_solvers : $(objdir)/solvers.o $(objdir)/solver_linear.o $(objdir)/precision.o $(objdir)/ncio.o
+test-solvers : $(objdir)/solvers.o $(objdir)/solver_linear.o $(objdir)/precision.o $(objdir)/ncio.o
 		$(FC) $(DLAGS) $(FFLAGS) -o $(bindir)/test_solvers.x tests/test_solvers.f90 \
 				$^	$(LFLAGS)
 		@echo " "
