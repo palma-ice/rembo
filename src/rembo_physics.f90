@@ -46,7 +46,51 @@ module rembo_physics
 
 contains
     
-    elemental subroutine calc_total_column_energy(tce,t2m,z_srf,gamma,cv,rho_0,H_a,H_toa)
+    elemental subroutine calc_total_column_energy(tce,t2m,tcm,tce_topo,cv)
+        ! Calculate the total column energy from near-surface air temperature
+        ! following Willeit et al. (2022), Eq. A40 and subsequent text.
+        ! tce = integral_{z_srf}^{H_toa} cv * rho * T dz 
+        ! [J/m^2] = [J / kg-K] * [kg/m^3] * [K] * [m]
+
+        ! Assume rho = rho_0*exp(-z/H_a) and T = t2m - gamma*(z-z_srf)
+        ! Simplify to tce = cv*tcm*t2m + tce_topo
+        ! where tcm = integral_{z_srf}^{H_toa} rho dz [kg/m^2]  
+        
+        implicit none
+
+        real(wp), intent(OUT) :: tce            ! [J/m^2] Total column energy
+        real(wp), intent(IN)  :: t2m            ! [K] Near-surface air temperature
+        real(wp), intent(IN)  :: tcm            ! [kg/m^2] Total column mass
+        real(wp), intent(IN)  :: tce_topo       ! [J/m^2] Topography-related total column energy
+        real(wp), intent(IN)  :: cv             ! [J / kg-K] Air specific heat capacity at constant volume
+        
+        tce = cv*tcm*t2m + tce_topo
+        
+        return
+
+    end subroutine calc_total_column_energy
+
+    elemental subroutine calc_t2m(t2m,tce,tcm,tce_topo,cv)
+        ! Calculate the near-surface air temperature from the total column energy 
+        ! Assume rho = rho_0*exp(-z/H_a) and T = t2m - gamma*(z-z_srf)
+        ! Simplify to t2m = (tce-tce_topo) / (cv*tcm)
+        ! where tcm = integral_{z_srf}^{H_toa} rho dz [kg/m^2]  
+        
+        implicit none
+
+        real(wp), intent(OUT) :: t2m            ! [K] Near-surface air temperature
+        real(wp), intent(IN)  :: tce            ! [J/m^2] Total column energy
+        real(wp), intent(IN)  :: tcm            ! [kg/m^2] Total column mass
+        real(wp), intent(IN)  :: tce_topo       ! [J/m^2] Topography-related total column energy
+        real(wp), intent(IN)  :: cv             ! [J / kg-K] Air specific heat capacity at constant volume
+
+        t2m = (tce-tce_topo) / (cv*tcm)
+
+        return
+
+    end subroutine calc_t2m
+
+    elemental subroutine calc_total_column_energy_explicit(tce,t2m,z_srf,gamma,cv,rho_0,H_a,H_toa)
         ! Calculate the total column energy from near-surface air temperature
         ! following Willeit et al. (2022), Eq. A40 and subsequent text.
         ! tce = integral_{z_srf}^{H_toa} cv * rho * T dz 
@@ -94,12 +138,12 @@ contains
 
         return
 
-    end subroutine calc_total_column_energy
+    end subroutine calc_total_column_energy_explicit
 
     elemental subroutine calc_total_column_mass(tcm,z_srf,rho_0,H_a,H_toa)
-        ! Calculate the total column energy from near-surface air temperature
-        ! following Willeit et al. (2022), Eq. A40 and subsequent text.
-        ! tcm = integral_{z_srf}^{H_toa} rho
+        ! Calculate the total column mass from near-surface air density
+        ! tcm = integral_{z_srf}^{H_toa} rho dz
+        ! tcm = [kg/m^2] = [kg/m^3] * [m]
 
         implicit none
 
@@ -419,7 +463,7 @@ contains
 
     end function calc_esat
 
-    elemental function calc_airdens(zs,rho_0,H_a) result(rho_a)
+    elemental function calc_airdens(z,rho_0,H_a) result(rho_a)
         ! Air density (kg/m3) for given elevation
         ! Defaults:
         ! rho_0 = 1.3
@@ -427,12 +471,12 @@ contains
 
         implicit none 
 
-        real(wp), intent(IN) :: zs
+        real(wp), intent(IN) :: z
         real(wp), intent(IN) :: rho_0       ! Sea-level density
         real(wp), intent(IN) :: H_a         ! Atmospheric scale height
         real(wp) :: rho_a 
 
-        rho_a = rho_0 * exp(-zs/H_a)
+        rho_a = rho_0 * exp(-z/H_a)
 
         return
 

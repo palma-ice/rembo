@@ -633,43 +633,38 @@ end if
         real(wp) :: tsl_fac 
         integer :: q, nx, ny
 
-        real(wp), allocatable :: en(:,:)
-        real(wp), allocatable :: en_F(:,:)
+        real(wp), allocatable :: tce(:,:)
+        real(wp), allocatable :: tce_F(:,:)
+        real(wp), allocatable :: tce_bnd(:,:)
         real(wp), allocatable :: kappa(:,:)
 
         nx = size(t2m,1)
         ny = size(t2m,2)
 
-        allocate(en(nx,ny))
-        allocate(en_F(nx,ny))
+        allocate(tce(nx,ny))
+        allocate(tce_F(nx,ny))
+        allocate(tce_bnd(nx,ny))
         allocate(kappa(nx,ny))
         
-        ! Get the tsl => column energy conversion
-        ! tsl_fac = H_a[m] c_v[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
-        ! H_a = 8000 m
-        !tsl_fac = 8000.0 *715.0 *1.225 !* 1.225 ! =~ 8e6
-        
-        ! climber-x formula to get tsl_fac
-        ! tsl_fac = slp / g * cv_atm 
-        ! slp = 101100.0 [kg m-1 s-2]; g = 9.81 [m s-2]; c_v_atm = 715.0 [J kg-1 K-1]
-        ! tsl_fac => [kg m-1 s-2] * [m-1 s2] * [J kg-1 K-1] = [J m-2 K-1]
-        tsl_fac = 101100.0 /g *715.0 
+        ! Radiative forcing, en_F [ J s-1 m-2]
+        tce_F = (swn + lwn + (shf+lhf) + lhp + rco2)
 
-        ! Sea-level temperature, tsl
-        tsl = t2m+gamma*z_srf
+        ! Boundary energy field, en_bnd [ J m-2]
+        !call calc_total_column_energy(tce,t2m,z_srf,gamma,cv=715_wp,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
 
-        ! Radiative forcing, en_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
-        en_F = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac
+        ! Boundary energy field, en_bnd [ J m-2]
+        !call calc_total_column_energy(tce_bnd,tsl_bnd,z_srf=0.0_wp,gamma,cv=715_wp,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
 
         ! Energy diffusion coefficient
         kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
-        kappa = kappa / tsl_fac 
+        !kappa = kappa / tsl_fac 
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call solve_diffusion_advection_2D(tsl,ug,vg,en_F,kappa,tsl_bnd,mask,dx,dx,par%en_dt, &
+            call solve_diffusion_advection_2D(tce,ug,vg,tce_F,kappa,tce_bnd,mask,dx,dx,par%en_dt, &
                                     k_rel=par%en_kr,solver=par%solver,step=par%step,bc="infinite")
         end do 
+
 
         ! 2m temperature
         t2m = tsl - gamma*z_srf
