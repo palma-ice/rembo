@@ -41,8 +41,8 @@ program test_rembo
     outfldr = "./"
 
     ! TESTING
-    call test_physics()
-    stop 
+    !call test_physics()
+    !stop 
 
     ! Initialize rembo
     call rembo_init(rembo1,path_par=trim(path_par))
@@ -84,7 +84,7 @@ program test_rembo
     !                                                         z_srf=z_srf,dx=rembo1%grid%dx)
     
     ! Define additional forcing values 
-    forc%co2_a = 350.0    ! [ppm]
+    forc%co2_a = 280.0    ! [ppm]
 
     ! Define current year and update rembo (including insolation)
     time       = 0.0      ! [kyr ago]   
@@ -341,7 +341,7 @@ contains
 
         ! ## Surface elevation ##
 
-        filename = trim(path)//"/ERA5/era5_orography.nc"
+        filename = trim(path)//"/ERA5/era5_geopotential.nc"
         call nc_read_interp(filename,"z",forc%z_srf,mps=mps,method="mean")
         forc%z_srf = forc%z_srf / 9.80665_wp 
         where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
@@ -526,9 +526,6 @@ contains
 
         ! == REMBO fields == 
 
-        call nc_write(filename,"tcm",dom%now%tcm,units="kg m**-2",long_name="Total column mass", &
-                      dim1="xc",dim2="yc",ncid=ncid)
-                      
         do m = 1, nm
 
             ! Forcing fields
@@ -625,6 +622,10 @@ contains
         
         end do 
         
+        ! Monthly field, but so far no changes possible in REMBO, so just write the current value
+        call nc_write(filename,"tcm",dom%now%tcm,units="kg m**-2",long_name="Total column mass", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+        
 !         call nc_write(filename,"Ta_ann",dom%ann%t2m,units="K",long_name="Near-surface air temperature (ann)", &
 !                       dim1="xc",dim2="yc",ncid=ncid)
 !         call nc_write(filename,"Ta_sum",dom%ann%t2m,units="K",long_name="Near-surface air temperature (sum)", &
@@ -707,7 +708,7 @@ contains
 
         ! ## Surface elevation ##
 
-        filename = trim(path)//"/ERA5/era5_orography.nc"
+        filename = trim(path)//"/ERA5/era5_geopotential.nc"
         call nc_read_interp(filename,"z",forc%z_srf,mps=mps,method="mean")
         forc%z_srf = forc%z_srf / 9.80665_wp 
         where (forc%z_srf .lt. 0.0) forc%z_srf = 0.0 
