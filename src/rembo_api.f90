@@ -70,7 +70,7 @@ contains
         ! == Calculate annual derived boundary variables =====
 
         ! Calculate atmospheric density from surface elevation
-        dom%now%rho_a = calc_airdens(dom%bnd%z_srf,rho_0=1.3_wp,H_a=8e3)
+        dom%now%rho_a = calc_air_density(dom%bnd%z_srf,rho_0=1.3_wp,H_a=8e3)
 
         ! Calculate the coriolis parameter for the current grid points
         dom%bnd%f = calc_coriolis(real(dom%grid%lat,wp),dom%par%c%omega)
@@ -196,7 +196,7 @@ contains
         ! == Calculate annual derived boundary variables =====
 
         ! Calculate atmospheric density from surface elevation
-        dom%now%rho_a = calc_airdens(dom%bnd%z_srf,rho_0=1.3_wp,H_a=8e3)
+        dom%now%rho_a = calc_air_density(dom%bnd%z_srf,rho_0=1.3_wp,H_a=8e3)
 
         ! Calculate the coriolis parameter for the current grid points
         dom%bnd%f = calc_coriolis(real(dom%grid%lat,wp),dom%par%c%omega)

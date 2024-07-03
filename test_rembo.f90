@@ -41,8 +41,8 @@ program test_rembo
     outfldr = "./"
 
     ! TESTING
-    !call test_physics()
-    !stop 
+    ! call test_physics()
+    ! stop 
 
     ! Initialize rembo
     call rembo_init(rembo1,path_par=trim(path_par))

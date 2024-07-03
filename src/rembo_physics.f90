@@ -8,9 +8,10 @@ module rembo_physics
     implicit none 
 
     private 
-    public :: calc_total_column_energy
     public :: calc_total_column_mass
-
+    public :: calc_total_column_energy_topo
+    public :: calc_total_column_energy
+    
     public :: calc_albedo_t2m
     public :: calc_condensation
     public :: calc_precip
@@ -26,7 +27,7 @@ module rembo_physics
     public :: calc_ttcorr1
     public :: calc_sp
     public :: calc_esat
-    public :: calc_airdens
+    public :: calc_air_density
     public :: calc_elevation
     public :: calc_qs
     public :: calc_qsat
@@ -46,6 +47,60 @@ module rembo_physics
 
 contains
     
+    elemental subroutine calc_total_column_mass(tcm,z_srf,rho_0,H_a,H_toa)
+        ! Calculate the total column mass from near-surface air density
+        ! tcm = integral_{z_srf}^{H_toa} rho(z) dz
+        ! rho(z) = rho_0 * exp(-z/H_a)
+        ! tcm = [kg/m^2] = [kg/m^3] * [m]
+
+        implicit none
+
+        real(wp), intent(OUT) :: tcm            ! [kg/m^2] Total column mass
+        real(wp), intent(IN)  :: z_srf          ! [m] Surface elevation
+        real(wp), intent(IN)  :: rho_0          ! [kg/m^3] Air density at sea level
+        real(wp), intent(IN)  :: H_a            ! [m] Atmospheric scale height
+        real(wp), intent(IN)  :: H_toa          ! [m] Maximum considered height of atmosphere
+
+        ! Local variables
+        real(wp) :: exp_zs, exp_htoa
+
+        ! Compute the exponential terms
+        exp_zs = exp(-z_srf / H_a)
+        exp_htoa = exp(-H_toa / H_a)
+
+        ! Calculate the mass per unit area
+        tcm = rho_0 * H_a * (exp_zs - exp_htoa)
+
+        return
+
+    end subroutine calc_total_column_mass
+
+    elemental subroutine calc_total_column_energy_topo(tce_topo,z_s, z_T, H_a)
+        ! Solve the integral: \[ Q = \int_{z_s}^{z_T} z e^{-z/H_a} \, dz, \]
+        ! which simplifies to:
+        ! \[ Q = H_a \left( z_s e^{-z_s/H_a} - z_T e^{-z_T/H_a} \right) + H_a^2 \left( e^{-z_s/H_a} - e^{-z_T/H_a} \right). \]
+
+        implicit none
+
+        real(wp), intent(OUT) :: tce_topo
+        real(wp), intent(IN)  :: z_s
+        real(wp), intent(IN)  :: z_T
+        real(wp), intent(IN)  :: H_a
+        
+        ! Local variables
+        real(wp) :: term1, term2, term3, term4
+        
+        ! Calculate each term of the final equation
+        term1 = H_a * z_s * exp(-z_s / H_a)
+        term2 = H_a * z_T * exp(-z_T / H_a)
+        term3 = H_a**2 * exp(-z_s / H_a)
+        term4 = H_a**2 * exp(-z_T / H_a)
+        
+        ! Combine terms to calculate Q
+        tce_topo = (term1 - term2) + (term3 - term4)
+    
+    end subroutine calc_total_column_energy_topo
+
     elemental subroutine calc_total_column_energy(tce,t2m,tcm,tce_topo,cv)
         ! Calculate the total column energy from near-surface air temperature
         ! following Willeit et al. (2022), Eq. A40 and subsequent text.
@@ -65,7 +120,7 @@ contains
         real(wp), intent(IN)  :: cv             ! [J / kg-K] Air specific heat capacity at constant volume
         
         tce = cv*tcm*t2m + tce_topo
-        
+
         return
 
     end subroutine calc_total_column_energy
@@ -118,7 +173,7 @@ contains
         ! Get air density and temperature throughout atmospheric column
         do k = 1, nz
             z(k)   = z_srf + (k-1)/real(nz-1,wp)*(H_toa - z_srf)
-            rho(k) = calc_airdens(z(k),rho_0,H_a)
+            rho(k) = calc_air_density(z(k),rho_0,H_a)
             tt(k)  = t2m - gamma*(z(k)-z_srf)
         end do
 
@@ -139,50 +194,6 @@ contains
         return
 
     end subroutine calc_total_column_energy_explicit
-
-    elemental subroutine calc_total_column_mass(tcm,z_srf,rho_0,H_a,H_toa)
-        ! Calculate the total column mass from near-surface air density
-        ! tcm = integral_{z_srf}^{H_toa} rho dz
-        ! tcm = [kg/m^2] = [kg/m^3] * [m]
-
-        implicit none
-
-        real(wp), intent(OUT) :: tcm            ! [kg/m^2] Total column mass
-        real(wp), intent(IN)  :: z_srf          ! [m] Surface elevation
-        real(wp), intent(IN)  :: rho_0          ! [kg/m^3] Air density at sea level
-        real(wp), intent(IN)  :: H_a            ! [m] Atmospheric scale height
-        real(wp), intent(IN)  :: H_toa          ! [m] Maximum considered height of atmosphere
-
-        ! Local variables
-        integer :: k
-        integer, parameter :: nz = 10 
-        real(wp) :: z(nz)
-        real(wp) :: rho(nz)
-        real(wp) :: rho_mid 
-
-        ! Get air density throughout atmospheric column
-        do k = 1, nz
-            z(k)   = z_srf + (k-1)/real(nz-1,wp)*(H_toa - z_srf)
-            rho(k) = calc_airdens(z(k),rho_0,H_a)
-        end do
-
-        ! Calculate total column mass
-        ! (inline trapezoidal integration from base to top)
-
-        ! Initial value is zero
-        tcm = 0.0_wp 
-
-        ! Intermediate values include sum of all previous values 
-        ! Take current value as average between points
-        do k = 2, nz
-            rho_mid = 0.5_wp*(rho(k)+rho(k-1))
-            if (abs(rho_mid) .lt. TOL_UNDERFLOW) rho_mid = 0.0_wp 
-            tcm = tcm + rho_mid*(z(k) - z(k-1))
-        end do
-
-        return
-
-    end subroutine calc_total_column_mass
 
     elemental function calc_albedo_t2m(t2m,als_min,als_max,afac,tmid) result(al_s)
         ! Calculate the surface albedo of snow as a function of near-surface temperature
@@ -463,7 +474,7 @@ contains
 
     end function calc_esat
 
-    elemental function calc_airdens(z,rho_0,H_a) result(rho_a)
+    elemental function calc_air_density(z,rho_0,H_a) result(rho_a)
         ! Air density (kg/m3) for given elevation
         ! Defaults:
         ! rho_0 = 1.3
@@ -480,7 +491,7 @@ contains
 
         return
 
-    end function calc_airdens
+    end function calc_air_density
 
     elemental function calc_elevation(p,g) result(zs)
         ! Elevation corresponding to a given air pressure (m)
