@@ -122,10 +122,7 @@ contains
                     call interp_monthly_to_day_2D(dom%now%t2m_bnd,t2m,day,dom%mm)
                     call interp_monthly_to_day_2D(dom%now%Z,Z,day,dom%mm)
                     call interp_monthly_to_day_2D(dom%now%ccw_bnd,tcwv,day,dom%mm)
-
-                    ! Get tsl_bnd too for diagnostics
-                    dom%now%tsl_bnd = dom%now%t2m_bnd + dom%par%gamma*dom%bnd%z_srf
-
+                    
                     if (present(pr)) then
                         call interp_monthly_to_day_2D(dom%now%pr,pr,day,dom%mm)
                         dom%now%sf = calc_snowfrac(dom%now%t2m_bnd,dom%par%sf_a,dom%par%sf_b) * dom%now%pr 
@@ -735,6 +732,7 @@ contains
             ave%sp          = 0.0 
 
             ave%tce         = 0.0
+            ave%tce_topo    = 0.0
             ave%tcm         = 0.0
             ave%gamma       = 0.0
             ave%t2m         = 0.0
@@ -796,7 +794,9 @@ contains
             ave%sp          = ave%sp       + now%sp      
 
             ave%tce         = ave%tce      + now%tce  
-            ave%tcm         = ave%tcm      + now%tcm  
+            ave%tce_topo    = ave%tce_topo + now%tce_topo
+            ave%tcm         = ave%tcm      + now%tcm 
+            ave%gamma       = ave%gamma    + now%gamma 
             ave%t2m         = ave%t2m      + now%t2m    
             ave%tsl         = ave%tsl      + now%tsl    
             ave%ct2m        = ave%ct2m     + now%ct2m   
@@ -857,6 +857,7 @@ contains
             ave%sp          = ave%sp       / nt_dble 
 
             ave%tce         = ave%tce      / nt_dble
+            ave%tce_topo    = ave%tce_topo / nt_dble
             ave%tcm         = ave%tcm      / nt_dble
             ave%gamma       = ave%gamma    / nt_dble
             ave%t2m         = ave%t2m      / nt_dble
@@ -931,6 +932,7 @@ contains
         allocate(now%sp(nx,ny))      ! Surface pressure (Pa)
         
         allocate(now%tce(nx,ny))     ! Total column energy
+        allocate(now%tce_topo(nx,ny))! Total column energy - topo term
         allocate(now%tcm(nx,ny))     ! Total column mass
         allocate(now%gamma(nx,ny))   ! Temperature lapse rate
         allocate(now%t2m(nx,ny))     ! Near-surface temp
@@ -989,6 +991,7 @@ contains
         now%sp          = 0.0 
 
         now%tce         = 0.0
+        now%tce_topo    = 0.0
         now%tcm         = 0.0
         now%gamma       = 0.0
         now%t2m         = 0.0
@@ -1059,6 +1062,7 @@ contains
         if (allocated(now%sp)     )     deallocate(now%sp)      ! Surface pressure (Pa)
 
         if (allocated(now%tce) )        deallocate(now%tce)     ! Total column energy 
+        if (allocated(now%tce_topo) )   deallocate(now%tce_topo)! Total column energy - topo term
         if (allocated(now%tcm) )        deallocate(now%tcm)     ! Total column mass
         if (allocated(now%gamma) )      deallocate(now%gamma)   ! Temperature lapse rate 
         if (allocated(now%t2m) )        deallocate(now%t2m)     ! Near-surface temp

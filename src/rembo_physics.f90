@@ -11,6 +11,7 @@ module rembo_physics
     public :: calc_total_column_mass
     public :: calc_total_column_energy_topo
     public :: calc_total_column_energy
+    public :: calc_t2m_from_tce
     
     public :: calc_albedo_t2m
     public :: calc_condensation
@@ -47,9 +48,9 @@ module rembo_physics
 
 contains
     
-    elemental subroutine calc_total_column_mass(tcm,z_srf,rho_0,H_a,H_toa)
+    elemental subroutine calc_total_column_mass(tcm,z_srf,z_toa,rho_0,H_a)
         ! Calculate the total column mass from near-surface air density
-        ! tcm = integral_{z_srf}^{H_toa} rho(z) dz
+        ! tcm = integral_{z_srf}^{z_toa} rho(z) dz
         ! rho(z) = rho_0 * exp(-z/H_a)
         ! tcm = [kg/m^2] = [kg/m^3] * [m]
 
@@ -57,54 +58,63 @@ contains
 
         real(wp), intent(OUT) :: tcm            ! [kg/m^2] Total column mass
         real(wp), intent(IN)  :: z_srf          ! [m] Surface elevation
+        real(wp), intent(IN)  :: z_toa          ! [m] Maximum considered height of atmosphere
         real(wp), intent(IN)  :: rho_0          ! [kg/m^3] Air density at sea level
         real(wp), intent(IN)  :: H_a            ! [m] Atmospheric scale height
-        real(wp), intent(IN)  :: H_toa          ! [m] Maximum considered height of atmosphere
-
+        
         ! Local variables
-        real(wp) :: exp_zs, exp_htoa
+        real(wp) :: exp_zs, exp_ztoa
 
         ! Compute the exponential terms
-        exp_zs = exp(-z_srf / H_a)
-        exp_htoa = exp(-H_toa / H_a)
+        exp_zs   = exp(-z_srf / H_a)
+        exp_ztoa = exp(-z_toa / H_a)
 
         ! Calculate the mass per unit area
-        tcm = rho_0 * H_a * (exp_zs - exp_htoa)
+        tcm = rho_0 * H_a * (exp_zs - exp_ztoa)
 
         return
 
     end subroutine calc_total_column_mass
 
-    elemental subroutine calc_total_column_energy_topo(tce_topo,z_s, z_T, H_a)
-        ! Solve the integral: \[ Q = \int_{z_s}^{z_T} z e^{-z/H_a} \, dz, \]
+    elemental subroutine calc_total_column_energy_topo(tce_topo, z_s, z_toa, rho_0, H_a, cv, gamma)
+        ! Solve the integral: \[ Q = \int_{z_s}^{z_toa} z e^{-z/H_a} \, dz, \]
         ! which simplifies to:
-        ! \[ Q = H_a \left( z_s e^{-z_s/H_a} - z_T e^{-z_T/H_a} \right) + H_a^2 \left( e^{-z_s/H_a} - e^{-z_T/H_a} \right). \]
+        ! \[ Q = H_a \left( z_s e^{-z_s/H_a} - z_toa e^{-z_toa/H_a} \right) + H_a^2 \left( e^{-z_s/H_a} - e^{-z_toa/H_a} \right). \]
 
         implicit none
 
         real(wp), intent(OUT) :: tce_topo
         real(wp), intent(IN)  :: z_s
-        real(wp), intent(IN)  :: z_T
+        real(wp), intent(IN)  :: z_toa
+        real(wp), intent(IN)  :: rho_0
         real(wp), intent(IN)  :: H_a
+        real(wp), intent(IN)  :: cv 
+        real(wp), intent(IN)  :: gamma 
         
         ! Local variables
         real(wp) :: term1, term2, term3, term4
-        
+        real(wp) :: tcm 
+
         ! Calculate each term of the final equation
+
+        call calc_total_column_mass(tcm,z_s,z_toa,rho_0,H_a)
+
         term1 = H_a * z_s * exp(-z_s / H_a)
-        term2 = H_a * z_T * exp(-z_T / H_a)
+        term2 = H_a * z_toa * exp(-z_toa / H_a)
         term3 = H_a**2 * exp(-z_s / H_a)
-        term4 = H_a**2 * exp(-z_T / H_a)
+        term4 = H_a**2 * exp(-z_toa / H_a)
         
         ! Combine terms to calculate Q
-        tce_topo = (term1 - term2) + (term3 - term4)
-    
+        tce_topo = cv*gamma*z_s*tcm - cv * gamma * rho_0 * ( (term1 - term2) + (term3 - term4) )
+
+        return
+
     end subroutine calc_total_column_energy_topo
 
     elemental subroutine calc_total_column_energy(tce,t2m,tcm,tce_topo,cv)
         ! Calculate the total column energy from near-surface air temperature
         ! following Willeit et al. (2022), Eq. A40 and subsequent text.
-        ! tce = integral_{z_srf}^{H_toa} cv * rho * T dz 
+        ! tce = integral_{z_srf}^{H_toa} cv * rho(z) * T(z) dz 
         ! [J/m^2] = [J / kg-K] * [kg/m^3] * [K] * [m]
 
         ! Assume rho = rho_0*exp(-z/H_a) and T = t2m - gamma*(z-z_srf)
@@ -125,7 +135,7 @@ contains
 
     end subroutine calc_total_column_energy
 
-    elemental subroutine calc_t2m(t2m,tce,tcm,tce_topo,cv)
+    elemental subroutine calc_t2m_from_tce(t2m,tce,tcm,tce_topo,cv)
         ! Calculate the near-surface air temperature from the total column energy 
         ! Assume rho = rho_0*exp(-z/H_a) and T = t2m - gamma*(z-z_srf)
         ! Simplify to t2m = (tce-tce_topo) / (cv*tcm)
@@ -143,7 +153,7 @@ contains
 
         return
 
-    end subroutine calc_t2m
+    end subroutine calc_t2m_from_tce
 
     elemental subroutine calc_total_column_energy_explicit(tce,t2m,z_srf,gamma,cv,rho_0,H_a,H_toa)
         ! Calculate the total column energy from near-surface air temperature

@@ -619,13 +619,18 @@ contains
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
             call nc_write(filename,"ccw_err",dom%mon(m)%ccw-dom%mon(m)%ccw_bnd,units="kg m^-2",long_name="Total column cloud water content error", &
                           dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
+
+            call nc_write(filename,"tce",dom%mon(m)%tce,units="J m**-2",long_name="Total column energy", &
+                        dim1="xc",dim2="yc",dim3="month",start=[1,1,m],count=[nx,ny,1],ncid=ncid)
         
         end do 
         
         ! Monthly field, but so far no changes possible in REMBO, so just write the current value
         call nc_write(filename,"tcm",dom%now%tcm,units="kg m**-2",long_name="Total column mass", &
                       dim1="xc",dim2="yc",ncid=ncid)
-        
+        call nc_write(filename,"tce_topo",dom%now%tce_topo,units="J m**-2",long_name="Total column energy - topo term", &
+                      dim1="xc",dim2="yc",ncid=ncid)
+            
 !         call nc_write(filename,"Ta_ann",dom%ann%t2m,units="K",long_name="Near-surface air temperature (ann)", &
 !                       dim1="xc",dim2="yc",ncid=ncid)
 !         call nc_write(filename,"Ta_sum",dom%ann%t2m,units="K",long_name="Near-surface air temperature (sum)", &
@@ -963,9 +968,9 @@ contains
         real(wp) :: tcm
 
         ! Testing 
-        call calc_total_column_mass(tcm,z_srf=0.0_wp,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
+        call calc_total_column_mass(tcm,z_srf=0.0_wp,z_toa=20e3_wp,rho_0=1.3_wp,H_a=8e3_wp)
         write(*,*) "tcm = ", tcm 
-        call calc_total_column_mass(tcm,z_srf=3000.0_wp,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
+        call calc_total_column_mass(tcm,z_srf=3000.0_wp,z_toa=20e3_wp,rho_0=1.3_wp,H_a=8e3_wp)
         write(*,*) "tcm = ", tcm 
 
         return

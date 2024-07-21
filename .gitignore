@@ -2,6 +2,7 @@
 .vscode
 Makefile
 librembo
+libs/exlib
 tests/plots
 output
 ice_data

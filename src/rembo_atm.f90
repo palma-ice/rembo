@@ -42,6 +42,7 @@ contains
         integer  :: iter, n_iter 
         integer  :: iter_surf, n_iter_surf 
         integer  :: iter_rembo1, n_iter_rembo1
+        real(wp) :: w 
 
         real(wp), allocatable :: dh_snow(:,:)
         real(wp), allocatable :: dzs(:,:)
@@ -52,14 +53,28 @@ contains
         ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
         now%gamma = par%gamma  &
            + (0.5*cos((day-15)*2.0*pi/par%c%day_year)-0.5)*(par%gamma-par%gamma2)
-        !write(*,*) "gamma: ", day, minval(gamma), maxval(gamma)
-        
+
+        ! now%gamma = par%gamma
+        ! w = 0.5
+        ! if (day .ge. 180 .and. day .lt. 210) now%gamma = w*par%gamma + (1.0-w)*par%gamma2
+        ! w = 0.0
+        ! if (day .ge. 210 .and. day .lt. 240) now%gamma = w*par%gamma + (1.0-w)*par%gamma2
+        ! w = 0.8
+        ! if (day .ge. 240 .and. day .lt. 270) now%gamma = w*par%gamma + (1.0-w)*par%gamma2
+
+        ! Get tsl_bnd
+        now%tsl_bnd = now%t2m_bnd + now%gamma*bnd%z_srf
+
         ! Get the surface pressure 
         now%sp = calc_sp(bnd%z_srf,par%c%g)
         
         ! Get the total column mass
-        call calc_total_column_mass(now%tcm,bnd%z_srf,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
-        
+        call calc_total_column_mass(now%tcm,bnd%z_srf,z_toa=20e3_wp,rho_0=1.3_wp,H_a=8e3_wp)
+
+        ! Get the total column energy related to topography (for use with converting t2m <=> tce)
+        call calc_total_column_energy_topo(now%tce_topo, bnd%z_srf, &
+                                        z_toa=20e3_wp,rho_0=1.3_wp,H_a=8e3_wp, cv=715.0_wp, gamma=now%gamma)
+
         ! Calc gradient of Z: dZdx, dZdy 
         call d_dx(now%dZdx,now%Z,dx=grid%dx)
         call d_dy(now%dZdy,now%Z,dx=grid%dy)
@@ -69,12 +84,10 @@ contains
         now%vg  = calc_v_geo(now%dZdx,bnd%f,par%c%g)
         now%uvg = calc_magnitude(now%ug,now%vg)
 
-        ! Initialize t2m solution with boundary solution 
+        ! Initialize t2m and ccw solution with boundary solution 
         now%t2m = now%t2m_bnd 
+        now%ccw = now%ccw_bnd
         
-        ! Initialize emb object for this day 
-        call rembo_calc_iterinit(emb,bnd%mask,bnd%z_srf,now%t2m_bnd,now%ccw_bnd,now%gamma,par,day,par%c%g)
-
         n_iter      = 2
         n_iter_surf = 2 
 
@@ -88,10 +101,10 @@ contains
             now%v_k  = calc_v_kata(now%dtsldy,bnd%dzsdy,f_k=par%f_k)
             now%uv_k = calc_magnitude_from_staggered(now%u_k,now%v_k)
 
-!             ! Combine wind fields 
-!             now%ug = now%ug + now%u_k 
-!             now%vg = now%vg + now%v_k 
-!             now%uvg = calc_magnitude(now%ug,now%vg)
+            ! ! Combine wind fields 
+            ! now%ug = now%ug + now%u_k 
+            ! now%vg = now%vg + now%v_k 
+            ! now%uvg = calc_magnitude(now%ug,now%vg)
 
             ! Calculate vertical velocity
             call calc_w(now%ww,now%ug,now%vg,bnd%dzsdx,bnd%dzsdy)
@@ -141,7 +154,7 @@ contains
             where(now%al_p .gt. 1.0) now%al_p = 1.0  
 
             ! ajr: testing strong albedo reduction for ice-free points
-            where (bnd%f_ice .lt. 0.5) now%al_p = 0.1
+            !where (bnd%f_ice .lt. 0.5) now%al_p = 0.1
 
             ! Calculate the outgoing long-wave radiation at toa
             !now%lwu = par%lwu_a + par%lwu_b*(now%t2m-par%c%T0) + par%lwu_c*now%S
@@ -149,9 +162,8 @@ contains
             now%lwu = par%lwu_a + par%lwu_b*now%t2m
             
             ! Calculate the incoming short-wave radiation at toa
-            !now%swd = (1.0-now%al_p)*now%S 
-            now%swd = now%S 
-
+            now%swd = (1.0-now%al_p)*now%S 
+            
             ! Calculate radiative forcing of CO2
             now%rco2_a  = calc_rad_co2(now%co2_a)
 
@@ -195,9 +207,7 @@ contains
                 now%shf_s  = calc_sensible_heat_flux(now%tsurf,now%t2m,now%uv_s,now%rho_a, &
                                                         csh_pos=1.65e-3*2.4,csh_neg=1.65e-3,cap=cap)
 
-                ! ajr: testing
-                now%shf_s = 50.0 
-                
+
             end do 
 
 if (.TRUE.) then
@@ -221,7 +231,7 @@ if (.TRUE.) then
             !                   rco2=par%en_kdT + now%rco2_a, &
             !                   ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
 
-            call rembo_calc_en_simple(now%t2m,now%tsl,par,day,bnd%z_srf, &
+            call rembo_calc_en_simple_via_t2m(now%t2m,now%tsl,par,day,bnd%z_srf, &
                               now%t2m_bnd,now%tsl_bnd,now%gamma, &
                               swn=now%swd*(1.0-now%al_p), &
                               lwn=-now%lwu, &
@@ -233,12 +243,35 @@ if (.TRUE.) then
                               mask=bnd%mask, &
                               dx=grid%dx,g=par%c%g)
 
+            ! call rembo_calc_en_simple(now%t2m,now%tsl,now%tce,par,day,bnd%z_srf, &
+            !                   now%t2m_bnd,now%tsl_bnd,now%tcm,now%tce_topo,now%gamma, &
+            !                   swn=now%swd*(1.0-now%al_p), &
+            !                   lwn=-now%lwu, &
+            !                   shf=now%shf_s*0.0_wp,lhf=now%lhf_s, &
+            !                   lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0_wp, &
+            !                   !lhp=now%pr*0.0, &
+            !                   rco2=par%en_kdT + now%rco2_a, &
+            !                   ug=now%ug*0.0,vg=now%vg*0.0, &
+            !                   mask=bnd%mask, &
+            !                   dx=grid%dx,g=par%c%g)
+
             
 !else 
 !            ! Impose boundary temperature field for now
 !            now%t2m = now%t2m_bnd 
 
 end if 
+
+
+if (.FALSE.) then
+    ! Conversion t2m => tce 
+
+    call calc_total_column_energy(now%tce,now%t2m,now%tcm,now%tce_topo,cv=715.0_wp)
+
+    call calc_t2m_from_tce(now%t2m,now%tce,now%tcm,now%tce_topo,cv=715.0_wp)
+
+end if
+
 
             ! Calculate inversion correction for moisture balance
             now%ct2m = calc_ttcorr1(now%t2m,bnd%z_srf,-2.4e-3,-3.7e-1,106.0)
@@ -318,7 +351,7 @@ end if
         ! Get the current lapse rate (gamma=winter, gamma2=summer)  <= CHECK !!
         now%gamma = par%gamma  &
            + (0.5*cos((day-15)*2.0*pi/par%c%day_year)-0.5)*(par%gamma-par%gamma2)
-        !write(*,*) "gamma: ", day, minval(gamma), maxval(gamma)
+        !write(*,*) "gamma: ", day, minval(now%gamma), maxval(now%gamma)
         
         ! Get the surface pressure 
         now%sp = calc_sp(bnd%z_srf,par%c%g)
@@ -478,16 +511,16 @@ if (.TRUE.) then
             !                   rco2=par%en_kdT + now%rco2_a, &
             !                   ug=now%ug,vg=now%vg,dx=grid%dx,g=par%c%g) 
 
-            call rembo_calc_en_simple(now%t2m,now%tsl,par,day,bnd%z_srf, &
-                              now%t2m_bnd,now%tsl_bnd,now%gamma, &
-                              swn=now%swd*(1.0-now%al_p), &
-                              lwn=-now%lwu, &
-                              shf=now%shf_s*0.0_wp,lhf=now%lhf_s, &
-                              lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0_wp, &
-                              rco2=par%en_kdT + now%rco2_a, &
-                              ug=now%ug,vg=now%vg, &
-                              mask=bnd%mask, &
-                              dx=grid%dx,g=par%c%g)
+            ! call rembo_calc_en_simple(now%t2m,now%tsl,par,day,bnd%z_srf, &
+            !                   now%t2m_bnd,now%tsl_bnd,now%gamma, &
+            !                   swn=now%swd*(1.0-now%al_p), &
+            !                   lwn=-now%lwu, &
+            !                   shf=now%shf_s*0.0_wp,lhf=now%lhf_s, &
+            !                   lhp=(par%Lw*(now%pr-now%sf) + par%Ls*now%sf)*1.0_wp, &
+            !                   rco2=par%en_kdT + now%rco2_a, &
+            !                   ug=now%ug,vg=now%vg, &
+            !                   mask=bnd%mask, &
+            !                   dx=grid%dx,g=par%c%g)
 
             
 else 
@@ -605,7 +638,78 @@ end if
 
     end subroutine rembo_calc_iterinit
 
-    subroutine rembo_calc_en_simple(t2m,tsl,par,day,z_srf,t2m_bnd,tsl_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,mask,dx,g)
+    subroutine rembo_calc_en_simple(t2m,tsl,tce,par,day,z_srf,t2m_bnd,tsl_bnd,tcm,tce_topo,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,mask,dx,g)
+
+        implicit none 
+
+        real(wp),                intent(INOUT) :: t2m(:,:)  
+        real(wp),                intent(INOUT) :: tsl(:,:)  
+        real(wp),                intent(INOUT) :: tce(:,:)  
+        type(rembo_param_class), intent(IN)    :: par 
+        integer,                 intent(IN)    :: day 
+        real(wp),                intent(IN)    :: z_srf(:,:)
+        real(wp),                intent(IN)    :: t2m_bnd(:,:)
+        real(wp),                intent(IN)    :: tsl_bnd(:,:)
+        real(wp),                intent(IN)    :: tcm(:,:)
+        real(wp),                intent(IN)    :: tce_topo(:,:)
+        real(wp),                intent(IN)    :: gamma(:,:)
+        real(wp),                intent(IN)    :: swn(:,:)
+        real(wp),                intent(IN)    :: lwn(:,:)
+        real(wp),                intent(IN)    :: shf(:,:)
+        real(wp),                intent(IN)    :: lhf(:,:)
+        real(wp),                intent(IN)    :: lhp(:,:)
+        real(wp),                intent(IN)    :: rco2(:,:)
+        real(wp),                intent(IN)    :: ug(:,:)
+        real(wp),                intent(IN)    :: vg(:,:)
+        integer,                 intent(IN)    :: mask(:,:)
+        real(wp),                intent(IN)    :: dx
+        real(wp),                intent(IN)    :: g 
+
+        ! Local variables  
+        real(wp) :: tsl_fac 
+        integer :: q, nx, ny
+
+        real(wp), allocatable :: tce_F(:,:)
+        real(wp), allocatable :: tce_bnd(:,:)
+        real(wp), allocatable :: kappa(:,:)
+
+        nx = size(t2m,1)
+        ny = size(t2m,2)
+
+        allocate(tce_F(nx,ny))
+        allocate(tce_bnd(nx,ny))
+        allocate(kappa(nx,ny))
+        
+        ! Radiative forcing, tce_F [ J s-1 m-2]
+        tce_F = (swn + lwn + (shf+lhf) + lhp + rco2)
+        !tce_F = 0.0_wp 
+
+        ! Energy field, tce [ J m-2]
+        call calc_total_column_energy(tce,t2m,tcm,tce_topo,cv=715.0_wp)
+
+        ! Boundary energy field, tce_bnd [ J m-2]
+        !call calc_total_column_energy(tce_bnd,t2m_bnd,tcm,tce_topo,cv=715.0_wp)
+        tce_bnd = tce 
+
+        ! Energy diffusion coefficient
+        kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
+
+if (.TRUE.) then
+        ! Calculate radiative balance over the day
+        do q = 1, par%en_nstep * 5
+            call solve_diffusion_advection_2D(tce,ug,vg,tce_F,kappa,tce_bnd,mask,dx,dx,par%en_dt, &
+                                    k_rel=par%en_kr,solver=par%solver,step=par%step,bc="infinite")
+        end do 
+end if
+
+        ! Return 2m temperature
+        call calc_t2m_from_tce(t2m,tce,tcm,tce_topo,cv=715.0_wp)
+
+        return 
+
+    end subroutine rembo_calc_en_simple
+    
+    subroutine rembo_calc_en_simple_via_t2m(t2m,tsl,par,day,z_srf,t2m_bnd,tsl_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,mask,dx,g)
 
         implicit none 
 
@@ -633,45 +737,50 @@ end if
         real(wp) :: tsl_fac 
         integer :: q, nx, ny
 
-        real(wp), allocatable :: tce(:,:)
-        real(wp), allocatable :: tce_F(:,:)
-        real(wp), allocatable :: tce_bnd(:,:)
+        real(wp), allocatable :: en(:,:)
+        real(wp), allocatable :: en_F(:,:)
         real(wp), allocatable :: kappa(:,:)
 
         nx = size(t2m,1)
         ny = size(t2m,2)
 
-        allocate(tce(nx,ny))
-        allocate(tce_F(nx,ny))
-        allocate(tce_bnd(nx,ny))
+        allocate(en(nx,ny))
+        allocate(en_F(nx,ny))
         allocate(kappa(nx,ny))
         
-        ! Radiative forcing, en_F [ J s-1 m-2]
-        tce_F = (swn + lwn + (shf+lhf) + lhp + rco2)
+        ! Get the tsl => column energy conversion
+        ! tsl_fac = H_a[m] c_v[J kg-1 K-1] rho_a[kg m-3] = [J m-2 K-1]
+        ! H_a = 8000 m
+        !tsl_fac = 8000.0 *715.0 *1.225 !* 1.225 ! =~ 8e6
+        
+        ! climber-x formula to get tsl_fac
+        ! tsl_fac = slp / g * cv_atm 
+        ! slp = 101100.0 [kg m-1 s-2]; g = 9.81 [m s-2]; c_v_atm = 715.0 [J kg-1 K-1]
+        ! tsl_fac => [kg m-1 s-2] * [m-1 s2] * [J kg-1 K-1] = [J m-2 K-1]
+        tsl_fac = 101100.0 /g *715.0 
 
-        ! Boundary energy field, en_bnd [ J m-2]
-        !call calc_total_column_energy(tce,t2m,z_srf,gamma,cv=715_wp,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
+        ! Sea-level temperature, tsl
+        tsl = t2m+gamma*z_srf
 
-        ! Boundary energy field, en_bnd [ J m-2]
-        !call calc_total_column_energy(tce_bnd,tsl_bnd,z_srf=0.0_wp,gamma,cv=715_wp,rho_0=1.3_wp,H_a=8e3_wp,H_toa=20e3_wp)
+        ! Radiative forcing, en_F [ J s-1 m-2] * [J-1 m2 K] == [K s-1]
+        en_F = (swn + lwn + (shf+lhf) + lhp + rco2) / tsl_fac
 
         ! Energy diffusion coefficient
         kappa = par%en_D_win + (par%en_D_sum-par%en_D_win)*(0.5-0.5*cos((day-15)*2.0*pi/par%c%day_year))
-        !kappa = kappa / tsl_fac 
+        kappa = kappa / tsl_fac 
 
         ! Calculate radiative balance over the day
         do q = 1, par%en_nstep * 5
-            call solve_diffusion_advection_2D(tce,ug,vg,tce_F,kappa,tce_bnd,mask,dx,dx,par%en_dt, &
+            call solve_diffusion_advection_2D(tsl,ug,vg,en_F,kappa,tsl_bnd,mask,dx,dx,par%en_dt, &
                                     k_rel=par%en_kr,solver=par%solver,step=par%step,bc="infinite")
         end do 
-
 
         ! 2m temperature
         t2m = tsl - gamma*z_srf
 
         return 
 
-    end subroutine rembo_calc_en_simple
+    end subroutine rembo_calc_en_simple_via_t2m
     
     subroutine rembo_calc_en(t2m,emb,par,day,z_srf,t2m_bnd,gamma,swn,lwn,shf,lhf,lhp,rco2,ug,vg,dx,g)
 
